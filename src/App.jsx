@@ -28,9 +28,13 @@ const auth = getAuth(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'odullu-sinav';
 
 // ==========================================
-// MESAJPANELİ SMS API ENTEGRASYONU (AKTİF EDİLDİ)
+// MESAJPANELİ SMS API ENTEGRASYONU
 // ==========================================
 const MESAJ_PANELI_API_KEY = "af68961362160d37c19bae0463b082f58539d936";
+
+// DİKKAT: BURAYA MESAJPANELİ'NDEKİ ONAYLI BAŞLIĞINIZI VEYA SİZE VERİLEN 850'Lİ NUMARAYI YAZIN!
+const MESAJ_PANELI_BASLIK = "EMRGUNDOGDU"; 
+
 const SMS_FOOTER = "\n\nodullusinav.net EFECEL IPTAL LH47W yaz 4609a gonder B302";
 
 const encodeBase64 = (str) => {
@@ -41,23 +45,32 @@ const sendSMS = async (msgDataArray) => {
   try {
     const payload = {
       user: { hash: MESAJ_PANELI_API_KEY },
-      msgBaslik: "ODULLUSINAV", // DİKKAT: MesajPaneli'nde bu başlığın (veya 850'li numaranın) onaylı olması gerekir.
+      msgBaslik: MESAJ_PANELI_BASLIK, 
       msgData: msgDataArray 
     };
 
     const postData = "data=" + encodeBase64(JSON.stringify(payload));
 
-    // 'no-cors' modu sayesinde tarayıcı engeline takılmadan SMS isteği sunucuya iletilir.
-    await fetch("https://api.mesajpaneli.com/json_api/", {
+    // API İsteği (Hataları görmek için no-cors kaldırıldı)
+    const response = await fetch("https://api.mesajpaneli.com/json_api/", {
       method: "POST",
-      mode: "no-cors",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: postData
     });
     
+    const result = await response.json();
+    console.log("SMS API Yanıtı:", result);
+    
+    // MesajPaneli'nden dönen hatayı ekranda göster
+    if (result && result.status === "error") {
+      alert("SMS Paneli Hatası: " + (result.error || "Bilinmeyen hata (Başlık veya Bakiye sorunu olabilir)"));
+      return false;
+    }
+    
     return true;
   } catch (error) {
     console.error("SMS Gönderim Hatası:", error);
+    alert("SMS Gönderilemedi (CORS Hatası). Tarayıcılar güvenlik gereği doğrudan SMS atılmasını engeller. Bu sorun Vercel üzerinden site canlıya alındığında Backend API yazılarak çözülecektir. (Kayıt işlemi devam ediyor)");
     return false;
   }
 };
@@ -903,11 +916,10 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
     setVerificationCode(code);
     setShowVerification(true);
     
-    // Gerçek SMS isteği atılır ('no-cors' ile tarayıcı engeli aşılır)
-    // Gönderim başarılı veya başarısız olsun, kullanıcı test için alert'i görür.
+    // Gerçek SMS isteği atılır ('no-cors' ile tarayıcı engeli aşılsa da güvenlik nedeniyle Backend önerilir)
     await sendSMS([{tel: [formData.phone], msg: `odullusinav.net kayit dogrulama kodunuz: ${code}`}]);
     
-    alert(`[DOĞRULAMA]\nSistemin tıkanmaması ve krediniz yoksa diye test için ekranda da gösteriyoruz:\nDoğrulama Kodunuz: ${code}`);
+    alert(`[MESAJPANELI APİ BİLGİ]\nAPI isteği başarıyla atıldı. Eğer onaylı başlığınız veya krediniz yoksa SMS gelmeyebilir. Test edebilmeniz için kodunuz:\nDoğrulama Kodunuz: ${code}`);
   };
 
   const verifyCodeAndProceed = () => {
@@ -2104,6 +2116,7 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
          </div>
       )}
 
+      {/* 3. SEKMEYE AİT İÇERİKLER: Öğrenci Listesi */}
       {activeTab === 'ogrenci' && (
         <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 p-10 overflow-hidden relative">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
