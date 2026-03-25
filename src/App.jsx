@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   MapPin, Calendar as CalendarIcon, Clock, Award, Users, Search, 
   Settings, ChevronRight, AlertCircle, CheckCircle2, 
-  Map, Phone, FileText, Lock, MessageSquare, Gift, Check, Plus, LogOut, KeyRound, Trash2, UserPlus, Trophy, Building2, Send, Image as ImageIcon
+  Map, Phone, FileText, Lock, MessageSquare, Gift, Check, Plus, LogOut, KeyRound, Trash2, UserPlus, Trophy, Building2, Send, Image as ImageIcon, Download
 } from 'lucide-react';
 
 // ==========================================
@@ -109,14 +109,26 @@ const LOCATIONS = {
 
 const DEFAULT_PRIZE_OBJ = { title: "", desc: "", img: "" };
 
+// Yeni ödül yapısını dizi olarak okuyan fonksiyon
+const parsePrizeArray = (data) => {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (typeof data === 'object' && data.title) {
+    return data.title.split(',').map(item => ({
+        title: item.trim(), desc: data.desc || '', img: data.img || ''
+    })).filter(i => i.title);
+  }
+  return [];
+};
+
 const INITIAL_ZONES = [
-  { id: 1, name: "Adapazarı", active: true, districts: ["Adapazarı", "Ferizli", "Karasu", "Kaynarca", "Kocaali", "Söğütlü"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: DEFAULT_PRIZE_OBJ, participation: DEFAULT_PRIZE_OBJ }, centers: [], mappings: [] },
-  { id: 2, name: "Akarçeşme", active: true, districts: ["Derince", "İzmit", "Kandıra"], partialDistricts: { "Körfez": ["Yavuz Sultan Selim", "Mimar Sinan", "Güney", "Hacı Osman", "Fatih", "Yeniyalı", "Çamlıtepe", "Esentepe", "Cumhuriyet", "Atalar", "İlimtepe", "Kuzey", "Barbaros", "17 Ağustos", "Kirazlıyalı"] }, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: DEFAULT_PRIZE_OBJ, participation: DEFAULT_PRIZE_OBJ }, centers: [], mappings: [] },
-  { id: 3, name: "Erenler", active: true, districts: ["Akyazı", "Erenler", "Hendek", "Karapürçek"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: DEFAULT_PRIZE_OBJ, participation: DEFAULT_PRIZE_OBJ }, centers: [], mappings: [] },
-  { id: 4, name: "Gebze", active: true, districts: ["Çayırova", "Darıca", "Dilovası", "Gebze"], partialDistricts: { "Körfez": ["Yukarı Hereke", "Kışladüzü", "Hacı Akif", "Agah Ateş"] }, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: DEFAULT_PRIZE_OBJ, participation: DEFAULT_PRIZE_OBJ }, centers: [], mappings: [] },
-  { id: 5, name: "Kartepe", active: true, districts: ["Başiskele", "Gölcük", "Kartepe"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: DEFAULT_PRIZE_OBJ, participation: DEFAULT_PRIZE_OBJ }, centers: [], mappings: [] },
-  { id: 6, name: "Serdivan", active: true, districts: ["Arifiye", "Geyve", "Pamukova", "Sapanca", "Serdivan", "Taraklı"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: DEFAULT_PRIZE_OBJ, participation: DEFAULT_PRIZE_OBJ }, centers: [], mappings: [] },
-  { id: 7, name: "Yalova", active: true, districts: ["Altınova", "Armutlu", "Çınarcık", "Çiftlikköy", "Karamürsel", "Merkez", "Termal"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: DEFAULT_PRIZE_OBJ, participation: DEFAULT_PRIZE_OBJ }, centers: [], mappings: [] }
+  { id: 1, name: "Adapazarı", active: true, districts: ["Adapazarı", "Ferizli", "Karasu", "Kaynarca", "Kocaali", "Söğütlü"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] },
+  { id: 2, name: "Akarçeşme", active: true, districts: ["Derince", "İzmit", "Kandıra"], partialDistricts: { "Körfez": ["Yavuz Sultan Selim", "Mimar Sinan", "Güney", "Hacı Osman", "Fatih", "Yeniyalı", "Çamlıtepe", "Esentepe", "Cumhuriyet", "Atalar", "İlimtepe", "Kuzey", "Barbaros", "17 Ağustos", "Kirazlıyalı"] }, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] },
+  { id: 3, name: "Erenler", active: true, districts: ["Akyazı", "Erenler", "Hendek", "Karapürçek"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] },
+  { id: 4, name: "Gebze", active: true, districts: ["Çayırova", "Darıca", "Dilovası", "Gebze"], partialDistricts: { "Körfez": ["Yukarı Hereke", "Kışladüzü", "Hacı Akif", "Agah Ateş"] }, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] },
+  { id: 5, name: "Kartepe", active: true, districts: ["Başiskele", "Gölcük", "Kartepe"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] },
+  { id: 6, name: "Serdivan", active: true, districts: ["Arifiye", "Geyve", "Pamukova", "Sapanca", "Serdivan", "Taraklı"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] },
+  { id: 7, name: "Yalova", active: true, districts: ["Altınova", "Armutlu", "Çınarcık", "Çiftlikköy", "Karamürsel", "Merkez", "Termal"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] }
 ];
 
 const findZoneByName = (zonesList, zoneName) => zonesList.find(z => z.name === zoneName);
@@ -147,10 +159,64 @@ const getNeighborhoodDetails = (zone, neighborhood) => {
   };
 };
 
-const parsePrize = (prizeData) => {
-  if (!prizeData) return DEFAULT_PRIZE_OBJ;
-  if (typeof prizeData === 'string') return { title: prizeData, desc: '', img: '' };
-  return prizeData;
+// ==========================================
+// RESİMLİ MODERN ÖDÜL KARTI BİLEŞENİ
+// ==========================================
+const ModernPrizeCard = ({ type, prizeData, selectedPrize }) => {
+    let typeName = "BÜYÜK ÖDÜL";
+    let bgClass = "border-yellow-300";
+    let badgeClass = "bg-yellow-400 text-yellow-950";
+    let isArray = false;
+    let dataList = [];
+
+    if (type === "grand") {
+        dataList = [prizeData || DEFAULT_PRIZE_OBJ];
+    } else if (type === "degree") {
+        typeName = "DERECE ÖDÜLLERİ";
+        bgClass = "border-indigo-300";
+        badgeClass = "bg-indigo-500 text-white";
+        isArray = true;
+        dataList = parsePrizeArray(prizeData);
+    } else {
+        typeName = "KATILIM ÖDÜLLERİ";
+        bgClass = "border-emerald-300";
+        badgeClass = "bg-emerald-500 text-white";
+        isArray = true;
+        dataList = parsePrizeArray(prizeData);
+    }
+
+    if (dataList.length === 0 || !dataList[0].title) return null;
+
+    return (
+        <div className="relative pt-6">
+            <div className={`absolute top-0 left-1/2 transform -translate-x-1/2 ${badgeClass} px-6 py-2 rounded-full font-black text-sm md:text-base tracking-widest shadow-lg z-10 whitespace-nowrap`}>
+                {typeName}
+            </div>
+            <div className={`bg-white rounded-[2rem] border-4 ${bgClass} p-8 pt-10 shadow-xl flex flex-col gap-4`}>
+               {dataList.map((data, idx) => {
+                   const isSelected = isArray && selectedPrize === data.title;
+                   return (
+                     <div key={idx} className={`flex flex-col md:flex-row gap-6 items-center border-b border-slate-100 pb-6 last:border-0 last:pb-0 transition-all ${isSelected ? 'ring-4 ring-green-400 bg-green-50 p-4 rounded-2xl' : ''}`}>
+                        {data.img ? (
+                          <img src={data.img} alt={data.title} className="w-full md:w-32 h-32 object-cover rounded-2xl shadow-md border-2 border-slate-200 flex-shrink-0 bg-white" />
+                        ) : (
+                          <div className="w-full md:w-32 h-32 rounded-2xl shadow-inner border-2 border-slate-200 bg-slate-50 flex items-center justify-center flex-shrink-0 text-slate-300">
+                             <ImageIcon className="w-10 h-10" />
+                          </div>
+                        )}
+                        <div className="flex-1 w-full text-center md:text-left">
+                           <div className="text-2xl font-black text-slate-800 mb-2 flex justify-center md:justify-start items-center">
+                              {data.title} 
+                              {isSelected && <CheckCircle2 className="w-6 h-6 ml-3 text-green-500" />}
+                           </div>
+                           {data.desc && <p className="font-medium text-slate-600 leading-relaxed">{data.desc}</p>}
+                        </div>
+                     </div>
+                   )
+               })}
+            </div>
+        </div>
+    );
 };
 
 // ==========================================
@@ -159,68 +225,70 @@ const parsePrize = (prizeData) => {
 const TimelineCalendar = ({ zoneExams, currentUser }) => {
   const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
   
-  // Sınavları tarih sırasına dizme
   let allSessions = [];
   zoneExams.forEach(exam => {
     if(exam.sessions) {
       exam.sessions.forEach(session => {
          const [y, m, d] = session.date.split('-');
-         const timestamp = new Date(y, m-1, d).getTime();
-         allSessions.push({ ...session, exam, timestamp, formattedDate: `${parseInt(d)} ${monthNames[parseInt(m)-1]}` });
+         session.slots.forEach(slot => {
+            const timestamp = new Date(y, m-1, d, slot.split('.')[0] || slot.split(':')[0], slot.split('.')[1] || slot.split(':')[1]).getTime();
+            allSessions.push({ 
+               ...session, 
+               exam, 
+               slot, 
+               timestamp, 
+               formattedText: `${parseInt(d)} ${monthNames[parseInt(m)-1]} ${slot.replace(':', '.')} - ${exam.title}` 
+            });
+         });
       });
     }
   });
 
   allSessions.sort((a,b) => a.timestamp - b.timestamp);
-
   const phoneToCall = currentUser ? getNeighborhoodDetails(currentUser.zone, currentUser.neighborhood).phone : "0850 123 45 67";
 
   return (
-    <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col md:flex-row">
-      {/* Sol Başlık ve İletişim Alanı */}
-      <div className="bg-indigo-900 text-white p-8 md:p-12 md:w-2/5 flex flex-col justify-center">
-        <CalendarIcon className="w-16 h-16 text-indigo-300 mb-6 opacity-50" />
-        <h2 className="text-4xl md:text-5xl font-black mb-6 leading-tight">Sınav<br/>Takvimi</h2>
-        <p className="text-indigo-200 text-lg mb-8 leading-relaxed">
-          Planlanmış tüm aktif oturumlar sağ tarafta listelenmektedir. Size uygun olan tarihi seçerek kaydınızı oluşturabilirsiniz.
-        </p>
-        <div className="bg-indigo-800/50 p-6 rounded-2xl border border-indigo-700">
-           <Phone className="w-8 h-8 text-indigo-400 mb-3" />
-           <p className="text-sm text-indigo-100 font-medium">Sınav ile ilgili ayrıntılı bilgi için:</p>
-           <a href={`tel:${phoneToCall}`} className="text-2xl font-black text-white hover:text-indigo-300 transition">{phoneToCall}</a>
-           <p className="text-xs text-indigo-300 mt-2">Sınav yoksa gelecek sınavlar hakkında bilgi almak için de arayabilirsiniz.</p>
-        </div>
+    <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col md:flex-row max-w-5xl mx-auto">
+      {/* Sol Taraf: Başlık */}
+      <div className="bg-indigo-600 text-white p-8 md:w-1/3 flex flex-col justify-center items-center text-center relative overflow-hidden">
+         <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+         <CalendarIcon className="w-16 h-16 text-indigo-300 mb-4 opacity-80 relative z-10" />
+         <h2 className="text-3xl md:text-4xl font-black leading-tight relative z-10">Sınav<br/>Takvimi</h2>
+         <div className="mt-6 w-12 h-1 bg-indigo-400 rounded-full relative z-10"></div>
       </div>
       
-      {/* Sağ Tarih Listesi */}
-      <div className="p-8 md:p-12 md:w-3/5 bg-slate-50 flex flex-col gap-4">
-        {allSessions.length > 0 ? allSessions.map((session, idx) => {
-           const isMyExamDay = ((currentUser?.examId === session.exam.firebaseId) || (currentUser?.exam?.firebaseId === session.exam.firebaseId))
-                            && ((currentUser?.selectedDate === session.date) || (currentUser?.exam?.date === session.date));
-           return (
-              <div key={idx} className={`p-6 rounded-2xl border-l-[6px] shadow-sm flex flex-col sm:flex-row justify-between sm:items-center gap-4 transition-all ${isMyExamDay ? 'bg-white border-green-500 shadow-md ring-1 ring-green-100' : 'bg-white border-indigo-500 hover:border-indigo-400'}`}>
-                 <div>
-                    <div className="text-2xl font-black text-slate-800 mb-1">{session.formattedDate}</div>
-                    <div className="text-sm font-bold text-slate-500">{session.exam.title}</div>
-                 </div>
-                 <div className="flex flex-wrap gap-2">
-                    {session.slots.map(s => {
-                       const isMySlot = isMyExamDay && ((currentUser?.selectedTime === s) || (currentUser?.slot === s));
-                       return (
-                         <span key={s} className={`px-4 py-2 rounded-xl text-sm font-black border-2 ${isMySlot ? 'bg-green-500 text-white border-green-500 shadow-sm' : 'bg-indigo-50 text-indigo-700 border-indigo-100'}`}>
-                           {s} {isMySlot && '✓'}
-                         </span>
-                       )
-                    })}
-                 </div>
-              </div>
-           )
-        }) : (
-           <div className="h-full flex flex-col items-center justify-center text-center py-20 text-slate-400">
-              <CalendarIcon className="w-16 h-16 mb-4 opacity-50"/>
-              <p className="text-xl font-bold">Planlanmış bir sınav bulunmamaktadır.</p>
+      {/* Sağ Taraf: Liste ve İletişim */}
+      <div className="p-8 md:w-2/3 flex flex-col justify-between bg-slate-50">
+        <div className="space-y-4 mb-8">
+          {allSessions.length > 0 ? allSessions.map((item, idx) => {
+             const isMySlot = ((currentUser?.examId === item.exam.firebaseId) || (currentUser?.exam?.firebaseId === item.exam.firebaseId))
+                            && ((currentUser?.selectedDate === item.date) || (currentUser?.exam?.date === item.date))
+                            && ((currentUser?.selectedTime === item.slot) || (currentUser?.slot === item.slot));
+             return (
+               <div key={idx} className={`flex items-center justify-between bg-white border-2 p-4 rounded-2xl shadow-sm transition-all ${isMySlot ? 'border-green-400 bg-green-50' : 'border-slate-200'}`}>
+                  <div className={`text-lg md:text-xl font-bold flex items-center ${isMySlot ? 'text-green-700' : 'text-slate-700'}`}>
+                     <Clock className={`w-5 h-5 mr-3 ${isMySlot ? 'text-green-500' : 'text-slate-400'}`}/>
+                     {item.formattedText}
+                  </div>
+                  {isMySlot && <CheckCircle2 className="w-6 h-6 text-green-500 flex-shrink-0" />}
+               </div>
+             )
+          }) : (
+             <div className="flex flex-col items-center justify-center py-10 text-slate-400">
+                <CalendarIcon className="w-12 h-12 mb-3 opacity-50"/>
+                <p className="font-bold">Planlanmış bir sınav bulunmamaktadır.</p>
+             </div>
+          )}
+        </div>
+
+        <div className="bg-indigo-50 p-6 rounded-2xl border-l-4 border-indigo-500 shadow-inner">
+           <p className="text-sm font-bold text-slate-600 mb-1">Sınav ile ilgili ayrıntılı bilgi için:</p>
+           <div className="flex items-center gap-3">
+              <Phone className="w-6 h-6 text-indigo-600" />
+              <a href={`tel:${phoneToCall}`} className="text-2xl font-black text-indigo-700 hover:text-indigo-500 transition">{phoneToCall}</a>
            </div>
-        )}
+           <p className="text-xs text-slate-500 mt-2 font-medium leading-relaxed">Sınav yoksa gelecek sınavlar hakkında bilgi almak için de arayabilirsiniz.</p>
+        </div>
       </div>
     </div>
   );
@@ -237,7 +305,7 @@ export default function App() {
   const [registeredStudents, setRegisteredStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  const [adminAuth, setAdminAuth] = useState({ isAuthenticated: false, zoneId: null });
+  const [adminAuth, setAdminAuth] = useState({ isAuthenticated: false, zoneId: null, isSuperAdmin: false });
 
   useEffect(() => {
     const checkRoute = () => {
@@ -461,7 +529,8 @@ export default function App() {
            <AdminPanel 
              students={registeredStudents} 
              adminZoneId={adminAuth.zoneId} 
-             onLogout={() => setAdminAuth({ isAuthenticated: false, zoneId: null })}
+             isSuperAdmin={adminAuth.isSuperAdmin}
+             onLogout={() => setAdminAuth({ isAuthenticated: false, zoneId: null, isSuperAdmin: false })}
              zones={zones}
              exams={exams}
            />
@@ -497,11 +566,15 @@ function AdminLogin({ setAdminAuth, zones }) {
       return;
     }
 
-    const normalizeStr = (str) => {
-      return str.replace(/İ/g, 'i').replace(/I/g, 'ı').toLowerCase().trim();
-    };
-
+    const normalizeStr = (str) => str.replace(/İ/g, 'i').replace(/I/g, 'ı').toLowerCase().trim();
     const searchStr = normalizeStr(username);
+
+    // SÜPER ADMİN (Genel Merkez) Kontrolü
+    if (searchStr === 'genel merkez') {
+      setAdminAuth({ isAuthenticated: true, zoneId: 'ALL', isSuperAdmin: true });
+      return;
+    }
+
     const activeZones = zones && zones.length > 0 ? zones : INITIAL_ZONES;
 
     const matchedZone = activeZones.find(z => 
@@ -511,9 +584,9 @@ function AdminLogin({ setAdminAuth, zones }) {
     );
 
     if (matchedZone) {
-      setAdminAuth({ isAuthenticated: true, zoneId: matchedZone.id });
+      setAdminAuth({ isAuthenticated: true, zoneId: matchedZone.id, isSuperAdmin: false });
     } else {
-      setError(`Tanımsız Bölge. "${username}" bulunamadı. Lütfen sorumlu olduğunuz ilçe veya bölge adını doğru girin.`);
+      setError(`Tanımsız Bölge. Lütfen "Genel Merkez" veya sorumlu olduğunuz ilçe/bölge adını girin.`);
     }
   };
 
@@ -569,55 +642,6 @@ function AdminLogin({ setAdminAuth, zones }) {
 // ==========================================
 function LandingPage({ navigateTo, currentUser, scrollToSection, exams }) {
   const zoneExams = currentUser ? exams.filter(e => e.zoneId === currentUser?.zone?.id) : [];
-
-  // Ödül Kartı Bileşeni (Görsel ve Açıklamalı)
-  const PrizeCard = ({ type, prizeObj, selectedPrize }) => {
-    const data = parsePrize(prizeObj);
-    if (!data.title) return null;
-
-    let bgClass = "bg-yellow-50 border-yellow-200 text-yellow-900";
-    let icon = <Trophy className="w-8 h-8 text-yellow-600" />;
-    let typeName = "Büyük Ödül";
-
-    if (type === "degree") {
-      bgClass = "bg-indigo-50 border-indigo-200 text-indigo-900";
-      icon = <Award className="w-8 h-8 text-indigo-600" />;
-      typeName = "Derece Ödülleri";
-    } else if (type === "participation") {
-      bgClass = "bg-emerald-50 border-emerald-200 text-emerald-900";
-      icon = <Gift className="w-8 h-8 text-emerald-600" />;
-      typeName = "Katılım Ödülleri";
-    }
-
-    const itemsList = data.title.split(',').map(s=>s.trim()).filter(s=>s);
-
-    return (
-      <div className={`p-6 rounded-[2rem] border-4 ${bgClass} flex flex-col md:flex-row gap-6 items-center`}>
-        {data.img ? (
-          <img src={data.img} alt={typeName} className="w-full md:w-48 h-48 object-cover rounded-3xl shadow-md border-4 border-white bg-white flex-shrink-0" />
-        ) : (
-          <div className="w-full md:w-48 h-48 rounded-3xl shadow-md border-4 border-white bg-white/50 flex flex-col items-center justify-center flex-shrink-0">
-             {icon}
-             <span className="font-bold text-sm mt-2 opacity-50">Görsel Yok</span>
-          </div>
-        )}
-        <div className="flex-1 w-full">
-          <div className="text-sm font-black uppercase tracking-widest opacity-60 mb-2">{typeName}</div>
-          <div className="flex flex-wrap gap-2 mb-4">
-             {itemsList.map(item => {
-                const isSelected = selectedPrize === item;
-                return (
-                  <span key={item} className={`px-4 py-2 rounded-xl text-lg font-black flex items-center shadow-sm border-2 ${isSelected ? 'bg-green-500 border-green-400 text-white' : 'bg-white border-transparent'}`}>
-                    {isSelected && <CheckCircle2 className="w-5 h-5 mr-2" />} {item}
-                  </span>
-                )
-             })}
-          </div>
-          {data.desc && <p className="font-medium text-lg leading-relaxed opacity-80">{data.desc}</p>}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div>
@@ -731,7 +755,7 @@ function LandingPage({ navigateTo, currentUser, scrollToSection, exams }) {
             <>
               <div className="w-full h-px bg-slate-200 my-16"></div>
 
-              {/* YENİ ÖDÜL TASARIMI (AÇIK/GENİŞ VE RESİMLİ LİSTE) */}
+              {/* YENİ ÖDÜL TASARIMI */}
               <div id="oduller" className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 p-8 md:p-16 relative overflow-hidden pt-10">
                 <div className="relative z-10">
                   <div className="flex items-center justify-center mb-6">
@@ -742,10 +766,10 @@ function LandingPage({ navigateTo, currentUser, scrollToSection, exams }) {
                     Sınava katılarak aşağıdaki muhteşem ödülleri kazanma şansı yakalayacaksın! Hedefini belirle, başarıya ulaş.
                   </p>
                   
-                  <div className="flex flex-col gap-8 max-w-5xl mx-auto">
-                    <PrizeCard type="grand" prizeObj={currentUser?.zone?.prizes?.grand} />
-                    <PrizeCard type="degree" prizeObj={currentUser?.zone?.prizes?.degree} selectedPrize={currentUser?.selectedDegreePrize} />
-                    <PrizeCard type="participation" prizeObj={currentUser?.zone?.prizes?.participation} selectedPrize={currentUser?.selectedParticipationPrize} />
+                  <div className="flex flex-col gap-12 max-w-4xl mx-auto">
+                    <ModernPrizeCard type="grand" prizeData={currentUser?.zone?.prizes?.grand} selectedPrize={null} />
+                    <ModernPrizeCard type="degree" prizeData={currentUser?.zone?.prizes?.degree} selectedPrize={currentUser?.selectedDegreePrize} />
+                    <ModernPrizeCard type="participation" prizeData={currentUser?.zone?.prizes?.participation} selectedPrize={currentUser?.selectedParticipationPrize} />
                   </div>
                 </div>
               </div>
@@ -832,11 +856,11 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
     setVerificationCode(code);
     setShowVerification(true);
     
-    // Arka Planda SMS İsteği (Başarısız olsa bile ekranda kodu veriyoruz ki kayıt süreci kesilmesin)
+    // Arka Planda SMS İsteği (Sessiz gönderim)
     await sendSMS([formData.phone], `odullusinav.net dogrulama kodunuz: ${code}`);
     
-    // Geliştirici veya Test için uyarı
-    alert(`[SİSTEM BİLGİSİ - SMS APİ AKTİF]\nDoğrulama Kodunuz: ${code}\n\n(MesajPaneli bakiyeniz yoksa veya operatör bekletirse diye test kodu ekrana yazdırılmıştır.)`);
+    // Geliştirici veya Test için uyarı (Kesinlikle ekranda görünsün ki takılmasın)
+    alert(`[SİSTEM BİLGİSİ - SMS APİ AKTİF]\nEğer SMS bakiyeniz biterse veya operatör mesajı geç iletirse diye test kodu ekrana yazdırılmıştır:\nDoğrulama Kodunuz: ${code}`);
   };
 
   const verifyCodeAndProceed = () => {
@@ -869,17 +893,8 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
     }
   }, [formData.district, formData.neighborhood, zones, exams]);
 
-  const parsePrize = (prizeData) => {
-    if (!prizeData) return DEFAULT_PRIZE_OBJ;
-    if (typeof prizeData === 'string') return { title: prizeData, desc: '', img: '' };
-    return prizeData;
-  };
-
-  const degreePrizesObj = parsePrize(matchedZone?.prizes?.degree);
-  const partPrizesObj = parsePrize(matchedZone?.prizes?.participation);
-
-  const degreePrizesList = degreePrizesObj.title.split(',').map(s=>s.trim()).filter(s=>s);
-  const partPrizesList = partPrizesObj.title.split(',').map(s=>s.trim()).filter(s=>s);
+  const degreePrizesList = parsePrizeArray(matchedZone?.prizes?.degree);
+  const partPrizesList = parsePrizeArray(matchedZone?.prizes?.participation);
   
   const needsDegreeSelection = degreePrizesList.length > 1;
   const needsPartSelection = partPrizesList.length > 1;
@@ -891,8 +906,8 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
   const handleComplete = async (withoutExam = false) => {
     setIsSubmitting(true);
     
-    const finalDegreePrize = withoutExam ? '' : (selectedDegreePrize || (degreePrizesList.length === 1 ? degreePrizesList[0] : ''));
-    const finalPartPrize = withoutExam ? '' : (selectedParticipationPrize || (partPrizesList.length === 1 ? partPrizesList[0] : ''));
+    const finalDegreePrize = withoutExam ? '' : (selectedDegreePrize || (degreePrizesList.length === 1 ? degreePrizesList[0].title : ''));
+    const finalPartPrize = withoutExam ? '' : (selectedParticipationPrize || (partPrizesList.length === 1 ? partPrizesList[0].title : ''));
 
     try {
       let finalUserObj;
@@ -986,8 +1001,43 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
     return { ...exam, mockDistance: 10 + (idx * 3) + (exam.zoneId * 2) };
   }).sort((a,b) => a.mockDistance - b.mockDistance);
 
+  // Ödül Seçim Bileşeni
+  const RegistrationPrizeSelector = ({ type, prizes, selectedPrize, onSelect }) => {
+      if (!prizes || prizes.length === 0) return null;
+      if (prizes.length === 1 && !prizes[0].title) return null;
+  
+      let badgeClass = type === 'degree' ? "text-indigo-600" : "text-emerald-600";
+      let title = type === 'degree' ? "Hedeflediğiniz Derece Ödülü" : "İstediğiniz Katılım Ödülü";
+  
+      return (
+          <div className="mb-8 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
+              <label className={`block text-sm font-black uppercase tracking-widest mb-4 ${badgeClass}`}>{title}</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {prizes.map((prize, idx) => {
+                      const isSelected = selectedPrize === prize.title;
+                      return (
+                          <div key={idx} onClick={() => onSelect(prize.title)}
+                               className={`cursor-pointer flex items-center p-4 rounded-2xl border-4 transition-all ${isSelected ? 'border-green-500 bg-green-50 shadow-md' : 'border-slate-200 bg-white hover:border-green-300'}`}>
+                               {prize.img ? (
+                                  <img src={prize.img} alt={prize.title} className="w-16 h-16 object-cover rounded-xl shadow-sm border border-slate-200 mr-4 bg-white flex-shrink-0" />
+                               ) : (
+                                  <div className="w-16 h-16 rounded-xl bg-slate-100 border border-slate-200 mr-4 flex items-center justify-center text-slate-300 flex-shrink-0"><ImageIcon className="w-6 h-6"/></div>
+                               )}
+                               <div className="flex-1">
+                                  <h4 className={`font-black text-lg ${isSelected ? 'text-green-700' : 'text-slate-700'}`}>{prize.title}</h4>
+                               </div>
+                               {isSelected && <CheckCircle2 className="w-6 h-6 text-green-500 ml-2 flex-shrink-0" />}
+                          </div>
+                      )
+                  })}
+              </div>
+          </div>
+      )
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-16 relative">
+      {/* Doğrulama Kodu Modalı */}
       {showVerification && (
          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-md relative animate-in zoom-in-95">
@@ -1180,8 +1230,8 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
                                               setSelectedExam(exam); 
                                               setSelectedSlot({ date: session.date, time: slot }); 
                                             }}
-                                            className={`px-8 py-4 rounded-2xl text-xl font-black border-4 transition-all ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-xl scale-105' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-indigo-400'}`}>
-                                            <Clock className="w-5 h-5 inline mr-2 opacity-70" /> {slot}
+                                            className={`px-8 py-4 rounded-2xl text-xl font-black border-4 transition-all flex items-center ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-xl scale-105' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-indigo-400'}`}>
+                                            {isSelected ? <CheckCircle2 className="w-5 h-5 mr-2" /> : <Clock className="w-5 h-5 mr-2 opacity-70" />} {slot}
                                           </button>
                                         )
                                       })}
@@ -1199,33 +1249,8 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
                        <div className="mt-10 pt-10 border-t-4 border-slate-100 animate-in fade-in slide-in-from-bottom-4">
                          <h4 className="text-2xl font-black text-slate-800 mb-6 flex items-center"><Gift className="w-8 h-8 mr-3 text-indigo-600"/> Hedef ve Ödül Tercihlerinizi Belirleyin</h4>
                          
-                         {needsDegreeSelection && (
-                           <div className="mb-8 bg-indigo-50/50 p-6 rounded-3xl border-2 border-indigo-100">
-                             <label className="block text-sm font-black text-indigo-600 uppercase tracking-widest mb-4">Hedeflediğiniz Derece Ödülü</label>
-                             <div className="flex flex-wrap gap-3">
-                               {degreePrizesList.map(prize => (
-                                 <button key={prize} onClick={() => setSelectedDegreePrize(prize)}
-                                    className={`px-6 py-4 rounded-2xl border-4 font-black transition-all flex items-center ${selectedDegreePrize === prize ? 'bg-green-500 border-green-500 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}>
-                                    {selectedDegreePrize === prize && <CheckCircle2 className="w-5 h-5 mr-2"/>} {prize}
-                                 </button>
-                               ))}
-                             </div>
-                           </div>
-                         )}
-
-                         {needsPartSelection && (
-                           <div className="mb-8 bg-indigo-50/50 p-6 rounded-3xl border-2 border-indigo-100">
-                             <label className="block text-sm font-black text-indigo-600 uppercase tracking-widest mb-4">İstediğiniz Katılım Ödülü</label>
-                             <div className="flex flex-wrap gap-3">
-                               {partPrizesList.map(prize => (
-                                 <button key={prize} onClick={() => setSelectedParticipationPrize(prize)}
-                                    className={`px-6 py-4 rounded-2xl border-4 font-black transition-all flex items-center ${selectedParticipationPrize === prize ? 'bg-green-500 border-green-500 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-600 hover:border-green-300'}`}>
-                                    {selectedParticipationPrize === prize && <CheckCircle2 className="w-5 h-5 mr-2"/>} {prize}
-                                 </button>
-                               ))}
-                             </div>
-                           </div>
-                         )}
+                         {needsDegreeSelection && <RegistrationPrizeSelector type="degree" prizes={degreePrizesList} selectedPrize={selectedDegreePrize} onSelect={setSelectedDegreePrize} />}
+                         {needsPartSelection && <RegistrationPrizeSelector type="part" prizes={partPrizesList} selectedPrize={selectedParticipationPrize} onSelect={setSelectedParticipationPrize} />}
                        </div>
                     )}
                     
@@ -1533,20 +1558,24 @@ function StudentProfile({ currentUser, exams, navigateTo }) {
 }
 
 // ==========================================
-// 4. ADMIN PANELİ
+// 4. ADMIN PANELİ (GENEL MERKEZ DESTEKLİ)
 // ==========================================
-function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
+function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exams }) {
   const [activeTab, setActiveTab] = useState('ayarlar'); 
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'odullu-sinav';
   
-  const adminZoneData = zones.find(z => z.id === adminZoneId);
-  const filteredStudents = students.filter(s => s.zone?.id === adminZoneId);
-  const filteredExams = exams.filter(e => e.zoneId === adminZoneId);
+  // Süper Admin "Tüm Türkiye" verisini görür
+  const adminZoneData = isSuperAdmin 
+     ? { id: 'ALL', name: "Genel Merkez (Tüm Mıntıkalar)", active: true, districts: [], prizes: {grand: {title:''}, degree: [], participation: []}, centers: [], mappings: [] } 
+     : zones.find(z => z.id === adminZoneId);
+     
+  const filteredStudents = isSuperAdmin ? students : students.filter(s => s.zone?.id === adminZoneId);
+  const filteredExams = isSuperAdmin ? exams : exams.filter(e => e.zoneId === adminZoneId);
 
   const [localPrizes, setLocalPrizes] = useState({
     grand: { title: '', desc: '', img: '' },
-    degree: { title: '', desc: '', img: '' },
-    participation: { title: '', desc: '', img: '' }
+    degree: [{ title: '', desc: '', img: '' }],
+    participation: [{ title: '', desc: '', img: '' }]
   });
 
   const [examData, setExamData] = useState({ title: '' });
@@ -1559,14 +1588,14 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
   const [smsModal, setSmsModal] = useState({ isOpen: false, type: 'custom', customMsg: '', loading: false });
 
   useEffect(() => {
-    if(adminZoneData) {
+    if(adminZoneData && !isSuperAdmin) {
       setLocalPrizes({
-        grand: parsePrize(adminZoneData.prizes?.grand),
-        degree: parsePrize(adminZoneData.prizes?.degree),
-        participation: parsePrize(adminZoneData.prizes?.participation)
+        grand: parsePrizeArray(adminZoneData.prizes?.grand)[0] || { title: '', desc: '', img: '' },
+        degree: parsePrizeArray(adminZoneData.prizes?.degree).length ? parsePrizeArray(adminZoneData.prizes?.degree) : [{ title: '', desc: '', img: '' }],
+        participation: parsePrizeArray(adminZoneData.prizes?.participation).length ? parsePrizeArray(adminZoneData.prizes?.participation) : [{ title: '', desc: '', img: '' }]
       });
     }
-  }, [adminZoneData]);
+  }, [adminZoneData, isSuperAdmin]);
 
   if (!adminZoneData) return <div>Erişim Hatası.</div>;
 
@@ -1574,13 +1603,13 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
   const adminMappings = adminZoneData.mappings || [];
 
   const handleUpdatePrizes = async () => {
-    if (localPrizes.grand.title.includes(',')) {
-      alert("Büyük Ödül tek bir tane olmalıdır! Lütfen araya virgül koymayın.");
-      return;
-    }
     try {
-      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { prizes: localPrizes });
-      alert("Ödüller başarıyla güncellendi!");
+      const targetZoneIds = isSuperAdmin ? INITIAL_ZONES.map(z => z.id) : [adminZoneId];
+      
+      for (const zId of targetZoneIds) {
+         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', zId.toString()), { prizes: localPrizes });
+      }
+      alert(`Ödüller başarıyla ${isSuperAdmin ? 'tüm mıntıkalar için ' : ''}güncellendi!`);
     } catch (e) {
       console.error(e);
       alert("Hata oluştu!");
@@ -1610,13 +1639,17 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
     if(formattedSessions.length === 0) return alert("Lütfen en az bir geçerli tarih ve saat girin.");
 
     try {
-      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'exams'), {
-        zoneId: adminZoneId,
-        title: examData.title,
-        sessions: formattedSessions,
-        createdAt: new Date().getTime()
-      });
-      alert("Sınav oturumları başarıyla eklendi!");
+      const targetZoneIds = isSuperAdmin ? INITIAL_ZONES.map(z => z.id) : [adminZoneId];
+      
+      for (const zId of targetZoneIds) {
+         await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'exams'), {
+           zoneId: zId,
+           title: examData.title,
+           sessions: formattedSessions,
+           createdAt: new Date().getTime()
+         });
+      }
+      alert(`Sınav oturumları ${isSuperAdmin ? 'tüm mıntıkalara ' : ''}başarıyla eklendi!`);
       setExamData({ title: '' });
       setExamSessions([{ date: '', times: '' }]);
     } catch (e) {
@@ -1791,6 +1824,35 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
     setSmsModal({ isOpen: false, type: 'custom', customMsg: '', loading: false });
   };
 
+  const handleExportExcel = () => {
+     let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+     csvContent += "Ogrenci Ad Soyad;Veli Ad Soyad;Telefon;Sinif;Ilce / Mahalle;Atanan Sinav Merkezi;Kayitli Sinav ve Seans;Aciklanan Puan;Derece\n";
+     
+     filteredStudents.forEach(s => {
+        const stdZone = isSuperAdmin ? (zones.find(z => z.id === s.zone?.id) || s.zone) : adminZoneData;
+        const center = getNeighborhoodDetails(stdZone, s.neighborhood).centerName;
+        
+        const hasPast = s.pastExams && s.pastExams.length > 0;
+        const lastPast = hasPast ? s.pastExams[s.pastExams.length-1] : null;
+        const activeExam = (s.examTitle || s.exam?.title) ? `${s.examTitle || s.exam?.title} (${s.selectedDate || s.exam?.date} ${s.selectedTime || s.slot})` : 'Yok / Beklemede';
+        const score = lastPast ? lastPast.score : '-';
+        const rank = lastPast ? lastPast.rank : '-';
+
+        const clean = str => String(str || '').replace(/;/g, ' ').replace(/\n/g, ' ');
+
+        const row = `${clean(s.fullName)};${clean(s.parentName)};${clean(s.phone)};${clean(s.grade)};${clean(s.district)} / ${clean(s.neighborhood)};${clean(center)};${clean(activeExam)};${clean(score)};${clean(rank)}`;
+        csvContent += row + "\n";
+     });
+
+     const encodedUri = encodeURI(csvContent);
+     const link = document.createElement("a");
+     link.setAttribute("href", encodedUri);
+     link.setAttribute("download", "Ogrenci_Listesi.csv");
+     document.body.appendChild(link);
+     link.click();
+     document.body.removeChild(link);
+  };
+
   const getAdminDistricts = () => {
     const dists = [...(adminZoneData.districts || [])];
     if(adminZoneData.partialDistricts) {
@@ -1840,29 +1902,30 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
         <button onClick={() => setActiveTab('ayarlar')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'ayarlar' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
           <Settings className="w-5 h-5 inline mr-2"/> Sınav & Ödül Ayarları
         </button>
-        <button onClick={() => setActiveTab('merkezler')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'merkezler' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
-          <Building2 className="w-5 h-5 inline mr-2"/> Sınav Yerleri & Atamalar
-        </button>
+        {!isSuperAdmin && (
+          <button onClick={() => setActiveTab('merkezler')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'merkezler' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
+            <Building2 className="w-5 h-5 inline mr-2"/> Sınav Yerleri & Atamalar
+          </button>
+        )}
         <button onClick={() => setActiveTab('ogrenci')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'ogrenci' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
           <Users className="w-5 h-5 inline mr-2"/> Öğrenci Listesi ({filteredStudents.length})
         </button>
       </div>
 
-      {/* 1. SEKMEYE AİT İÇERİKLER: Sınav ve Ödül Ayarları */}
       {activeTab === 'ayarlar' && (
         <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12">
           
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b-2 border-slate-100 pb-8 gap-4">
             <div>
               <h3 className="font-black text-3xl text-slate-900 mb-2">{adminZoneData.name}</h3>
-              <p className="text-base font-bold text-slate-500">Sorumlu Olduğunuz İlçeler/Bölgeler: {adminDistricts.join(', ')}</p>
+              <p className="text-base font-bold text-slate-500">{isSuperAdmin ? "Sorumlu Olduğunuz: TÜM TÜRKİYE" : `Sorumlu Olduğunuz İlçeler/Bölgeler: ${adminDistricts.join(', ')}`}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
             {/* ÖDÜL YÖNETİMİ (YENİ TASARIM GİRİŞİ) */}
             <div>
-              <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider flex items-center"><Gift className="w-6 h-6 mr-2"/> Bölge Ödüllerini Yönet</div>
+              <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider flex items-center"><Gift className="w-6 h-6 mr-2"/> {isSuperAdmin ? 'Tüm Türkiye' : 'Bölge'} Ödüllerini Yönet</div>
               <div className="space-y-6 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
                 
                 {/* Büyük Ödül */}
@@ -1870,26 +1933,46 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
                   <div className="text-sm font-black text-slate-800 mb-3 flex items-center"><Trophy className="w-5 h-5 text-yellow-500 mr-2"/> Büyük Ödül</div>
                   <input type="text" value={localPrizes.grand.title} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, title: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2" placeholder="Ödül Başlığı (Örn: PlayStation 5)"/>
                   <textarea rows="2" value={localPrizes.grand.desc} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, desc: e.target.value}})} className="w-full text-sm font-medium p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2 resize-none" placeholder="Açıklama (İsteğe bağlı)"/>
-                  <input type="text" value={localPrizes.grand.img} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, img: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Görsel Dosya Adı veya Link (Örn: ps5.png)"/>
+                  <input type="text" value={localPrizes.grand.img} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, img: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Resim Linki veya Dosya Adı (Örn: ps5.png)"/>
                 </div>
 
                 {/* Derece Ödülleri */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-200">
-                  <div className="text-sm font-black text-slate-800 mb-3 flex items-center"><Award className="w-5 h-5 text-indigo-500 mr-2"/> Derece Ödülleri</div>
-                  <input type="text" value={localPrizes.degree.title} onChange={e=>setLocalPrizes({...localPrizes, degree: {...localPrizes.degree, title: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2" placeholder="Seçenekleri virgülle ayırın (Tablet, Bisiklet)"/>
-                  <textarea rows="2" value={localPrizes.degree.desc} onChange={e=>setLocalPrizes({...localPrizes, degree: {...localPrizes.degree, desc: e.target.value}})} className="w-full text-sm font-medium p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2 resize-none" placeholder="Açıklama (İsteğe bağlı)"/>
-                  <input type="text" value={localPrizes.degree.img} onChange={e=>setLocalPrizes({...localPrizes, degree: {...localPrizes.degree, img: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Görsel Dosya Adı veya Link"/>
+                  <div className="text-sm font-black text-slate-800 mb-3 flex justify-between items-center">
+                     <span className="flex items-center"><Award className="w-5 h-5 text-indigo-500 mr-2"/> Derece Ödülleri</span>
+                     <button onClick={() => setLocalPrizes({...localPrizes, degree: [...localPrizes.degree, {title:'', desc:'', img:''}]})} className="text-indigo-600 bg-indigo-50 p-1.5 rounded-lg hover:bg-indigo-100"><Plus className="w-4 h-4"/></button>
+                  </div>
+                  {localPrizes.degree.map((pz, idx) => (
+                    <div key={idx} className="mb-4 pb-4 border-b border-slate-100 last:border-0 last:mb-0 last:pb-0">
+                      <div className="flex gap-2 mb-2">
+                          <input type="text" value={pz.title} onChange={e => { const newArr=[...localPrizes.degree]; newArr[idx].title=e.target.value; setLocalPrizes({...localPrizes, degree: newArr}); }} className="flex-1 text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder={`${idx+1}. Ödül Başlığı`}/>
+                          {idx > 0 && <button onClick={() => { const newArr=localPrizes.degree.filter((_,i)=>i!==idx); setLocalPrizes({...localPrizes, degree:newArr}); }} className="p-3 text-red-500 bg-red-50 hover:bg-red-100 rounded-xl"><Trash2 className="w-4 h-4"/></button>}
+                      </div>
+                      <input type="text" value={pz.img} onChange={e => { const newArr=[...localPrizes.degree]; newArr[idx].img=e.target.value; setLocalPrizes({...localPrizes, degree: newArr}); }} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2" placeholder="Resim Linki veya Dosya Adı (Örn: bisiklet.png)"/>
+                      <textarea rows="2" value={pz.desc} onChange={e => { const newArr=[...localPrizes.degree]; newArr[idx].desc=e.target.value; setLocalPrizes({...localPrizes, degree: newArr}); }} className="w-full text-sm font-medium p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 resize-none" placeholder="Açıklama"/>
+                    </div>
+                  ))}
                 </div>
 
                 {/* Katılım Ödülleri */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-200">
-                  <div className="text-sm font-black text-slate-800 mb-3 flex items-center"><Gift className="w-5 h-5 text-emerald-500 mr-2"/> Katılım Ödülleri</div>
-                  <input type="text" value={localPrizes.participation.title} onChange={e=>setLocalPrizes({...localPrizes, participation: {...localPrizes.participation, title: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2" placeholder="Seçenekleri virgülle ayırın"/>
-                  <textarea rows="2" value={localPrizes.participation.desc} onChange={e=>setLocalPrizes({...localPrizes, participation: {...localPrizes.participation, desc: e.target.value}})} className="w-full text-sm font-medium p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2 resize-none" placeholder="Açıklama (İsteğe bağlı)"/>
-                  <input type="text" value={localPrizes.participation.img} onChange={e=>setLocalPrizes({...localPrizes, participation: {...localPrizes.participation, img: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Görsel Dosya Adı veya Link"/>
+                  <div className="text-sm font-black text-slate-800 mb-3 flex justify-between items-center">
+                     <span className="flex items-center"><Gift className="w-5 h-5 text-emerald-500 mr-2"/> Katılım Ödülleri</span>
+                     <button onClick={() => setLocalPrizes({...localPrizes, participation: [...localPrizes.participation, {title:'', desc:'', img:''}]})} className="text-emerald-600 bg-emerald-50 p-1.5 rounded-lg hover:bg-emerald-100"><Plus className="w-4 h-4"/></button>
+                  </div>
+                  {localPrizes.participation.map((pz, idx) => (
+                    <div key={idx} className="mb-4 pb-4 border-b border-slate-100 last:border-0 last:mb-0 last:pb-0">
+                      <div className="flex gap-2 mb-2">
+                          <input type="text" value={pz.title} onChange={e => { const newArr=[...localPrizes.participation]; newArr[idx].title=e.target.value; setLocalPrizes({...localPrizes, participation: newArr}); }} className="flex-1 text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder={`${idx+1}. Ödül Başlığı`}/>
+                          {idx > 0 && <button onClick={() => { const newArr=localPrizes.participation.filter((_,i)=>i!==idx); setLocalPrizes({...localPrizes, participation:newArr}); }} className="p-3 text-red-500 bg-red-50 hover:bg-red-100 rounded-xl"><Trash2 className="w-4 h-4"/></button>}
+                      </div>
+                      <input type="text" value={pz.img} onChange={e => { const newArr=[...localPrizes.participation]; newArr[idx].img=e.target.value; setLocalPrizes({...localPrizes, participation: newArr}); }} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2" placeholder="Resim Linki veya Dosya Adı"/>
+                      <textarea rows="2" value={pz.desc} onChange={e => { const newArr=[...localPrizes.participation]; newArr[idx].desc=e.target.value; setLocalPrizes({...localPrizes, participation: newArr}); }} className="w-full text-sm font-medium p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 resize-none" placeholder="Açıklama"/>
+                    </div>
+                  ))}
                 </div>
 
-                <button onClick={handleUpdatePrizes} className="bg-slate-800 hover:bg-slate-900 text-white text-base font-black py-4 px-4 rounded-xl transition w-full shadow-lg">Ödülleri Güncelle</button>
+                <button onClick={handleUpdatePrizes} className="bg-slate-800 hover:bg-slate-900 text-white text-base font-black py-4 px-4 rounded-xl transition w-full shadow-lg">Ödülleri {isSuperAdmin ? 'Tüm Türkiye İçin ' : ''}Güncelle</button>
               </div>
             </div>
 
@@ -1928,7 +2011,7 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
                       return (
                         <div key={exam.firebaseId} className="bg-indigo-50 border-2 border-indigo-100 p-5 rounded-2xl relative">
                           <button onClick={() => handleDeleteExam(exam.firebaseId)} className="absolute top-4 right-4 p-2 text-red-500 hover:bg-red-100 rounded-xl transition" title="Sınavı Sil"><Trash2 className="w-5 h-5"/></button>
-                          <h4 className="font-black text-lg text-indigo-900 mb-3 pr-10">{exam.title}</h4>
+                          <h4 className="font-black text-lg text-indigo-900 mb-3 pr-10">{exam.title} {isSuperAdmin ? `(${zones.find(z=>z.id === exam.zoneId)?.name})` : ''}</h4>
                           <div className="space-y-2">
                             {sessions.map((session, idx) => {
                                const [y, m, d] = session.date.split('-');
@@ -1957,8 +2040,8 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
         </div>
       )}
 
-      {/* 2. YENİ SEKMEYE AİT İÇERİKLER: Sınav Merkezleri ve Atamalar */}
-      {activeTab === 'merkezler' && (
+      {/* 2. YENİ SEKMEYE AİT İÇERİKLER: Sınav Merkezleri ve Atamalar (Sadece Normal Adminler Görür) */}
+      {activeTab === 'merkezler' && !isSuperAdmin && (
          <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b-2 border-slate-100 pb-8 gap-4">
               <div>
@@ -2062,9 +2145,11 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
       {activeTab === 'ogrenci' && (
         <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 p-10 overflow-hidden relative">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
-            <h2 className="text-3xl font-black text-slate-800">Bölge Kayıtları ({filteredStudents.length})</h2>
+            <h2 className="text-3xl font-black text-slate-800">{isSuperAdmin ? "Tüm Türkiye Kayıtları" : "Bölge Kayıtları"} ({filteredStudents.length})</h2>
             <div className="flex flex-wrap gap-3">
-              <button className="bg-green-50 font-black px-6 py-3 rounded-2xl text-green-700 border-2 border-green-200 hover:bg-green-100 transition">Excel İndir</button>
+              <button onClick={handleExportExcel} className="bg-green-50 font-black px-6 py-3 rounded-2xl text-green-700 border-2 border-green-200 hover:bg-green-100 transition flex items-center">
+                <Download className="w-5 h-5 mr-2" /> Excel İndir
+              </button>
               <button 
                 onClick={() => setSmsModal({ ...smsModal, isOpen: true })}
                 className="bg-indigo-600 font-black px-6 py-3 rounded-2xl text-white hover:bg-indigo-700 flex items-center shadow-xl shadow-indigo-200 transition">
@@ -2085,11 +2170,13 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
               </thead>
               <tbody className="divide-y-2 divide-slate-50">
                 {filteredStudents.length === 0 ? (
-                  <tr><td colSpan="4" className="p-16 text-center text-slate-400 font-bold text-lg">Mıntıkamıza ait henüz kayıtlı öğrenci bulunmuyor.</td></tr>
+                  <tr><td colSpan="4" className="p-16 text-center text-slate-400 font-bold text-lg">Bu alana ait henüz kayıtlı öğrenci bulunmuyor.</td></tr>
                 ) : (
                   filteredStudents.map(student => {
                     const hasActiveExam = !!(student.examId || student.examTitle || student.exam);
-                    const stdCenter = getNeighborhoodDetails(adminZoneData, student.neighborhood);
+                    const realZoneData = isSuperAdmin ? (zones.find(z => z.id === student.zone?.id) || student.zone) : adminZoneData;
+                    const stdCenter = getNeighborhoodDetails(realZoneData, student.neighborhood);
+                    
                     return (
                       <tr key={student.firebaseId} className="hover:bg-slate-50 transition-colors">
                         <td className="p-6 font-black text-slate-900 text-lg">
