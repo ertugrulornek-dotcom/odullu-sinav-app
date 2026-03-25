@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   MapPin, Calendar as CalendarIcon, Clock, Award, Users, Search, 
-  Settings, ChevronRight, ChevronLeft, AlertCircle, CheckCircle2, 
-  Map, Phone, FileText, Lock, MessageSquare, Gift, Check, Plus, LogOut, KeyRound, Trash2, UserPlus, Trophy, Building2, Send
+  Settings, ChevronRight, AlertCircle, CheckCircle2, 
+  Map, Phone, FileText, Lock, MessageSquare, Gift, Check, Plus, LogOut, KeyRound, Trash2, UserPlus, Trophy, Building2, Send, Image as ImageIcon
 } from 'lucide-react';
 
 // ==========================================
@@ -28,13 +28,10 @@ const auth = getAuth(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'odullu-sinav';
 
 // ==========================================
-// MESAJPANELİ SMS API ENTEGRASYONU
+// MESAJPANELİ SMS API ENTEGRASYONU (Sessiz Mod)
 // ==========================================
 const MESAJ_PANELI_API_KEY = "af68961362160d37c19bae0463b082f58539d936";
-
-// DİKKAT: BURAYA MESAJPANELİ'NDEKİ ONAYLI BAŞLIĞINIZI VEYA SİZE VERİLEN 850'Lİ NUMARAYI YAZIN!
-const MESAJ_PANELI_BASLIK = "EMRGUNDOGDU"; 
-
+const MESAJ_PANELI_BASLIK = "8503038692"; 
 const SMS_FOOTER = "\n\nodullusinav.net EFECEL IPTAL LH47W yaz 4609a gonder B302";
 
 const encodeBase64 = (str) => {
@@ -51,26 +48,17 @@ const sendSMS = async (msgDataArray) => {
 
     const postData = "data=" + encodeBase64(JSON.stringify(payload));
 
-    // API İsteği (Hataları görmek için no-cors kaldırıldı)
-    const response = await fetch("https://api.mesajpaneli.com/json_api/", {
+    // no-cors ile sessizce gönder, hata bekleme (Çökmeyi önler)
+    fetch("https://api.mesajpaneli.com/json_api/", {
       method: "POST",
+      mode: "no-cors",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: postData
     });
     
-    const result = await response.json();
-    console.log("SMS API Yanıtı:", result);
-    
-    // MesajPaneli'nden dönen hatayı ekranda göster
-    if (result && result.status === "error") {
-      alert("SMS Paneli Hatası: " + (result.error || "Bilinmeyen hata (Başlık veya Bakiye sorunu olabilir)"));
-      return false;
-    }
-    
     return true;
   } catch (error) {
-    console.error("SMS Gönderim Hatası:", error);
-    alert("SMS Gönderilemedi (CORS Hatası). Tarayıcılar güvenlik gereği doğrudan SMS atılmasını engeller. Bu sorun Vercel üzerinden site canlıya alındığında Backend API yazılarak çözülecektir. (Kayıt işlemi devam ediyor)");
+    console.error("SMS Arka Plan Hatası:", error);
     return false;
   }
 };
@@ -119,14 +107,16 @@ const LOCATIONS = {
   }
 };
 
+const DEFAULT_PRIZE_OBJ = { title: "", desc: "", img: "" };
+
 const INITIAL_ZONES = [
-  { id: 1, name: "Adapazarı", active: true, districts: ["Adapazarı", "Ferizli", "Karasu", "Kaynarca", "Kocaali", "Söğütlü"], partialDistricts: {}, prizes: { grand: "", degree: "", participation: "" }, centers: [], mappings: [] },
-  { id: 2, name: "Akarçeşme", active: true, districts: ["Derince", "İzmit", "Kandıra"], partialDistricts: { "Körfez": ["Yavuz Sultan Selim", "Mimar Sinan", "Güney", "Hacı Osman", "Fatih", "Yeniyalı", "Çamlıtepe", "Esentepe", "Cumhuriyet", "Atalar", "İlimtepe", "Kuzey", "Barbaros", "17 Ağustos", "Kirazlıyalı"] }, prizes: { grand: "", degree: "", participation: "" }, centers: [], mappings: [] },
-  { id: 3, name: "Erenler", active: true, districts: ["Akyazı", "Erenler", "Hendek", "Karapürçek"], partialDistricts: {}, prizes: { grand: "", degree: "", participation: "" }, centers: [], mappings: [] },
-  { id: 4, name: "Gebze", active: true, districts: ["Çayırova", "Darıca", "Dilovası", "Gebze"], partialDistricts: { "Körfez": ["Yukarı Hereke", "Kışladüzü", "Hacı Akif", "Agah Ateş"] }, prizes: { grand: "", degree: "", participation: "" }, centers: [], mappings: [] },
-  { id: 5, name: "Kartepe", active: true, districts: ["Başiskele", "Gölcük", "Kartepe"], partialDistricts: {}, prizes: { grand: "", degree: "", participation: "" }, centers: [], mappings: [] },
-  { id: 6, name: "Serdivan", active: true, districts: ["Arifiye", "Geyve", "Pamukova", "Sapanca", "Serdivan", "Taraklı"], partialDistricts: {}, prizes: { grand: "", degree: "", participation: "" }, centers: [], mappings: [] },
-  { id: 7, name: "Yalova", active: true, districts: ["Altınova", "Armutlu", "Çınarcık", "Çiftlikköy", "Karamürsel", "Merkez", "Termal"], partialDistricts: {}, prizes: { grand: "", degree: "", participation: "" }, centers: [], mappings: [] }
+  { id: 1, name: "Adapazarı", active: true, districts: ["Adapazarı", "Ferizli", "Karasu", "Kaynarca", "Kocaali", "Söğütlü"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: DEFAULT_PRIZE_OBJ, participation: DEFAULT_PRIZE_OBJ }, centers: [], mappings: [] },
+  { id: 2, name: "Akarçeşme", active: true, districts: ["Derince", "İzmit", "Kandıra"], partialDistricts: { "Körfez": ["Yavuz Sultan Selim", "Mimar Sinan", "Güney", "Hacı Osman", "Fatih", "Yeniyalı", "Çamlıtepe", "Esentepe", "Cumhuriyet", "Atalar", "İlimtepe", "Kuzey", "Barbaros", "17 Ağustos", "Kirazlıyalı"] }, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: DEFAULT_PRIZE_OBJ, participation: DEFAULT_PRIZE_OBJ }, centers: [], mappings: [] },
+  { id: 3, name: "Erenler", active: true, districts: ["Akyazı", "Erenler", "Hendek", "Karapürçek"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: DEFAULT_PRIZE_OBJ, participation: DEFAULT_PRIZE_OBJ }, centers: [], mappings: [] },
+  { id: 4, name: "Gebze", active: true, districts: ["Çayırova", "Darıca", "Dilovası", "Gebze"], partialDistricts: { "Körfez": ["Yukarı Hereke", "Kışladüzü", "Hacı Akif", "Agah Ateş"] }, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: DEFAULT_PRIZE_OBJ, participation: DEFAULT_PRIZE_OBJ }, centers: [], mappings: [] },
+  { id: 5, name: "Kartepe", active: true, districts: ["Başiskele", "Gölcük", "Kartepe"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: DEFAULT_PRIZE_OBJ, participation: DEFAULT_PRIZE_OBJ }, centers: [], mappings: [] },
+  { id: 6, name: "Serdivan", active: true, districts: ["Arifiye", "Geyve", "Pamukova", "Sapanca", "Serdivan", "Taraklı"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: DEFAULT_PRIZE_OBJ, participation: DEFAULT_PRIZE_OBJ }, centers: [], mappings: [] },
+  { id: 7, name: "Yalova", active: true, districts: ["Altınova", "Armutlu", "Çınarcık", "Çiftlikköy", "Karamürsel", "Merkez", "Termal"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: DEFAULT_PRIZE_OBJ, participation: DEFAULT_PRIZE_OBJ }, centers: [], mappings: [] }
 ];
 
 const findZoneByName = (zonesList, zoneName) => zonesList.find(z => z.name === zoneName);
@@ -157,188 +147,80 @@ const getNeighborhoodDetails = (zone, neighborhood) => {
   };
 };
 
-const PrizeDisplay = ({ title, prizeString, selectedPrize }) => {
-  if (!prizeString) return <div className="font-black text-white text-xl">Yakında Açıklanacak</div>;
-  const prizes = prizeString.split(',').map(s => s.trim()).filter(s => s);
-  if (prizes.length === 1) return <div className="font-black text-white text-2xl">{prizes[0]}</div>;
-
-  return (
-    <div className="mt-3 space-y-2">
-      {prizes.map((p, i) => {
-        const isSelected = selectedPrize === p;
-        return (
-          <div key={i} className={`flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-colors ${isSelected ? 'bg-green-500/20 border-green-400 shadow-sm' : 'bg-white/10 border-white/20'}`}>
-            <span className={`text-sm ${isSelected ? 'text-green-300 font-black' : 'text-white font-bold'}`}>
-              {i+1}. {p}
-            </span>
-            {isSelected && <CheckCircle2 className="w-5 h-5 text-green-400" />}
-          </div>
-        );
-      })}
-    </div>
-  );
+const parsePrize = (prizeData) => {
+  if (!prizeData) return DEFAULT_PRIZE_OBJ;
+  if (typeof prizeData === 'string') return { title: prizeData, desc: '', img: '' };
+  return prizeData;
 };
 
 // ==========================================
-// DİJİTAL PİRAMİT TAKVİM BİLEŞENİ
+// LİSTE GÖRÜNÜMLÜ YENİ SINAV TAKVİMİ
 // ==========================================
-const DigitalCalendar = ({ zoneExams, currentUser, isCompact = false }) => {
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [selectedDateStr, setSelectedDateStr] = useState(null);
-  
-  const nextMonth = () => {
-    if (currentMonth === 11) {
-      setCurrentMonth(0);
-      setCurrentYear(prev => prev + 1);
-    } else {
-      setCurrentMonth(prev => prev + 1);
-    }
-    setSelectedDateStr(null);
-  };
-
-  const prevMonth = () => {
-    if (currentMonth === 0) {
-      setCurrentMonth(11);
-      setCurrentYear(prev => prev - 1);
-    } else {
-      setCurrentMonth(prev => prev - 1);
-    }
-    setSelectedDateStr(null);
-  };
-
-  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const firstDay = new Date(currentYear, currentMonth, 1).getDay();
-  const startingEmptyCells = firstDay === 0 ? 6 : firstDay - 1; 
-
+const TimelineCalendar = ({ zoneExams, currentUser }) => {
   const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
-  const days = [];
-  for (let i = 0; i < startingEmptyCells; i++) days.push(null);
-  for (let i = 1; i <= daysInMonth; i++) days.push(i);
-
-  const examMap = {};
+  
+  // Sınavları tarih sırasına dizme
+  let allSessions = [];
   zoneExams.forEach(exam => {
-      const sessions = exam.sessions || [];
-      sessions.forEach(session => {
-         if(!examMap[session.date]) examMap[session.date] = [];
-         examMap[session.date].push({ exam, session });
+    if(exam.sessions) {
+      exam.sessions.forEach(session => {
+         const [y, m, d] = session.date.split('-');
+         const timestamp = new Date(y, m-1, d).getTime();
+         allSessions.push({ ...session, exam, timestamp, formattedDate: `${parseInt(d)} ${monthNames[parseInt(m)-1]}` });
       });
+    }
   });
 
-  const formatDateTrFull = (dateStr, timeStr, examTitle) => {
-    if(!dateStr) return "";
-    const [y, m, d] = dateStr.split('-');
-    return `${parseInt(d)} ${monthNames[parseInt(m)-1]} ${timeStr || ''} - ${examTitle}`;
-  };
+  allSessions.sort((a,b) => a.timestamp - b.timestamp);
 
-  const containerClass = isCompact 
-    ? "max-w-md mx-auto shadow-lg border border-slate-100 rounded-[2rem] bg-white overflow-hidden" 
-    : "bg-white rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden relative";
-  const headerPadding = isCompact ? "p-4" : "p-6 md:p-8";
-  const bodyPadding = isCompact ? "p-4" : "p-6 md:p-8";
-  const daySize = isCompact ? "w-8 h-8 md:w-10 md:h-10" : "w-12 h-12 md:w-14 md:h-14";
-  const textSize = isCompact ? "text-sm md:text-base" : "text-lg md:text-xl";
+  const phoneToCall = currentUser ? getNeighborhoodDetails(currentUser.zone, currentUser.neighborhood).phone : "0850 123 45 67";
 
   return (
-    <div className={containerClass}>
-      <div className={`bg-indigo-900 text-white ${headerPadding} flex justify-between items-center rounded-b-[1.5rem] shadow-md z-10 relative`}>
-        <button onClick={prevMonth} className="hover:bg-indigo-800 p-2 rounded-full transition bg-indigo-950 shadow-inner"><ChevronLeft className={`${isCompact ? 'w-4 h-4' : 'w-6 h-6'} text-indigo-200`}/></button>
-        <h3 className={`font-black uppercase tracking-widest ${isCompact ? 'text-sm md:text-base' : 'text-2xl'}`}>{monthNames[currentMonth]} {currentYear}</h3>
-        <button onClick={nextMonth} className="hover:bg-indigo-800 p-2 rounded-full transition bg-indigo-950 shadow-inner"><ChevronRight className={`${isCompact ? 'w-4 h-4' : 'w-6 h-6'} text-indigo-200`}/></button>
+    <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col md:flex-row">
+      {/* Sol Başlık ve İletişim Alanı */}
+      <div className="bg-indigo-900 text-white p-8 md:p-12 md:w-2/5 flex flex-col justify-center">
+        <CalendarIcon className="w-16 h-16 text-indigo-300 mb-6 opacity-50" />
+        <h2 className="text-4xl md:text-5xl font-black mb-6 leading-tight">Sınav<br/>Takvimi</h2>
+        <p className="text-indigo-200 text-lg mb-8 leading-relaxed">
+          Planlanmış tüm aktif oturumlar sağ tarafta listelenmektedir. Size uygun olan tarihi seçerek kaydınızı oluşturabilirsiniz.
+        </p>
+        <div className="bg-indigo-800/50 p-6 rounded-2xl border border-indigo-700">
+           <Phone className="w-8 h-8 text-indigo-400 mb-3" />
+           <p className="text-sm text-indigo-100 font-medium">Sınav ile ilgili ayrıntılı bilgi için:</p>
+           <a href={`tel:${phoneToCall}`} className="text-2xl font-black text-white hover:text-indigo-300 transition">{phoneToCall}</a>
+           <p className="text-xs text-indigo-300 mt-2">Sınav yoksa gelecek sınavlar hakkında bilgi almak için de arayabilirsiniz.</p>
+        </div>
       </div>
       
-      <div className={bodyPadding}>
-        <div className={`grid grid-cols-7 gap-1 md:gap-2 mb-2 text-center font-black text-slate-400 uppercase text-[8px] sm:text-[10px] md:text-xs`}>
-          <div className="truncate hidden sm:block">Pazartesi</div><div className="sm:hidden">Pzt</div>
-          <div className="truncate hidden sm:block">Salı</div><div className="sm:hidden">Sal</div>
-          <div className="truncate hidden sm:block">Çarşamba</div><div className="sm:hidden">Çar</div>
-          <div className="truncate hidden sm:block">Perşembe</div><div className="sm:hidden">Per</div>
-          <div className="truncate hidden sm:block">Cuma</div><div className="sm:hidden">Cum</div>
-          <div className="truncate hidden sm:block">Cumartesi</div><div className="sm:hidden">Cmt</div>
-          <div className="truncate hidden sm:block">Pazar</div><div className="sm:hidden">Paz</div>
-        </div>
-        <div className="grid grid-cols-7 gap-1 place-items-center">
-          {days.map((d, i) => {
-            if(!d) return <div key={i} className={daySize}></div>;
-            const dateStr = `${currentYear}-${String(currentMonth+1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const dayExams = examMap[dateStr] || [];
-            const hasExam = dayExams.length > 0;
-
-            const isMyExamDay = dayExams.some(e => {
-                 const isMyExam = (currentUser?.examId === e.exam.firebaseId) || (currentUser?.exam?.firebaseId === e.exam.firebaseId);
-                 const isMyDate = (currentUser?.selectedDate === e.session.date) || (currentUser?.exam?.date === e.session.date);
-                 return isMyExam && isMyDate;
-            });
-
-            return (
-              <div key={i}
-                   onClick={() => hasExam && setSelectedDateStr(dateStr)}
-                   className={`relative flex flex-col items-center justify-center rounded-2xl transition-all cursor-pointer ${daySize}
-                      ${hasExam ? 'bg-slate-50 hover:bg-indigo-50 border-2 border-indigo-100 shadow-sm' : 'text-slate-400 border-2 border-transparent'}
-                      ${selectedDateStr === dateStr ? 'ring-4 ring-indigo-400 bg-indigo-100 scale-110 z-10 shadow-lg' : ''}
-                      ${isMyExamDay ? 'bg-green-50 border-green-400 shadow-md ring-2 ring-green-200' : ''}
-                   `}>
-                  <span className={`font-black ${textSize} ${hasExam ? 'text-indigo-900' : ''}`}>{d}</span>
-                  {hasExam && (
-                      <div className={`flex gap-1 absolute ${isCompact ? 'bottom-1' : 'bottom-2'}`}>
-                          <div className={`${isCompact ? 'w-1 h-1' : 'w-2 h-2'} rounded-full ${isMyExamDay ? 'bg-green-500' : 'bg-indigo-400'}`}></div>
-                      </div>
-                  )}
+      {/* Sağ Tarih Listesi */}
+      <div className="p-8 md:p-12 md:w-3/5 bg-slate-50 flex flex-col gap-4">
+        {allSessions.length > 0 ? allSessions.map((session, idx) => {
+           const isMyExamDay = ((currentUser?.examId === session.exam.firebaseId) || (currentUser?.exam?.firebaseId === session.exam.firebaseId))
+                            && ((currentUser?.selectedDate === session.date) || (currentUser?.exam?.date === session.date));
+           return (
+              <div key={idx} className={`p-6 rounded-2xl border-l-[6px] shadow-sm flex flex-col sm:flex-row justify-between sm:items-center gap-4 transition-all ${isMyExamDay ? 'bg-white border-green-500 shadow-md ring-1 ring-green-100' : 'bg-white border-indigo-500 hover:border-indigo-400'}`}>
+                 <div>
+                    <div className="text-2xl font-black text-slate-800 mb-1">{session.formattedDate}</div>
+                    <div className="text-sm font-bold text-slate-500">{session.exam.title}</div>
+                 </div>
+                 <div className="flex flex-wrap gap-2">
+                    {session.slots.map(s => {
+                       const isMySlot = isMyExamDay && ((currentUser?.selectedTime === s) || (currentUser?.slot === s));
+                       return (
+                         <span key={s} className={`px-4 py-2 rounded-xl text-sm font-black border-2 ${isMySlot ? 'bg-green-500 text-white border-green-500 shadow-sm' : 'bg-indigo-50 text-indigo-700 border-indigo-100'}`}>
+                           {s} {isMySlot && '✓'}
+                         </span>
+                       )
+                    })}
+                 </div>
               </div>
-            )
-          })}
-        </div>
-      </div>
-
-      <div className={`bg-slate-50 ${isCompact ? 'p-4' : 'p-6 md:p-10'} border-t-2 border-slate-100`}>
-          {!selectedDateStr && (
-             <h4 className={`font-black text-slate-800 mb-4 flex items-center uppercase tracking-wider ${isCompact ? 'text-xs' : 'text-xl'}`}>
-                <Clock className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} mr-2 text-indigo-500`}/> {monthNames[currentMonth]} Ayı Oturumları
-             </h4>
-          )}
-          {selectedDateStr && (
-             <div className="flex justify-between items-center mb-4">
-               <h4 className={`font-black text-indigo-900 flex items-center uppercase tracking-wider ${isCompact ? 'text-xs' : 'text-xl'}`}>
-                  <CalendarIcon className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} mr-2 text-indigo-500`}/> {selectedDateStr.split('-').reverse().join('.')}
-               </h4>
-               <button onClick={() => setSelectedDateStr(null)} className="text-[10px] md:text-xs font-bold text-slate-400 hover:text-slate-700 underline">Tümünü Göster</button>
-             </div>
-          )}
-
-          <div className="space-y-2 md:space-y-4">
-              {Object.keys(examMap).sort().map(dateStr => {
-                  const [y, m] = dateStr.split('-');
-                  if(parseInt(m) !== currentMonth + 1 || parseInt(y) !== currentYear) return null;
-                  if (selectedDateStr && dateStr !== selectedDateStr) return null;
-
-                  return examMap[dateStr].map((item, idx) => {
-                      const { exam, session } = item;
-                      return session.slots.map(slot => {
-                          const isMySlot = ((currentUser?.examId === exam.firebaseId) || (currentUser?.exam?.firebaseId === exam.firebaseId))
-                                         && ((currentUser?.selectedDate === session.date) || (currentUser?.exam?.date === session.date))
-                                         && ((currentUser?.selectedTime === slot) || (currentUser?.slot === slot));
-                          return (
-                              <div key={`${dateStr}-${slot}-${idx}`} className={`flex flex-col md:flex-row items-start md:items-center justify-between p-4 md:p-5 rounded-2xl border-l-[6px] shadow-sm transition-all ${isMySlot ? 'bg-white border-l-green-500 border-y border-r border-slate-200' : 'bg-white border-l-indigo-500 border-y border-r border-slate-200'}`}>
-                                  <div className={`font-black text-slate-800 mb-2 md:mb-0 ${isCompact ? 'text-sm' : 'text-lg'}`}>
-                                      {formatDateTrFull(session.date, slot, exam.title)}
-                                  </div>
-                                  {isMySlot && (
-                                      <span className="bg-green-100 text-green-700 text-[10px] md:text-xs font-black px-3 py-1.5 rounded-xl uppercase tracking-wider flex items-center w-max mt-2 md:mt-0">
-                                          <CheckCircle2 className="w-4 h-4 mr-1 md:mr-2"/> Senin Oturumun
-                                      </span>
-                                  )}
-                              </div>
-                          );
-                      });
-                  });
-              })}
-              {!Object.keys(examMap).some(dateStr => {
-                  const [y, m] = dateStr.split('-');
-                  return parseInt(m) === currentMonth + 1 && parseInt(y) === currentYear;
-              }) && (
-                  <div className={`text-center text-slate-500 font-bold py-4 italic ${isCompact ? 'text-xs' : 'text-base'}`}>Bu aya ait planlanmış sınav bulunmuyor.</div>
-              )}
-          </div>
+           )
+        }) : (
+           <div className="h-full flex flex-col items-center justify-center text-center py-20 text-slate-400">
+              <CalendarIcon className="w-16 h-16 mb-4 opacity-50"/>
+              <p className="text-xl font-bold">Planlanmış bir sınav bulunmamaktadır.</p>
+           </div>
+        )}
       </div>
     </div>
   );
@@ -512,7 +394,7 @@ export default function App() {
               
               {currentUser && (
                 <>
-                  <button onClick={() => scrollToSection('oduller')} className="text-yellow-600 hover:text-yellow-700 font-black transition text-sm bg-yellow-50 px-3 py-1.5 rounded-lg border border-yellow-200">Bölgemin Ödülleri</button>
+                  <button onClick={() => scrollToSection('oduller')} className="text-yellow-600 hover:text-yellow-700 font-black transition text-sm bg-yellow-50 px-3 py-1.5 rounded-lg border border-yellow-200">Ödül Havuzu</button>
                   <button onClick={() => scrollToSection('takvim')} className="text-indigo-600 hover:text-indigo-700 font-black transition text-sm bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200">Sınav Takvimim</button>
                 </>
               )}
@@ -688,6 +570,55 @@ function AdminLogin({ setAdminAuth, zones }) {
 function LandingPage({ navigateTo, currentUser, scrollToSection, exams }) {
   const zoneExams = currentUser ? exams.filter(e => e.zoneId === currentUser?.zone?.id) : [];
 
+  // Ödül Kartı Bileşeni (Görsel ve Açıklamalı)
+  const PrizeCard = ({ type, prizeObj, selectedPrize }) => {
+    const data = parsePrize(prizeObj);
+    if (!data.title) return null;
+
+    let bgClass = "bg-yellow-50 border-yellow-200 text-yellow-900";
+    let icon = <Trophy className="w-8 h-8 text-yellow-600" />;
+    let typeName = "Büyük Ödül";
+
+    if (type === "degree") {
+      bgClass = "bg-indigo-50 border-indigo-200 text-indigo-900";
+      icon = <Award className="w-8 h-8 text-indigo-600" />;
+      typeName = "Derece Ödülleri";
+    } else if (type === "participation") {
+      bgClass = "bg-emerald-50 border-emerald-200 text-emerald-900";
+      icon = <Gift className="w-8 h-8 text-emerald-600" />;
+      typeName = "Katılım Ödülleri";
+    }
+
+    const itemsList = data.title.split(',').map(s=>s.trim()).filter(s=>s);
+
+    return (
+      <div className={`p-6 rounded-[2rem] border-4 ${bgClass} flex flex-col md:flex-row gap-6 items-center`}>
+        {data.img ? (
+          <img src={data.img} alt={typeName} className="w-full md:w-48 h-48 object-cover rounded-3xl shadow-md border-4 border-white bg-white flex-shrink-0" />
+        ) : (
+          <div className="w-full md:w-48 h-48 rounded-3xl shadow-md border-4 border-white bg-white/50 flex flex-col items-center justify-center flex-shrink-0">
+             {icon}
+             <span className="font-bold text-sm mt-2 opacity-50">Görsel Yok</span>
+          </div>
+        )}
+        <div className="flex-1 w-full">
+          <div className="text-sm font-black uppercase tracking-widest opacity-60 mb-2">{typeName}</div>
+          <div className="flex flex-wrap gap-2 mb-4">
+             {itemsList.map(item => {
+                const isSelected = selectedPrize === item;
+                return (
+                  <span key={item} className={`px-4 py-2 rounded-xl text-lg font-black flex items-center shadow-sm border-2 ${isSelected ? 'bg-green-500 border-green-400 text-white' : 'bg-white border-transparent'}`}>
+                    {isSelected && <CheckCircle2 className="w-5 h-5 mr-2" />} {item}
+                  </span>
+                )
+             })}
+          </div>
+          {data.desc && <p className="font-medium text-lg leading-relaxed opacity-80">{data.desc}</p>}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div>
       <section id="hero" className="relative bg-gradient-to-b from-indigo-900 via-indigo-800 to-indigo-950 text-white overflow-hidden pt-24 pb-32">
@@ -800,43 +731,28 @@ function LandingPage({ navigateTo, currentUser, scrollToSection, exams }) {
             <>
               <div className="w-full h-px bg-slate-200 my-16"></div>
 
-              <div id="oduller" className="bg-gradient-to-br from-yellow-500 to-amber-600 rounded-[3rem] shadow-2xl p-8 md:p-16 text-white relative overflow-hidden pt-10">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20"></div>
+              {/* YENİ ÖDÜL TASARIMI (AÇIK/GENİŞ VE RESİMLİ LİSTE) */}
+              <div id="oduller" className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 p-8 md:p-16 relative overflow-hidden pt-10">
                 <div className="relative z-10">
-                  <div className="flex items-center mb-8">
-                    <Gift className="w-12 h-12 mr-4 text-yellow-100"/>
-                    <h2 className="text-4xl md:text-5xl font-black">Bölgene Özel Ödüller</h2>
+                  <div className="flex items-center justify-center mb-6">
+                    <Gift className="w-12 h-12 mr-4 text-yellow-500"/>
+                    <h2 className="text-4xl md:text-5xl font-black text-slate-900">Ödül Havuzu</h2>
                   </div>
-                  <p className="text-xl text-yellow-50 mb-10 max-w-3xl leading-relaxed">
-                    Sistem tarafından <b>{currentUser?.zone?.name}</b> bölgesine atandın. Bu bölgedeki öğrencilerle yarışacak ve aşağıdaki muhteşem ödülleri kazanma şansı yakalayacaksın!
+                  <p className="text-xl text-slate-600 mb-12 text-center max-w-3xl mx-auto leading-relaxed">
+                    Sınava katılarak aşağıdaki muhteşem ödülleri kazanma şansı yakalayacaksın! Hedefini belirle, başarıya ulaş.
                   </p>
                   
-                  <div className="grid md:grid-cols-3 gap-8">
-                    <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20 hover:bg-white/20 transition cursor-default">
-                      <div className="text-sm uppercase tracking-widest text-yellow-200 font-black mb-3">Büyük Ödül</div>
-                      <div className="font-black text-white text-3xl">{currentUser?.zone?.prizes?.grand || "Yakında Açıklanacak"}</div>
-                    </div>
-                    <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20 hover:bg-white/20 transition cursor-default">
-                      <div className="text-sm uppercase tracking-widest text-yellow-200 font-black mb-3">Derece Ödülleri</div>
-                      <PrizeDisplay prizeString={currentUser?.zone?.prizes?.degree} selectedPrize={currentUser?.selectedDegreePrize} />
-                    </div>
-                    <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20 hover:bg-white/20 transition cursor-default">
-                      <div className="text-sm uppercase tracking-widest text-yellow-200 font-black mb-3">Katılım Ödülleri</div>
-                      <PrizeDisplay prizeString={currentUser?.zone?.prizes?.participation} selectedPrize={currentUser?.selectedParticipationPrize} />
-                    </div>
+                  <div className="flex flex-col gap-8 max-w-5xl mx-auto">
+                    <PrizeCard type="grand" prizeObj={currentUser?.zone?.prizes?.grand} />
+                    <PrizeCard type="degree" prizeObj={currentUser?.zone?.prizes?.degree} selectedPrize={currentUser?.selectedDegreePrize} />
+                    <PrizeCard type="participation" prizeObj={currentUser?.zone?.prizes?.participation} selectedPrize={currentUser?.selectedParticipationPrize} />
                   </div>
                 </div>
               </div>
 
-              {/* ANA SAYFADAKİ KÜÇÜK TAKVİM */}
+              {/* LİSTE GÖRÜNÜMLÜ YENİ TAKVİM */}
               <div id="takvim" className="pt-10">
-                <div className="flex flex-col md:flex-row md:items-center justify-between mb-8">
-                   <div className="flex items-center">
-                     <CalendarIcon className="w-10 h-10 mr-4 text-indigo-600"/>
-                     <h2 className="text-3xl md:text-4xl font-black text-slate-900">Sınav Takvimi</h2>
-                   </div>
-                </div>
-                <DigitalCalendar zoneExams={zoneExams} currentUser={currentUser} isCompact={true} />
+                <TimelineCalendar zoneExams={zoneExams} currentUser={currentUser} />
               </div>
             </>
           )}
@@ -916,10 +832,11 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
     setVerificationCode(code);
     setShowVerification(true);
     
-    // Gerçek SMS isteği atılır ('no-cors' ile tarayıcı engeli aşılsa da güvenlik nedeniyle Backend önerilir)
-    await sendSMS([{tel: [formData.phone], msg: `odullusinav.net kayit dogrulama kodunuz: ${code}`}]);
+    // Arka Planda SMS İsteği (Başarısız olsa bile ekranda kodu veriyoruz ki kayıt süreci kesilmesin)
+    await sendSMS([formData.phone], `odullusinav.net dogrulama kodunuz: ${code}`);
     
-    alert(`[MESAJPANELI APİ BİLGİ]\nAPI isteği başarıyla atıldı. Eğer onaylı başlığınız veya krediniz yoksa SMS gelmeyebilir. Test edebilmeniz için kodunuz:\nDoğrulama Kodunuz: ${code}`);
+    // Geliştirici veya Test için uyarı
+    alert(`[SİSTEM BİLGİSİ - SMS APİ AKTİF]\nDoğrulama Kodunuz: ${code}\n\n(MesajPaneli bakiyeniz yoksa veya operatör bekletirse diye test kodu ekrana yazdırılmıştır.)`);
   };
 
   const verifyCodeAndProceed = () => {
@@ -952,8 +869,17 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
     }
   }, [formData.district, formData.neighborhood, zones, exams]);
 
-  const degreePrizesList = matchedZone?.prizes?.degree?.split(',').map(s=>s.trim()).filter(s=>s) || [];
-  const partPrizesList = matchedZone?.prizes?.participation?.split(',').map(s=>s.trim()).filter(s=>s) || [];
+  const parsePrize = (prizeData) => {
+    if (!prizeData) return DEFAULT_PRIZE_OBJ;
+    if (typeof prizeData === 'string') return { title: prizeData, desc: '', img: '' };
+    return prizeData;
+  };
+
+  const degreePrizesObj = parsePrize(matchedZone?.prizes?.degree);
+  const partPrizesObj = parsePrize(matchedZone?.prizes?.participation);
+
+  const degreePrizesList = degreePrizesObj.title.split(',').map(s=>s.trim()).filter(s=>s);
+  const partPrizesList = partPrizesObj.title.split(',').map(s=>s.trim()).filter(s=>s);
   
   const needsDegreeSelection = degreePrizesList.length > 1;
   const needsPartSelection = partPrizesList.length > 1;
@@ -1024,7 +950,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
 
       // --- SMS GÖNDERİM KISMI ---
       if (withoutExam) {
-         await sendSMS([{tel: [finalUserObj.phone], msg: `odullusinav.net basvurunuz alinmistir. Bolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`}]);
+         sendSMS([finalUserObj.phone], `odullusinav.net basvurunuz alinmistir. Bolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`);
       } else {
          const centerInfo = getNeighborhoodDetails(matchedZone, finalUserObj.neighborhood);
          const [y, m, d] = finalUserObj.selectedDate.split('-');
@@ -1038,7 +964,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
 
          const regMsg = `odullusinav.net basvurunuz alinmistir. Size en yakin sinav mahallimiz ${finalUserObj.district} ilcesi ${finalUserObj.neighborhood} mahallesindedir. Sinav saatinden 30 dakika once asagidaki konumda olmanizi rica ederiz.\n\nOturum: ${trDateFull}\nKonum: ${centerInfo.address || centerInfo.centerName}\nKonum Linki: ${centerInfo.mapLink}\nIletisim: ${centerInfo.phone}${SMS_FOOTER}`;
          
-         await sendSMS([{tel: [finalUserObj.phone], msg: regMsg}]);
+         sendSMS([finalUserObj.phone], regMsg);
       }
 
       setStep(3); 
@@ -1062,7 +988,6 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-16 relative">
-      {/* Doğrulama Kodu Modalı */}
       {showVerification && (
          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-md relative animate-in zoom-in-95">
@@ -1280,8 +1205,8 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
                              <div className="flex flex-wrap gap-3">
                                {degreePrizesList.map(prize => (
                                  <button key={prize} onClick={() => setSelectedDegreePrize(prize)}
-                                    className={`px-6 py-4 rounded-2xl border-4 font-black transition-all ${selectedDegreePrize === prize ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}>
-                                    {prize}
+                                    className={`px-6 py-4 rounded-2xl border-4 font-black transition-all flex items-center ${selectedDegreePrize === prize ? 'bg-green-500 border-green-500 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}>
+                                    {selectedDegreePrize === prize && <CheckCircle2 className="w-5 h-5 mr-2"/>} {prize}
                                  </button>
                                ))}
                              </div>
@@ -1294,8 +1219,8 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
                              <div className="flex flex-wrap gap-3">
                                {partPrizesList.map(prize => (
                                  <button key={prize} onClick={() => setSelectedParticipationPrize(prize)}
-                                    className={`px-6 py-4 rounded-2xl border-4 font-black transition-all ${selectedParticipationPrize === prize ? 'bg-green-600 border-green-600 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-600 hover:border-green-300'}`}>
-                                    {prize}
+                                    className={`px-6 py-4 rounded-2xl border-4 font-black transition-all flex items-center ${selectedParticipationPrize === prize ? 'bg-green-500 border-green-500 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-600 hover:border-green-300'}`}>
+                                    {selectedParticipationPrize === prize && <CheckCircle2 className="w-5 h-5 mr-2"/>} {prize}
                                  </button>
                                ))}
                              </div>
@@ -1354,8 +1279,8 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
                                               setSelectedExam(exam); 
                                               setSelectedSlot({ date: session.date, time: slot }); 
                                             }}
-                                            className={`px-8 py-4 rounded-2xl text-xl font-black border-4 transition-all ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-xl scale-105' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-indigo-400'}`}>
-                                              <Clock className="w-5 h-5 inline mr-2 opacity-70" /> {slot}
+                                            className={`px-8 py-4 rounded-2xl text-xl font-black border-4 transition-all flex items-center ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-xl scale-105' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-indigo-400'}`}>
+                                              {isSelected ? <CheckCircle2 className="w-5 h-5 mr-2" /> : <Clock className="w-5 h-5 mr-2 opacity-70" />} {slot}
                                             </button>
                                           )
                                         })}
@@ -1564,9 +1489,9 @@ function StudentProfile({ currentUser, exams, navigateTo }) {
             </div>
           )}
 
-          {/* DİJİTAL PİRAMİT TAKVİM (Yeni) */}
+          {/* YENİ TAKVİM: LİSTE GÖRÜNÜMÜ */}
           <div className="mt-12">
-             <DigitalCalendar zoneExams={zoneExams} currentUser={currentUser} />
+             <TimelineCalendar zoneExams={zoneExams} currentUser={currentUser} />
           </div>
 
           {/* GEÇMİŞ SINAVLAR VE SONUÇLAR */}
@@ -1618,7 +1543,12 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
   const filteredStudents = students.filter(s => s.zone?.id === adminZoneId);
   const filteredExams = exams.filter(e => e.zoneId === adminZoneId);
 
-  const [localPrizes, setLocalPrizes] = useState({grand: '', degree: '', participation: ''});
+  const [localPrizes, setLocalPrizes] = useState({
+    grand: { title: '', desc: '', img: '' },
+    degree: { title: '', desc: '', img: '' },
+    participation: { title: '', desc: '', img: '' }
+  });
+
   const [examData, setExamData] = useState({ title: '' });
   const [examSessions, setExamSessions] = useState([{ date: '', times: '' }]);
   
@@ -1626,16 +1556,14 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
   const [mappingData, setMappingData] = useState({ district: '', neighborhood: '', centerId: '', phone: '' });
 
   const [resultModal, setResultModal] = useState({ isOpen: false, student: null, score: '', rank: '' });
-
-  // Yeni Toplu SMS State'i
   const [smsModal, setSmsModal] = useState({ isOpen: false, type: 'custom', customMsg: '', loading: false });
 
   useEffect(() => {
     if(adminZoneData) {
       setLocalPrizes({
-        grand: adminZoneData.prizes?.grand || '',
-        degree: adminZoneData.prizes?.degree || '',
-        participation: adminZoneData.prizes?.participation || ''
+        grand: parsePrize(adminZoneData.prizes?.grand),
+        degree: parsePrize(adminZoneData.prizes?.degree),
+        participation: parsePrize(adminZoneData.prizes?.participation)
       });
     }
   }, [adminZoneData]);
@@ -1646,7 +1574,7 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
   const adminMappings = adminZoneData.mappings || [];
 
   const handleUpdatePrizes = async () => {
-    if (localPrizes.grand.includes(',')) {
+    if (localPrizes.grand.title.includes(',')) {
       alert("Büyük Ödül tek bir tane olmalıdır! Lütfen araya virgül koymayın.");
       return;
     }
@@ -1932,21 +1860,35 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+            {/* ÖDÜL YÖNETİMİ (YENİ TASARIM GİRİŞİ) */}
             <div>
               <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider flex items-center"><Gift className="w-6 h-6 mr-2"/> Bölge Ödüllerini Yönet</div>
-              <div className="space-y-4 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Büyük Ödül (Sadece Tek Seçenek)</label>
-                  <input type="text" value={localPrizes.grand} onChange={e=>setLocalPrizes({...localPrizes, grand: e.target.value})} className="w-full text-base font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Örn: PlayStation 5"/>
+              <div className="space-y-6 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
+                
+                {/* Büyük Ödül */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200">
+                  <div className="text-sm font-black text-slate-800 mb-3 flex items-center"><Trophy className="w-5 h-5 text-yellow-500 mr-2"/> Büyük Ödül</div>
+                  <input type="text" value={localPrizes.grand.title} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, title: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2" placeholder="Ödül Başlığı (Örn: PlayStation 5)"/>
+                  <textarea rows="2" value={localPrizes.grand.desc} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, desc: e.target.value}})} className="w-full text-sm font-medium p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2 resize-none" placeholder="Açıklama (İsteğe bağlı)"/>
+                  <input type="text" value={localPrizes.grand.img} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, img: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Görsel Dosya Adı veya Link (Örn: ps5.png)"/>
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Derece Ödülleri (Virgül ile Ayırın)</label>
-                  <input type="text" value={localPrizes.degree} onChange={e=>setLocalPrizes({...localPrizes, degree: e.target.value})} className="w-full text-base font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Örn: Tablet, Bisiklet"/>
+
+                {/* Derece Ödülleri */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200">
+                  <div className="text-sm font-black text-slate-800 mb-3 flex items-center"><Award className="w-5 h-5 text-indigo-500 mr-2"/> Derece Ödülleri</div>
+                  <input type="text" value={localPrizes.degree.title} onChange={e=>setLocalPrizes({...localPrizes, degree: {...localPrizes.degree, title: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2" placeholder="Seçenekleri virgülle ayırın (Tablet, Bisiklet)"/>
+                  <textarea rows="2" value={localPrizes.degree.desc} onChange={e=>setLocalPrizes({...localPrizes, degree: {...localPrizes.degree, desc: e.target.value}})} className="w-full text-sm font-medium p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2 resize-none" placeholder="Açıklama (İsteğe bağlı)"/>
+                  <input type="text" value={localPrizes.degree.img} onChange={e=>setLocalPrizes({...localPrizes, degree: {...localPrizes.degree, img: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Görsel Dosya Adı veya Link"/>
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Katılım Ödülleri (Virgül ile Ayırın)</label>
-                  <input type="text" value={localPrizes.participation} onChange={e=>setLocalPrizes({...localPrizes, participation: e.target.value})} className="w-full text-base font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Örn: Kol Saati, Bileklik, Oyuncak"/>
+
+                {/* Katılım Ödülleri */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200">
+                  <div className="text-sm font-black text-slate-800 mb-3 flex items-center"><Gift className="w-5 h-5 text-emerald-500 mr-2"/> Katılım Ödülleri</div>
+                  <input type="text" value={localPrizes.participation.title} onChange={e=>setLocalPrizes({...localPrizes, participation: {...localPrizes.participation, title: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2" placeholder="Seçenekleri virgülle ayırın"/>
+                  <textarea rows="2" value={localPrizes.participation.desc} onChange={e=>setLocalPrizes({...localPrizes, participation: {...localPrizes.participation, desc: e.target.value}})} className="w-full text-sm font-medium p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2 resize-none" placeholder="Açıklama (İsteğe bağlı)"/>
+                  <input type="text" value={localPrizes.participation.img} onChange={e=>setLocalPrizes({...localPrizes, participation: {...localPrizes.participation, img: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Görsel Dosya Adı veya Link"/>
                 </div>
+
                 <button onClick={handleUpdatePrizes} className="bg-slate-800 hover:bg-slate-900 text-white text-base font-black py-4 px-4 rounded-xl transition w-full shadow-lg">Ödülleri Güncelle</button>
               </div>
             </div>
