@@ -37,10 +37,10 @@ const sendSMS = async (msgDataArray) => {
   try {
     const payload = {
       user: {
-        hash: MESAJ_PANELI_API_KEY // API Hash Kimlik Doğrulama
+        hash: MESAJ_PANELI_API_KEY
       },
-      msgBaslik: "ODULLUSINAV", // Onaylı başlığınız
-      msgData: msgDataArray // Örn: [{tel: ["532.."], msg: "mesaj"}, ...]
+      msgBaslik: "ODULLUSINAV",
+      msgData: msgDataArray 
     };
 
     const response = await fetch("https://api.mesajpaneli.com/json_api/", {
@@ -50,7 +50,6 @@ const sendSMS = async (msgDataArray) => {
     });
     
     const result = await response.json();
-    console.log("SMS API Yanıtı:", result);
     return result;
   } catch (error) {
     console.error("SMS Gönderim Hatası:", error);
@@ -112,7 +111,6 @@ const INITIAL_ZONES = [
   { id: 7, name: "Yalova", active: true, districts: ["Altınova", "Armutlu", "Çınarcık", "Çiftlikköy", "Karamürsel", "Merkez", "Termal"], partialDistricts: {}, prizes: { grand: "", degree: "", participation: "" }, centers: [], mappings: [] }
 ];
 
-// Helper Functions
 const findZoneByName = (zonesList, zoneName) => zonesList.find(z => z.name === zoneName);
 
 const determineZoneName = (province, district, neighborhood) => {
@@ -167,23 +165,34 @@ const PrizeDisplay = ({ title, prizeString, selectedPrize }) => {
 // DİJİTAL PİRAMİT TAKVİM BİLEŞENİ
 // ==========================================
 const DigitalCalendar = ({ zoneExams, currentUser, isCompact = false }) => {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // Tarihleri state içinde tam sayı olarak tutuyoruz ki referans hataları oluşmasın
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [selectedDateStr, setSelectedDateStr] = useState(null);
   
   const nextMonth = () => {
-    setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setCurrentYear(prev => prev + 1);
+    } else {
+      setCurrentMonth(prev => prev + 1);
+    }
     setSelectedDateStr(null);
   };
+
   const prevMonth = () => {
-    setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    if (currentMonth === 0) {
+      setCurrentMonth(11);
+      setCurrentYear(prev => prev - 1);
+    } else {
+      setCurrentMonth(prev => prev - 1);
+    }
     setSelectedDateStr(null);
   };
 
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+  // 0: Pazar, Pazartesinden başlatmak için formül
   const startingEmptyCells = firstDay === 0 ? 6 : firstDay - 1; 
 
   const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
@@ -218,18 +227,24 @@ const DigitalCalendar = ({ zoneExams, currentUser, isCompact = false }) => {
     <div className={containerClass}>
       <div className={`bg-indigo-900 text-white ${headerPadding} flex justify-between items-center rounded-b-[1.5rem] shadow-md z-10 relative`}>
         <button onClick={prevMonth} className="hover:bg-indigo-800 p-2 rounded-full transition bg-indigo-950 shadow-inner"><ChevronLeft className={`${isCompact ? 'w-4 h-4' : 'w-6 h-6'} text-indigo-200`}/></button>
-        <h3 className={`font-black uppercase tracking-widest ${isCompact ? 'text-sm md:text-base' : 'text-2xl'}`}>{monthNames[month]} {year}</h3>
+        <h3 className={`font-black uppercase tracking-widest ${isCompact ? 'text-sm md:text-base' : 'text-2xl'}`}>{monthNames[currentMonth]} {currentYear}</h3>
         <button onClick={nextMonth} className="hover:bg-indigo-800 p-2 rounded-full transition bg-indigo-950 shadow-inner"><ChevronRight className={`${isCompact ? 'w-4 h-4' : 'w-6 h-6'} text-indigo-200`}/></button>
       </div>
       
       <div className={bodyPadding}>
-        <div className={`grid grid-cols-7 gap-1 md:gap-2 mb-2 text-center font-black text-slate-400 uppercase ${isCompact ? 'text-[9px]' : 'text-xs'}`}>
-          <div>Pzt</div><div>Sal</div><div>Çar</div><div>Per</div><div>Cum</div><div>Cmt</div><div>Paz</div>
+        <div className={`grid grid-cols-7 gap-1 md:gap-2 mb-2 text-center font-black text-slate-400 uppercase text-[8px] sm:text-[10px] md:text-xs`}>
+          <div className="truncate">Pazartesi</div>
+          <div className="truncate">Salı</div>
+          <div className="truncate">Çarşamba</div>
+          <div className="truncate">Perşembe</div>
+          <div className="truncate">Cuma</div>
+          <div className="truncate">Cumartesi</div>
+          <div className="truncate">Pazar</div>
         </div>
         <div className="grid grid-cols-7 gap-1 place-items-center">
           {days.map((d, i) => {
             if(!d) return <div key={i} className={daySize}></div>;
-            const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const dateStr = `${currentYear}-${String(currentMonth+1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             const dayExams = examMap[dateStr] || [];
             const hasExam = dayExams.length > 0;
 
@@ -259,10 +274,11 @@ const DigitalCalendar = ({ zoneExams, currentUser, isCompact = false }) => {
         </div>
       </div>
 
+      {/* Sınavların Liste Gösterimi */}
       <div className={`bg-slate-50 ${isCompact ? 'p-4' : 'p-6 md:p-10'} border-t-2 border-slate-100`}>
           {!selectedDateStr && (
              <h4 className={`font-black text-slate-800 mb-4 flex items-center uppercase tracking-wider ${isCompact ? 'text-xs' : 'text-xl'}`}>
-                <Clock className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} mr-2 text-indigo-500`}/> {monthNames[month]} Ayı Oturumları
+                <Clock className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} mr-2 text-indigo-500`}/> {monthNames[currentMonth]} Ayı Oturumları
              </h4>
           )}
           {selectedDateStr && (
@@ -277,7 +293,7 @@ const DigitalCalendar = ({ zoneExams, currentUser, isCompact = false }) => {
           <div className="space-y-2 md:space-y-4">
               {Object.keys(examMap).sort().map(dateStr => {
                   const [y, m] = dateStr.split('-');
-                  if(parseInt(m) !== month + 1 || parseInt(y) !== year) return null;
+                  if(parseInt(m) !== currentMonth + 1 || parseInt(y) !== currentYear) return null;
                   if (selectedDateStr && dateStr !== selectedDateStr) return null;
 
                   return examMap[dateStr].map((item, idx) => {
@@ -303,7 +319,7 @@ const DigitalCalendar = ({ zoneExams, currentUser, isCompact = false }) => {
               })}
               {!Object.keys(examMap).some(dateStr => {
                   const [y, m] = dateStr.split('-');
-                  return parseInt(m) === month + 1 && parseInt(y) === year;
+                  return parseInt(m) === currentMonth + 1 && parseInt(y) === currentYear;
               }) && (
                   <div className={`text-center text-slate-500 font-bold py-4 italic ${isCompact ? 'text-xs' : 'text-base'}`}>Bu aya ait planlanmış sınav bulunmuyor.</div>
               )}
@@ -536,6 +552,7 @@ export default function App() {
             setCurrentUser={setCurrentUser} 
             zones={zones}
             exams={exams}
+            students={registeredStudents}
           />}
         {currentView === 'login' && <LoginPage students={registeredStudents} setCurrentUser={setCurrentUser} navigateTo={navigateTo} />}
         {currentView === 'profile' && <StudentProfile currentUser={currentUser} exams={exams} navigateTo={navigateTo} />}
@@ -818,7 +835,7 @@ function LandingPage({ navigateTo, currentUser, scrollToSection, exams }) {
 // ==========================================
 // 2. KAYIT AKIŞI VE YENİ SINAV SEÇİMİ
 // ==========================================
-function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, exams }) {
+function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, exams, students }) {
   const [step, setStep] = useState(1); 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'odullu-sinav';
@@ -837,6 +854,11 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
   
   const [selectedDegreePrize, setSelectedDegreePrize] = useState('');
   const [selectedParticipationPrize, setSelectedParticipationPrize] = useState('');
+
+  // Doğrulama Modal States
+  const [showVerification, setShowVerification] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [enteredCode, setEnteredCode] = useState('');
 
   useEffect(() => {
     if (currentUser && step === 1) {
@@ -858,6 +880,37 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
     if (val.length > 0 && val[0] !== '5') { val = '5' + val; }
     val = val.substring(0, 10);
     setFormData({ ...formData, phone: val });
+  };
+
+  const handleStep1Submit = () => {
+    // Çift profil kontrolü
+    if(!currentUser) {
+      const isDuplicate = students.some(s => 
+        s.fullName.trim().toLowerCase() === formData.fullName.trim().toLowerCase() && 
+        s.phone === formData.phone
+      );
+      
+      if(isDuplicate) {
+        alert("Bu isim ve telefon numarası ile sistemde zaten bir profil bulunuyor. Lütfen Giriş Yapın.");
+        return;
+      }
+    }
+
+    // Doğrulama adımını başlat
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    setVerificationCode(code);
+    setShowVerification(true);
+    // Gerçek SMS sistemi şu an kapalı olduğundan ekrana alert olarak veriyoruz.
+    alert(`[TEST MODU]\nDoğrulama Kodunuz: ${code}\n\n(Gerçek uygulamada bu kod telefonunuza SMS olarak gelecektir)`);
+  };
+
+  const verifyCodeAndProceed = () => {
+    if (enteredCode === verificationCode || enteredCode === "1234") { // 1234 her zaman kabul etsin (test kolaylığı)
+      setShowVerification(false);
+      setStep(2);
+    } else {
+      alert("Girdiğiniz doğrulama kodu hatalı. Lütfen tekrar deneyin.");
+    }
   };
 
   useEffect(() => {
@@ -953,7 +1006,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
 
       // --- SMS GÖNDERİM KISMI ---
       if (withoutExam) {
-         await sendSMS(finalUserObj.phone, `odullusinav.net basvurunuz alinmistir. Bolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`);
+         await sendSMS([{tel: [finalUserObj.phone], msg: `odullusinav.net basvurunuz alinmistir. Bolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`}]);
       } else {
          const centerInfo = getNeighborhoodDetails(matchedZone, finalUserObj.neighborhood);
          const [y, m, d] = finalUserObj.selectedDate.split('-');
@@ -962,7 +1015,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
 
          const regMsg = `odullusinav.net basvurunuz alinmistir. Size en yakin sinav mahallimiz ${finalUserObj.district} ilcesi ${finalUserObj.neighborhood} mahallesindedir. Sinav saatinden 30 dakika once asagidaki konumda olmanizi rica ederiz.\n\nOturum: ${trDate} - ${finalUserObj.selectedTime}\nKonum: ${centerInfo.address || centerInfo.centerName}\nLink: ${centerInfo.mapLink}\nIletisim: ${centerInfo.phone}${SMS_FOOTER}`;
          
-         await sendSMS(finalUserObj.phone, regMsg);
+         await sendSMS([{tel: [finalUserObj.phone], msg: regMsg}]);
       }
 
       setStep(3); 
@@ -985,7 +1038,32 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
   }).sort((a,b) => a.mockDistance - b.mockDistance);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-16">
+    <div className="max-w-4xl mx-auto px-4 py-16 relative">
+      {/* Doğrulama Kodu Modalı */}
+      {showVerification && (
+         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-md relative animate-in zoom-in-95">
+               <button onClick={() => setShowVerification(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"><Plus className="w-8 h-8 transform rotate-45"/></button>
+               <Phone className="w-16 h-16 text-indigo-500 mx-auto mb-6" />
+               <h3 className="text-3xl font-black text-center text-slate-900 mb-2">Telefon Doğrulama</h3>
+               <p className="text-center text-slate-500 font-bold mb-8">Lütfen 0{formData.phone} numaralı telefonunuza gönderilen 4 haneli kodu giriniz.</p>
+               
+               <input 
+                 type="text" 
+                 maxLength="4" 
+                 value={enteredCode} 
+                 onChange={e => setEnteredCode(e.target.value.replace(/\D/g, ''))} 
+                 className="w-full text-center tracking-[1em] border-4 border-slate-100 rounded-2xl px-6 py-4 text-3xl font-black focus:border-indigo-500 outline-none mb-6" 
+                 placeholder="••••" 
+               />
+               
+               <button onClick={verifyCodeAndProceed} disabled={enteredCode.length !== 4} className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 disabled:opacity-50 transition shadow-xl shadow-indigo-500/30">
+                 Doğrula ve Devam Et
+               </button>
+            </div>
+         </div>
+      )}
+
       <div className="flex items-center justify-center mb-12">
         <div className={`flex items-center ${step >= 1 ? 'text-indigo-600' : 'text-slate-400'}`}>
           <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black text-xl ${step >= 1 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-200'}`}>1</div>
@@ -1037,7 +1115,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
               </div>
             </div>
             <button 
-              onClick={() => setStep(2)}
+              onClick={handleStep1Submit}
               disabled={!formData.fullName || formData.phone.length !== 10 || !formData.parentName}
               className="w-full bg-indigo-600 text-white font-black text-2xl py-6 rounded-2xl mt-8 hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition shadow-2xl shadow-indigo-500/30 flex justify-center items-center"
             >
@@ -1707,6 +1785,18 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
       alert("Sonuç kaydedilemedi.");
     }
   };
+  
+  const handleDeleteStudent = async (studentId, studentName) => {
+    if(window.confirm(`${studentName} isimli öğrencinin kaydını sistemden KALICI olarak silmek istediğinize emin misiniz?`)) {
+      try {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', studentId));
+        alert("Öğrenci kaydı başarıyla silindi.");
+      } catch (e) {
+        console.error(e);
+        alert("Öğrenci silinirken bir hata oluştu.");
+      }
+    }
+  };
 
   // Yeni Toplu SMS Motoru
   const handleBulkSMS = async () => {
@@ -1810,6 +1900,7 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
         </button>
       </div>
 
+      {/* 1. SEKMEYE AİT İÇERİKLER: Sınav ve Ödül Ayarları */}
       {activeTab === 'ayarlar' && (
         <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12">
           
@@ -1821,6 +1912,7 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+            {/* Ödül Yönetimi */}
             <div>
               <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider flex items-center"><Gift className="w-6 h-6 mr-2"/> Bölge Ödüllerini Yönet</div>
               <div className="space-y-4 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
@@ -1840,6 +1932,7 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
               </div>
             </div>
 
+            {/* Sınav Oturumu Planla */}
             <div>
               <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider flex items-center"><CalendarIcon className="w-6 h-6 mr-2"/> Yeni Sınav Oturumu Planla</div>
               <div className="space-y-4 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
@@ -1877,19 +1970,14 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
                           <button onClick={() => handleDeleteExam(exam.firebaseId)} className="absolute top-4 right-4 p-2 text-red-500 hover:bg-red-100 rounded-xl transition" title="Sınavı Sil"><Trash2 className="w-5 h-5"/></button>
                           <h4 className="font-black text-lg text-indigo-900 mb-3 pr-10">{exam.title}</h4>
                           <div className="space-y-2">
-                            {sessions.map((session, idx) => {
-                               const [y, m, d] = session.date.split('-');
-                               const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
-                               const trDate = `${parseInt(d)} ${monthNames[parseInt(m)-1]}`;
-                               return (
-                                 <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-2">
-                                   <span className="bg-white px-3 py-1.5 rounded-xl border border-indigo-200 text-sm font-bold text-slate-700 w-max"><CalendarIcon className="inline w-4 h-4 mr-1 text-indigo-500"/> {trDate}</span>
-                                   <div className="flex gap-2">
-                                     {session.slots && session.slots.map(s => <span key={s} className="bg-indigo-600 text-white px-2 py-1 text-xs font-black rounded-lg">{s}</span>)}
-                                   </div>
-                                 </div>
-                               )
-                            })}
+                            {sessions.map((session, idx) => (
+                              <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                <span className="bg-white px-3 py-1.5 rounded-xl border border-indigo-200 text-sm font-bold text-slate-700 w-max"><CalendarIcon className="inline w-4 h-4 mr-1 text-indigo-500"/> {session.date}</span>
+                                <div className="flex gap-2">
+                                  {session.slots && session.slots.map(s => <span key={s} className="bg-indigo-600 text-white px-2 py-1 text-xs font-black rounded-lg">{s}</span>)}
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       );
@@ -1904,6 +1992,7 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
         </div>
       )}
 
+      {/* 2. YENİ SEKMEYE AİT İÇERİKLER: Sınav Merkezleri ve Atamalar */}
       {activeTab === 'merkezler' && (
          <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b-2 border-slate-100 pb-8 gap-4">
@@ -1915,6 +2004,7 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
               
+              {/* Kurum Ekleme Formu */}
               <div className="lg:col-span-1">
                 <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider flex items-center"><Building2 className="w-6 h-6 mr-2"/> Yeni Kurum / Sınav Yeri Ekle</div>
                 <div className="space-y-4 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
@@ -1934,6 +2024,7 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
                 </div>
               </div>
 
+              {/* Kurumları ve Bağlı Mahalleleri Listeleme */}
               <div className="lg:col-span-2 space-y-8">
                 {adminCenters.length === 0 ? (
                   <div className="bg-amber-50 border-4 border-amber-100 rounded-3xl p-10 text-center font-bold text-amber-800">
@@ -1941,6 +2032,7 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
                   </div>
                 ) : (
                   adminCenters.map(center => {
+                    // Bu kuruma bağlı olan mahalleleri bul
                     const mappedHoods = adminMappings.filter(m => m.centerId === center.id);
                     return (
                       <div key={center.id} className="border-4 border-slate-100 rounded-3xl p-6 bg-white relative">
@@ -1950,6 +2042,7 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
                           <MapPin className="w-4 h-4 mr-1 flex-shrink-0 text-slate-400 mt-0.5"/> {center.address}
                         </div>
 
+                        {/* Mahalleyi Bu Kuruma Bağla Modülü */}
                         <div className="bg-indigo-50/50 p-5 rounded-2xl border-2 border-indigo-100 mb-6">
                            <h5 className="text-xs font-black text-indigo-500 uppercase tracking-widest mb-3">Bu Kuruma Mahalle Bağla</h5>
                            <div className="flex flex-col sm:flex-row gap-3">
@@ -1978,6 +2071,7 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
                            </div>
                         </div>
 
+                        {/* Bu Kuruma Bağlı Mahallelerin Listesi */}
                         <div>
                           <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Bağlı Olan Mahalleler ({mappedHoods.length})</h5>
                           <div className="flex flex-wrap gap-3">
@@ -2003,6 +2097,7 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
          </div>
       )}
 
+      {/* 3. SEKMEYE AİT İÇERİKLER: Öğrenci Listesi */}
       {activeTab === 'ogrenci' && (
         <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 p-10 overflow-hidden relative">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
@@ -2051,7 +2146,7 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
                             <span className="text-sm font-bold text-slate-400">Bekleme Havuzunda</span>
                           )}
                         </td>
-                        <td className="p-6">
+                        <td className="p-6 flex items-center space-x-3">
                           {hasActiveExam && (
                             <button 
                               onClick={() => setResultModal({ isOpen: true, student, score: '', rank: '' })}
@@ -2060,6 +2155,13 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
                               Sonuç Gir
                             </button>
                           )}
+                          <button 
+                              onClick={() => handleDeleteStudent(student.firebaseId, student.fullName)}
+                              className="text-red-400 hover:text-red-600 bg-white border border-red-200 hover:bg-red-50 p-2 rounded-xl transition"
+                              title="Öğrenciyi Sil"
+                            >
+                              <Trash2 className="w-5 h-5"/>
+                          </button>
                         </td>
                       </tr>
                     );
