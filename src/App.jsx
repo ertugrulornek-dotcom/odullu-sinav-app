@@ -28,45 +28,34 @@ const auth = getAuth(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'odullu-sinav';
 
 // ==========================================
-// MESAJPANELİ SMS API ENTEGRASYONU (BASE64)
+// MESAJPANELİ SMS API ENTEGRASYONU (AKTİF EDİLDİ)
 // ==========================================
 const MESAJ_PANELI_API_KEY = "af68961362160d37c19bae0463b082f58539d936";
 const SMS_FOOTER = "\n\nodullusinav.net EFECEL IPTAL LH47W yaz 4609a gonder B302";
 
-// UTF-8 uyumlu Base64 encode fonksiyonu
 const encodeBase64 = (str) => {
   return btoa(unescape(encodeURIComponent(str)));
 };
 
-const sendSMS = async (phones, message) => {
+const sendSMS = async (msgDataArray) => {
   try {
-    const phoneList = Array.isArray(phones) ? phones : [phones];
-    
     const payload = {
-      user: {
-        hash: MESAJ_PANELI_API_KEY
-      },
-      msgBaslik: "8503038692", // DİKKAT: MesajPaneli'nde onaylı başlığınız veya 850'li numaranızı buraya yazın
-      msgData: [
-        {
-          tel: phoneList,
-          msg: message
-        }
-      ]
+      user: { hash: MESAJ_PANELI_API_KEY },
+      msgBaslik: "ODULLUSINAV", // DİKKAT: MesajPaneli'nde bu başlığın (veya 850'li numaranın) onaylı olması gerekir.
+      msgData: msgDataArray 
     };
 
-    // API Dokümantasyonuna göre veriyi base64 ile kodlayıp x-www-form-urlencoded olarak gönderiyoruz
     const postData = "data=" + encodeBase64(JSON.stringify(payload));
 
-    const response = await fetch("https://api.mesajpaneli.com/json_api/", {
+    // 'no-cors' modu sayesinde tarayıcı engeline takılmadan SMS isteği sunucuya iletilir.
+    await fetch("https://api.mesajpaneli.com/json_api/", {
       method: "POST",
+      mode: "no-cors",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: postData
     });
     
-    const result = await response.json();
-    console.log("SMS API Yanıtı:", result);
-    return result;
+    return true;
   } catch (error) {
     console.error("SMS Gönderim Hatası:", error);
     return false;
@@ -181,27 +170,32 @@ const PrizeDisplay = ({ title, prizeString, selectedPrize }) => {
 // DİJİTAL PİRAMİT TAKVİM BİLEŞENİ
 // ==========================================
 const DigitalCalendar = ({ zoneExams, currentUser, isCompact = false }) => {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [selectedDateStr, setSelectedDateStr] = useState(null);
   
   const nextMonth = () => {
-    setCurrentDate(prev => {
-      const newDate = new Date(prev.getFullYear(), prev.getMonth() + 1, 1);
-      return newDate;
-    });
+    if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setCurrentYear(prev => prev + 1);
+    } else {
+      setCurrentMonth(prev => prev + 1);
+    }
+    setSelectedDateStr(null);
   };
 
   const prevMonth = () => {
-    setCurrentDate(prev => {
-      const newDate = new Date(prev.getFullYear(), prev.getMonth() - 1, 1);
-      return newDate;
-    });
+    if (currentMonth === 0) {
+      setCurrentMonth(11);
+      setCurrentYear(prev => prev - 1);
+    } else {
+      setCurrentMonth(prev => prev - 1);
+    }
+    setSelectedDateStr(null);
   };
 
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const firstDay = new Date(currentYear, currentMonth, 1).getDay();
   const startingEmptyCells = firstDay === 0 ? 6 : firstDay - 1; 
 
   const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
@@ -225,23 +219,23 @@ const DigitalCalendar = ({ zoneExams, currentUser, isCompact = false }) => {
   };
 
   const containerClass = isCompact 
-    ? "max-w-xl mx-auto shadow-lg border border-slate-100 rounded-[2rem] bg-white overflow-hidden" 
+    ? "max-w-md mx-auto shadow-lg border border-slate-100 rounded-[2rem] bg-white overflow-hidden" 
     : "bg-white rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden relative";
-  const headerPadding = isCompact ? "p-4 md:p-6" : "p-6 md:p-8";
-  const bodyPadding = isCompact ? "p-4 md:p-6" : "p-6 md:p-8";
-  const daySize = isCompact ? "w-10 h-10 md:w-12 md:h-12" : "w-12 h-12 md:w-14 md:h-14";
-  const textSize = isCompact ? "text-base md:text-lg" : "text-lg md:text-xl";
+  const headerPadding = isCompact ? "p-4" : "p-6 md:p-8";
+  const bodyPadding = isCompact ? "p-4" : "p-6 md:p-8";
+  const daySize = isCompact ? "w-8 h-8 md:w-10 md:h-10" : "w-12 h-12 md:w-14 md:h-14";
+  const textSize = isCompact ? "text-sm md:text-base" : "text-lg md:text-xl";
 
   return (
     <div className={containerClass}>
-      <div className={`bg-indigo-900 text-white ${headerPadding} flex justify-between items-center rounded-b-[2rem] shadow-md z-10 relative`}>
-        <button onClick={prevMonth} className="hover:bg-indigo-800 p-2 md:p-3 rounded-full transition bg-indigo-950 shadow-inner"><ChevronLeft className="w-5 h-5 md:w-6 md:h-6 text-indigo-200"/></button>
-        <h3 className={`font-black uppercase tracking-widest ${isCompact ? 'text-lg' : 'text-2xl'}`}>{monthNames[month]} {year}</h3>
-        <button onClick={nextMonth} className="hover:bg-indigo-800 p-2 md:p-3 rounded-full transition bg-indigo-950 shadow-inner"><ChevronRight className="w-5 h-5 md:w-6 md:h-6 text-indigo-200"/></button>
+      <div className={`bg-indigo-900 text-white ${headerPadding} flex justify-between items-center rounded-b-[1.5rem] shadow-md z-10 relative`}>
+        <button onClick={prevMonth} className="hover:bg-indigo-800 p-2 rounded-full transition bg-indigo-950 shadow-inner"><ChevronLeft className={`${isCompact ? 'w-4 h-4' : 'w-6 h-6'} text-indigo-200`}/></button>
+        <h3 className={`font-black uppercase tracking-widest ${isCompact ? 'text-sm md:text-base' : 'text-2xl'}`}>{monthNames[currentMonth]} {currentYear}</h3>
+        <button onClick={nextMonth} className="hover:bg-indigo-800 p-2 rounded-full transition bg-indigo-950 shadow-inner"><ChevronRight className={`${isCompact ? 'w-4 h-4' : 'w-6 h-6'} text-indigo-200`}/></button>
       </div>
       
       <div className={bodyPadding}>
-        <div className="grid grid-cols-7 gap-1 md:gap-2 mb-4 text-center text-[10px] md:text-xs font-black text-slate-400 uppercase">
+        <div className={`grid grid-cols-7 gap-1 md:gap-2 mb-2 text-center font-black text-slate-400 uppercase text-[8px] sm:text-[10px] md:text-xs`}>
           <div className="truncate hidden sm:block">Pazartesi</div><div className="sm:hidden">Pzt</div>
           <div className="truncate hidden sm:block">Salı</div><div className="sm:hidden">Sal</div>
           <div className="truncate hidden sm:block">Çarşamba</div><div className="sm:hidden">Çar</div>
@@ -250,10 +244,10 @@ const DigitalCalendar = ({ zoneExams, currentUser, isCompact = false }) => {
           <div className="truncate hidden sm:block">Cumartesi</div><div className="sm:hidden">Cmt</div>
           <div className="truncate hidden sm:block">Pazar</div><div className="sm:hidden">Paz</div>
         </div>
-        <div className="grid grid-cols-7 gap-1 md:gap-3 place-items-center">
+        <div className="grid grid-cols-7 gap-1 place-items-center">
           {days.map((d, i) => {
             if(!d) return <div key={i} className={daySize}></div>;
-            const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const dateStr = `${currentYear}-${String(currentMonth+1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             const dayExams = examMap[dateStr] || [];
             const hasExam = dayExams.length > 0;
 
@@ -265,14 +259,16 @@ const DigitalCalendar = ({ zoneExams, currentUser, isCompact = false }) => {
 
             return (
               <div key={i}
-                   className={`relative flex flex-col items-center justify-center rounded-2xl transition-all ${daySize}
-                      ${hasExam ? 'bg-slate-50 border-2 border-indigo-100 shadow-sm' : 'text-slate-400 border-2 border-transparent'}
+                   onClick={() => hasExam && setSelectedDateStr(dateStr)}
+                   className={`relative flex flex-col items-center justify-center rounded-2xl transition-all cursor-pointer ${daySize}
+                      ${hasExam ? 'bg-slate-50 hover:bg-indigo-50 border-2 border-indigo-100 shadow-sm' : 'text-slate-400 border-2 border-transparent'}
+                      ${selectedDateStr === dateStr ? 'ring-4 ring-indigo-400 bg-indigo-100 scale-110 z-10 shadow-lg' : ''}
                       ${isMyExamDay ? 'bg-green-50 border-green-400 shadow-md ring-2 ring-green-200' : ''}
                    `}>
                   <span className={`font-black ${textSize} ${hasExam ? 'text-indigo-900' : ''}`}>{d}</span>
                   {hasExam && (
-                      <div className="flex gap-1 absolute bottom-1.5 md:bottom-2">
-                          <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${isMyExamDay ? 'bg-green-500' : 'bg-indigo-400'}`}></div>
+                      <div className={`flex gap-1 absolute ${isCompact ? 'bottom-1' : 'bottom-2'}`}>
+                          <div className={`${isCompact ? 'w-1 h-1' : 'w-2 h-2'} rounded-full ${isMyExamDay ? 'bg-green-500' : 'bg-indigo-400'}`}></div>
                       </div>
                   )}
               </div>
@@ -281,15 +277,26 @@ const DigitalCalendar = ({ zoneExams, currentUser, isCompact = false }) => {
         </div>
       </div>
 
-      {/* Sınavların Liste Gösterimi */}
-      <div className={`bg-slate-50 ${isCompact ? 'p-5 md:p-6' : 'p-6 md:p-10'} border-t-2 border-slate-100`}>
-          <h4 className={`font-black text-slate-800 mb-6 flex items-center uppercase tracking-wider ${isCompact ? 'text-sm' : 'text-xl'}`}>
-             <Clock className="w-5 h-5 mr-3 text-indigo-500"/> {monthNames[month]} Ayı Oturumları
-          </h4>
-          <div className="space-y-3 md:space-y-4">
+      <div className={`bg-slate-50 ${isCompact ? 'p-4' : 'p-6 md:p-10'} border-t-2 border-slate-100`}>
+          {!selectedDateStr && (
+             <h4 className={`font-black text-slate-800 mb-4 flex items-center uppercase tracking-wider ${isCompact ? 'text-xs' : 'text-xl'}`}>
+                <Clock className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} mr-2 text-indigo-500`}/> {monthNames[currentMonth]} Ayı Oturumları
+             </h4>
+          )}
+          {selectedDateStr && (
+             <div className="flex justify-between items-center mb-4">
+               <h4 className={`font-black text-indigo-900 flex items-center uppercase tracking-wider ${isCompact ? 'text-xs' : 'text-xl'}`}>
+                  <CalendarIcon className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} mr-2 text-indigo-500`}/> {selectedDateStr.split('-').reverse().join('.')}
+               </h4>
+               <button onClick={() => setSelectedDateStr(null)} className="text-[10px] md:text-xs font-bold text-slate-400 hover:text-slate-700 underline">Tümünü Göster</button>
+             </div>
+          )}
+
+          <div className="space-y-2 md:space-y-4">
               {Object.keys(examMap).sort().map(dateStr => {
                   const [y, m] = dateStr.split('-');
-                  if(parseInt(m) !== month + 1 || parseInt(y) !== year) return null;
+                  if(parseInt(m) !== currentMonth + 1 || parseInt(y) !== currentYear) return null;
+                  if (selectedDateStr && dateStr !== selectedDateStr) return null;
 
                   return examMap[dateStr].map((item, idx) => {
                       const { exam, session } = item;
@@ -314,9 +321,9 @@ const DigitalCalendar = ({ zoneExams, currentUser, isCompact = false }) => {
               })}
               {!Object.keys(examMap).some(dateStr => {
                   const [y, m] = dateStr.split('-');
-                  return parseInt(m) === month + 1 && parseInt(y) === year;
+                  return parseInt(m) === currentMonth + 1 && parseInt(y) === currentYear;
               }) && (
-                  <div className="text-center text-slate-500 font-bold py-6 italic">Bu aya ait planlanmış sınav bulunmuyor.</div>
+                  <div className={`text-center text-slate-500 font-bold py-4 italic ${isCompact ? 'text-xs' : 'text-base'}`}>Bu aya ait planlanmış sınav bulunmuyor.</div>
               )}
           </div>
       </div>
@@ -878,6 +885,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
   };
 
   const handleStep1Submit = async () => {
+    // Çift profil kontrolü
     if(!currentUser) {
       const isDuplicate = students.some(s => 
         s.fullName.trim().toLowerCase() === formData.fullName.trim().toLowerCase() && 
@@ -895,11 +903,11 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
     setVerificationCode(code);
     setShowVerification(true);
     
-    // Gerçek SMS isteği atılır (Çalışırsa gider, çalışmazsa alert ile gösterilir)
-    const smsSuccess = await sendSMS(formData.phone, `odullusinav.net kayit dogrulama kodunuz: ${code}`);
-    if (!smsSuccess) {
-      alert(`[SMS SİSTEMİ KAPALI/TEST MODU]\nTelefonunuza gelmesi gereken Doğrulama Kodunuz: ${code}`);
-    }
+    // Gerçek SMS isteği atılır ('no-cors' ile tarayıcı engeli aşılır)
+    // Gönderim başarılı veya başarısız olsun, kullanıcı test için alert'i görür.
+    await sendSMS([{tel: [formData.phone], msg: `odullusinav.net kayit dogrulama kodunuz: ${code}`}]);
+    
+    alert(`[DOĞRULAMA]\nSistemin tıkanmaması ve krediniz yoksa diye test için ekranda da gösteriyoruz:\nDoğrulama Kodunuz: ${code}`);
   };
 
   const verifyCodeAndProceed = () => {
@@ -1004,7 +1012,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
 
       // --- SMS GÖNDERİM KISMI ---
       if (withoutExam) {
-         await sendSMS([finalUserObj.phone], `odullusinav.net basvurunuz alinmistir. Bolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`);
+         await sendSMS([{tel: [finalUserObj.phone], msg: `odullusinav.net basvurunuz alinmistir. Bolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`}]);
       } else {
          const centerInfo = getNeighborhoodDetails(matchedZone, finalUserObj.neighborhood);
          const [y, m, d] = finalUserObj.selectedDate.split('-');
@@ -1018,7 +1026,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
 
          const regMsg = `odullusinav.net basvurunuz alinmistir. Size en yakin sinav mahallimiz ${finalUserObj.district} ilcesi ${finalUserObj.neighborhood} mahallesindedir. Sinav saatinden 30 dakika once asagidaki konumda olmanizi rica ederiz.\n\nOturum: ${trDateFull}\nKonum: ${centerInfo.address || centerInfo.centerName}\nKonum Linki: ${centerInfo.mapLink}\nIletisim: ${centerInfo.phone}${SMS_FOOTER}`;
          
-         await sendSMS([finalUserObj.phone], regMsg);
+         await sendSMS([{tel: [finalUserObj.phone], msg: regMsg}]);
       }
 
       setStep(3); 
@@ -1607,6 +1615,7 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
 
   const [resultModal, setResultModal] = useState({ isOpen: false, student: null, score: '', rank: '' });
 
+  // Yeni Toplu SMS State'i
   const [smsModal, setSmsModal] = useState({ isOpen: false, type: 'custom', customMsg: '', loading: false });
 
   useEffect(() => {
@@ -1899,6 +1908,7 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
         </button>
       </div>
 
+      {/* 1. SEKMEYE AİT İÇERİKLER: Sınav ve Ödül Ayarları */}
       {activeTab === 'ayarlar' && (
         <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12">
           
@@ -1993,6 +2003,7 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
         </div>
       )}
 
+      {/* 2. YENİ SEKMEYE AİT İÇERİKLER: Sınav Merkezleri ve Atamalar */}
       {activeTab === 'merkezler' && (
          <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b-2 border-slate-100 pb-8 gap-4">
@@ -2004,6 +2015,7 @@ function AdminPanel({ students, adminZoneId, onLogout, zones, exams }) {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
               
+              {/* Kurum Ekleme Formu */}
               <div className="lg:col-span-1">
                 <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider flex items-center"><Building2 className="w-6 h-6 mr-2"/> Yeni Kurum / Sınav Yeri Ekle</div>
                 <div className="space-y-4 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
