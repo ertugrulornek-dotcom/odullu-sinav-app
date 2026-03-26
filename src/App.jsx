@@ -6,32 +6,10 @@ import {
 } from 'lucide-react';
 
 // ==========================================
-// FIREBASE BAĞLANTISI VE GÜVENLİK
-// ==========================================
-import { initializeApp } from "firebase/app";
-import { getFirestore, collection, onSnapshot, setDoc, doc, addDoc, updateDoc, deleteDoc } from "firebase/firestore";
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "firebase/auth";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyCVXOTNeICNfGvLULngqkF-8fRV-W9JdPg",
-  authDomain: "odulludeneme-ae8da.firebaseapp.com",
-  projectId: "odulludeneme-ae8da",
-  storageBucket: "odulludeneme-ae8da.firebasestorage.app",
-  messagingSenderId: "749281964969",
-  appId: "1:749281964969:web:cc66285c567487fbd3cab8",
-  measurementId: "G-3E6EP90TN2"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'odullu-sinav';
-
-// ==========================================
-// MESAJPANELİ SMS API ENTEGRASYONU (Sessiz Mod)
+// MESAJPANELİ SMS API ENTEGRASYONU (Sessiz Mod / Backend Destekli)
 // ==========================================
 const MESAJ_PANELI_API_KEY = "af68961362160d37c19bae0463b082f58539d936";
-const MESAJ_PANELI_BASLIK = "8503038692"; 
+const MESAJ_PANELI_BASLIK = "EMRGUNDOGDU"; 
 const SMS_FOOTER = "\n\nodullusinav.net EFECEL IPTAL LH47W yaz 4609a gonder B302";
 
 const encodeBase64 = (str) => {
@@ -40,6 +18,20 @@ const encodeBase64 = (str) => {
 
 const sendSMS = async (msgDataArray) => {
   try {
+    // 1. Önce Vercel Backend API'sini deniyoruz (CORS Hatasını kalıcı çözer)
+    const response = await fetch("/api/sms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ msgData: msgDataArray })
+    });
+
+    if (response.ok) {
+      console.log("Vercel API üzerinden SMS başarıyla gönderildi.");
+      return true;
+    }
+
+    // 2. Eğer Vercel Backend henüz kurulmadıysa (Lokal test) eski no-cors moduna geç
+    console.warn("Backend API bulunamadı, lokal no-cors modu deneniyor...");
     const payload = {
       user: { hash: MESAJ_PANELI_API_KEY },
       msgBaslik: MESAJ_PANELI_BASLIK, 
@@ -51,6 +43,7 @@ const sendSMS = async (msgDataArray) => {
 
     fetch("https://api.mesajpaneli.com/json_api/", {
       method: "POST",
+      mode: "no-cors",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: postData.toString()
     }).catch(e => console.log("SMS İsteği arka planda iletildi.")); 
