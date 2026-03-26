@@ -18,7 +18,7 @@ const encodeBase64 = (str) => {
 
 const sendSMS = async (msgDataArray) => {
   try {
-    // 1. Önce Vercel Backend API'sini deniyoruz (CORS Hatasını kalıcı çözer)
+    // 1. Önce Vercel Backend API'sini deniyoruz (CORS Hatasını kalıcı çözer)dsdsdsdsdsdsdsd
     const response = await fetch("/api/sms", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
