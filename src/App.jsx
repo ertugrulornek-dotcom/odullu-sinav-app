@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   MapPin, Calendar as CalendarIcon, Clock, Award, Users, Search, 
   Settings, ChevronRight, ChevronLeft, AlertCircle, CheckCircle2, 
-  Map, Phone, FileText, Lock, MessageSquare, Gift, Check, Plus, LogOut, KeyRound, Trash2, UserPlus, Trophy, Building2, Send, Image as ImageIcon, Download, Edit3, Save, X
+  Map, Phone, FileText, Lock, MessageSquare, Gift, Check, Plus, LogOut, KeyRound, Trash2, UserPlus, Trophy, Building2, Send, Image as ImageIcon, Download, Edit3, Save, X, Copy
 } from 'lucide-react';
 
 // ==========================================
@@ -31,7 +31,7 @@ const appId = typeof __app_id !== 'undefined' ? __app_id : 'odullu-sinav';
 // MESAJPANELİ SMS API ENTEGRASYONU (Sessiz Mod)
 // ==========================================
 const MESAJ_PANELI_API_KEY = "af68961362160d37c19bae0463b082f58539d936";
-const MESAJ_PANELI_BASLIK = "EMRGUNDOGDU"; 
+const MESAJ_PANELI_BASLIK = "8503038692"; 
 const SMS_FOOTER = "\n\nodullusinav.net EFECEL IPTAL LH47W yaz 4609a gonder B302";
 
 const encodeBase64 = (str) => {
@@ -139,7 +139,6 @@ const determineZoneName = (province, district, neighborhood) => {
   return null;
 };
 
-// Mahalle çakışmalarını önlemek için District + Neighborhood eşleşmesine bakar.
 const getNeighborhoodDetails = (zone, district, neighborhood) => {
   const defaultDetails = { phone: "0553 973 54 40", centerName: "Sınav Merkezi Bekleniyor", address: "", mapLink: "", contactName: "" };
   if (!zone || !zone.mappings || !zone.centers) return defaultDetails;
@@ -190,15 +189,15 @@ const ModernPrizeCard = ({ type, prizeData, selectedPrize }) => {
     if (dataList.length === 0 || !dataList[0].title) return null;
 
     return (
-        <div className="relative pt-6">
+        <div className="relative pt-6 animate-in slide-in-from-bottom-4 duration-500 hover:-translate-y-1 transition-transform">
             <div className={`absolute top-0 left-1/2 transform -translate-x-1/2 ${badgeClass} px-6 py-2 rounded-full font-black text-sm md:text-base tracking-widest shadow-lg z-10 whitespace-nowrap`}>
                 {typeName}
             </div>
-            <div className={`bg-white rounded-[2rem] border-4 ${bgClass} p-8 pt-10 shadow-xl flex flex-col gap-4`}>
+            <div className={`bg-white/80 backdrop-blur-sm rounded-[2rem] border-4 ${bgClass} p-8 pt-10 shadow-xl hover:shadow-2xl transition-shadow flex flex-col gap-4`}>
                {dataList.map((data, idx) => {
                    const isSelected = isArray && selectedPrize === data.title;
                    return (
-                     <div key={idx} className={`flex flex-col md:flex-row gap-6 items-center border-b border-slate-100 pb-6 last:border-0 last:pb-0 transition-all ${isSelected ? 'ring-4 ring-green-400 bg-green-50 p-4 rounded-2xl' : ''}`}>
+                     <div key={idx} className={`flex flex-col md:flex-row gap-6 items-center border-b border-slate-100 pb-6 last:border-0 last:pb-0 transition-all duration-300 ${isSelected ? 'ring-4 ring-green-400 bg-green-50 p-4 rounded-2xl scale-[1.02] shadow-md' : 'hover:bg-slate-50 p-2 rounded-2xl'}`}>
                         {data.img ? (
                           <img src={data.img} alt={data.title} className="w-full md:w-32 h-32 object-cover rounded-2xl shadow-md border-2 border-slate-200 flex-shrink-0 bg-white" />
                         ) : (
@@ -209,7 +208,7 @@ const ModernPrizeCard = ({ type, prizeData, selectedPrize }) => {
                         <div className="flex-1 w-full text-center md:text-left">
                            <div className="text-2xl font-black text-slate-800 mb-2 flex justify-center md:justify-start items-center">
                               {data.title} 
-                              {isSelected && <CheckCircle2 className="w-6 h-6 ml-3 text-green-500" />}
+                              {isSelected && <CheckCircle2 className="w-6 h-6 ml-3 text-green-500 animate-in zoom-in" />}
                            </div>
                            {data.desc && <p className="font-medium text-slate-600 leading-relaxed">{data.desc}</p>}
                         </div>
@@ -222,158 +221,76 @@ const ModernPrizeCard = ({ type, prizeData, selectedPrize }) => {
 };
 
 // ==========================================
-// DİJİTAL PİRAMİT TAKVİM BİLEŞENİ
+// LİSTE GÖRÜNÜMLÜ YENİ SINAV TAKVİMİ
 // ==========================================
-const DigitalCalendar = ({ zoneExams, currentUser, isCompact = false }) => {
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [selectedDateStr, setSelectedDateStr] = useState(null);
-  
-  const nextMonth = () => {
-    setCurrentMonth((prev) => (prev === 11 ? 0 : prev + 1));
-    setCurrentYear((prev) => (currentMonth === 11 ? prev + 1 : prev));
-    setSelectedDateStr(null);
-  };
-
-  const prevMonth = () => {
-    setCurrentMonth((prev) => (prev === 0 ? 11 : prev - 1));
-    setCurrentYear((prev) => (currentMonth === 0 ? prev - 1 : prev));
-    setSelectedDateStr(null);
-  };
-
-  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const firstDay = new Date(currentYear, currentMonth, 1).getDay();
-  const startingEmptyCells = firstDay === 0 ? 6 : firstDay - 1; 
-
+const TimelineCalendar = ({ zoneExams, currentUser, defaultPhone }) => {
   const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
-  const days = [];
-  for (let i = 0; i < startingEmptyCells; i++) days.push(null);
-  for (let i = 1; i <= daysInMonth; i++) days.push(i);
-
-  const examMap = {};
+  
+  let allSessions = [];
   zoneExams.forEach(exam => {
-      const sessions = exam.sessions || [];
-      sessions.forEach(session => {
-         if(!examMap[session.date]) examMap[session.date] = [];
-         examMap[session.date].push({ exam, session });
+    if(exam.sessions) {
+      exam.sessions.forEach(session => {
+         const [y, m, d] = session.date.split('-');
+         session.slots.forEach(slot => {
+            const timestamp = new Date(y, m-1, d, slot.split('.')[0] || slot.split(':')[0], slot.split('.')[1] || slot.split(':')[1]).getTime();
+            allSessions.push({ 
+               ...session, 
+               exam, 
+               slot, 
+               timestamp, 
+               formattedText: `${parseInt(d)} ${monthNames[parseInt(m)-1]} ${slot.replace(':', '.')} - ${exam.title}` 
+            });
+         });
       });
+    }
   });
 
-  const formatDateTrFull = (dateStr, timeStr, examTitle) => {
-    if(!dateStr) return "";
-    const [y, m, d] = dateStr.split('-');
-    return `${parseInt(d)} ${monthNames[parseInt(m)-1]} ${timeStr.replace(':', '.')} - ${examTitle}`;
-  };
-
-  const containerClass = isCompact 
-    ? "max-w-md mx-auto shadow-lg border border-slate-100 rounded-[2rem] bg-white overflow-hidden" 
-    : "bg-white rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden relative";
-  const headerPadding = isCompact ? "p-4" : "p-6 md:p-8";
-  const bodyPadding = isCompact ? "p-4" : "p-6 md:p-8";
-  const daySize = isCompact ? "w-8 h-8 md:w-10 md:h-10" : "w-12 h-12 md:w-14 md:h-14";
-  const textSize = isCompact ? "text-sm md:text-base" : "text-lg md:text-xl";
+  allSessions.sort((a,b) => a.timestamp - b.timestamp);
+  
+  const phoneToCall = currentUser ? getNeighborhoodDetails(currentUser.zone, currentUser.district, currentUser.neighborhood).phone : (defaultPhone || "0553 973 54 40");
 
   return (
-    <div className={containerClass}>
-      <div className={`bg-indigo-900 text-white ${headerPadding} flex justify-between items-center rounded-b-[1.5rem] shadow-md z-10 relative`}>
-        <button type="button" onClick={prevMonth} className="hover:bg-indigo-800 p-2 rounded-full transition bg-indigo-950 shadow-inner"><ChevronLeft className={`${isCompact ? 'w-4 h-4' : 'w-6 h-6'} text-indigo-200`}/></button>
-        <h3 className={`font-black uppercase tracking-widest ${isCompact ? 'text-sm md:text-base' : 'text-2xl'}`}>{monthNames[currentMonth]} {currentYear}</h3>
-        <button type="button" onClick={nextMonth} className="hover:bg-indigo-800 p-2 rounded-full transition bg-indigo-950 shadow-inner"><ChevronRight className={`${isCompact ? 'w-4 h-4' : 'w-6 h-6'} text-indigo-200`}/></button>
+    <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col md:flex-row max-w-5xl mx-auto animate-in fade-in zoom-in-95 duration-500">
+      {/* Sol Taraf: Başlık */}
+      <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 text-white p-8 md:w-1/3 flex flex-col justify-center items-center text-center relative overflow-hidden">
+         <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+         <CalendarIcon className="w-16 h-16 text-indigo-300 mb-4 opacity-80 relative z-10 animate-bounce" style={{animationDuration: '3s'}} />
+         <h2 className="text-3xl md:text-4xl font-black leading-tight relative z-10 drop-shadow-md">Sınav<br/>Takvimi</h2>
+         <div className="mt-6 w-12 h-1 bg-indigo-400 rounded-full relative z-10"></div>
       </div>
       
-      <div className={bodyPadding}>
-        <div className={`grid grid-cols-7 gap-1 md:gap-2 mb-2 text-center font-black text-slate-400 uppercase text-[8px] sm:text-[10px] md:text-xs`}>
-          <div className="truncate hidden sm:block">Pazartesi</div><div className="sm:hidden">Pzt</div>
-          <div className="truncate hidden sm:block">Salı</div><div className="sm:hidden">Sal</div>
-          <div className="truncate hidden sm:block">Çarşamba</div><div className="sm:hidden">Çar</div>
-          <div className="truncate hidden sm:block">Perşembe</div><div className="sm:hidden">Per</div>
-          <div className="truncate hidden sm:block">Cuma</div><div className="sm:hidden">Cum</div>
-          <div className="truncate hidden sm:block">Cumartesi</div><div className="sm:hidden">Cmt</div>
-          <div className="truncate hidden sm:block">Pazar</div><div className="sm:hidden">Paz</div>
-        </div>
-        <div className="grid grid-cols-7 gap-1 place-items-center">
-          {days.map((d, i) => {
-            if(!d) return <div key={i} className={daySize}></div>;
-            const dateStr = `${currentYear}-${String(currentMonth+1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const dayExams = examMap[dateStr] || [];
-            const hasExam = dayExams.length > 0;
-
-            const isMyExamDay = dayExams.some(e => {
-                 const isMyExam = (currentUser?.examId === e.exam.firebaseId) || (currentUser?.exam?.firebaseId === e.exam.firebaseId);
-                 const isMyDate = (currentUser?.selectedDate === e.session.date) || (currentUser?.exam?.date === e.session.date);
-                 return isMyExam && isMyDate;
-            });
-
-            return (
-              <div key={i}
-                   onClick={() => hasExam && setSelectedDateStr(dateStr)}
-                   className={`relative flex flex-col items-center justify-center rounded-2xl transition-all cursor-pointer ${daySize}
-                      ${hasExam ? 'bg-slate-50 hover:bg-indigo-50 border-2 border-indigo-100 shadow-sm' : 'text-slate-400 border-2 border-transparent'}
-                      ${selectedDateStr === dateStr ? 'ring-4 ring-indigo-400 bg-indigo-100 scale-110 z-10 shadow-lg' : ''}
-                      ${isMyExamDay ? 'bg-green-50 border-green-400 shadow-md ring-2 ring-green-200' : ''}
-                   `}>
-                  <span className={`font-black ${textSize} ${hasExam ? 'text-indigo-900' : ''}`}>{d}</span>
-                  {hasExam && (
-                      <div className={`flex gap-1 absolute ${isCompact ? 'bottom-1' : 'bottom-2'}`}>
-                          <div className={`${isCompact ? 'w-1 h-1' : 'w-2 h-2'} rounded-full ${isMyExamDay ? 'bg-green-500' : 'bg-indigo-400'}`}></div>
-                      </div>
-                  )}
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Sınavların Liste Gösterimi */}
-      <div className={`bg-slate-50 ${isCompact ? 'p-4' : 'p-6 md:p-10'} border-t-2 border-slate-100`}>
-          {!selectedDateStr && (
-             <h4 className={`font-black text-slate-800 mb-4 flex items-center uppercase tracking-wider ${isCompact ? 'text-xs' : 'text-xl'}`}>
-                <Clock className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} mr-2 text-indigo-500`}/> {monthNames[currentMonth]} Ayı Oturumları
-             </h4>
-          )}
-          {selectedDateStr && (
-             <div className="flex justify-between items-center mb-4">
-               <h4 className={`font-black text-indigo-900 flex items-center uppercase tracking-wider ${isCompact ? 'text-xs' : 'text-xl'}`}>
-                  <CalendarIcon className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} mr-2 text-indigo-500`}/> {selectedDateStr.split('-').reverse().join('.')}
-               </h4>
-               <button onClick={() => setSelectedDateStr(null)} className="text-[10px] md:text-xs font-bold text-slate-400 hover:text-slate-700 underline">Tümünü Göster</button>
+      {/* Sağ Taraf: Liste ve İletişim */}
+      <div className="p-8 md:w-2/3 flex flex-col justify-between bg-slate-50/80 backdrop-blur-md">
+        <div className="space-y-4 mb-8">
+          {allSessions.length > 0 ? allSessions.map((item, idx) => {
+             const isMySlot = currentUser && ((currentUser?.examId === item.exam.firebaseId) || (currentUser?.exam?.firebaseId === item.exam.firebaseId))
+                            && ((currentUser?.selectedDate === item.date) || (currentUser?.exam?.date === item.date))
+                            && ((currentUser?.selectedTime === item.slot) || (currentUser?.slot === item.slot));
+             return (
+               <div key={idx} className={`flex items-center justify-between bg-white border-2 p-5 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 ${isMySlot ? 'border-green-400 bg-green-50 ring-2 ring-green-100' : 'border-slate-200 hover:border-indigo-300'}`}>
+                  <div className={`text-lg md:text-xl font-bold flex items-center ${isMySlot ? 'text-green-800' : 'text-slate-800'}`}>
+                     <Clock className={`w-6 h-6 mr-3 flex-shrink-0 ${isMySlot ? 'text-green-500' : 'text-indigo-400'}`}/>
+                     {item.formattedText}
+                  </div>
+                  {isMySlot && <CheckCircle2 className="w-8 h-8 text-green-500 flex-shrink-0 animate-in zoom-in" />}
+               </div>
+             )
+          }) : (
+             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                <CalendarIcon className="w-16 h-16 mb-4 opacity-50"/>
+                <p className="text-lg font-bold">Planlanmış bir sınav bulunmamaktadır.</p>
              </div>
           )}
+        </div>
 
-          <div className="space-y-2 md:space-y-4">
-              {Object.keys(examMap).sort().map(dateStr => {
-                  const [y, m] = dateStr.split('-');
-                  if(parseInt(m) !== currentMonth + 1 || parseInt(y) !== currentYear) return null;
-                  if (selectedDateStr && dateStr !== selectedDateStr) return null;
-
-                  return examMap[dateStr].map((item, idx) => {
-                      const { exam, session } = item;
-                      return session.slots.map(slot => {
-                          const isMySlot = ((currentUser?.examId === exam.firebaseId) || (currentUser?.exam?.firebaseId === exam.firebaseId))
-                                         && ((currentUser?.selectedDate === session.date) || (currentUser?.exam?.date === session.date))
-                                         && ((currentUser?.selectedTime === slot) || (currentUser?.slot === slot));
-                          return (
-                              <div key={`${dateStr}-${slot}-${idx}`} className={`flex flex-col md:flex-row items-start md:items-center justify-between p-4 md:p-5 rounded-2xl border-l-[6px] shadow-sm transition-all ${isMySlot ? 'bg-white border-l-green-500 border-y border-r border-slate-200' : 'bg-white border-l-indigo-500 border-y border-r border-slate-200'}`}>
-                                  <div className={`font-black text-slate-800 mb-2 md:mb-0 ${isCompact ? 'text-sm' : 'text-lg'}`}>
-                                      {formatDateTrFull(session.date, slot, exam.title)}
-                                  </div>
-                                  {isMySlot && (
-                                      <span className="bg-green-100 text-green-700 text-[10px] md:text-xs font-black px-3 py-1.5 rounded-xl uppercase tracking-wider flex items-center w-max mt-2 md:mt-0">
-                                          <CheckCircle2 className="w-4 h-4 mr-1 md:mr-2"/> Senin Oturumun
-                                      </span>
-                                  )}
-                              </div>
-                          );
-                      });
-                  });
-              })}
-              {!Object.keys(examMap).some(dateStr => {
-                  const [y, m] = dateStr.split('-');
-                  return parseInt(m) === currentMonth + 1 && parseInt(y) === currentYear;
-              }) && (
-                  <div className={`text-center text-slate-500 font-bold py-4 italic ${isCompact ? 'text-xs' : 'text-base'}`}>Bu aya ait planlanmış sınav bulunmuyor.</div>
-              )}
-          </div>
+        <div className="bg-indigo-50 p-6 rounded-2xl border-l-4 border-indigo-500 shadow-inner">
+           <p className="text-sm font-bold text-slate-600 mb-2">Sınav ile ilgili ayrıntılı bilgi için:</p>
+           <div className="flex items-center gap-3">
+              <Phone className="w-6 h-6 text-indigo-600 animate-pulse" />
+              <a href={`tel:${phoneToCall}`} className="text-2xl font-black text-indigo-700 hover:text-indigo-500 transition">{phoneToCall}</a>
+           </div>
+           <p className="text-xs text-slate-500 mt-2 font-medium leading-relaxed">Sınav yoksa gelecek sınavlar hakkında bilgi almak için de arayabilirsiniz.</p>
+        </div>
       </div>
     </div>
   );
@@ -533,8 +450,8 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center py-3 md:h-20 gap-3 md:gap-0">
              <div className="flex w-full md:w-auto justify-between items-center">
-                <div className="flex items-center cursor-pointer" onClick={() => navigateTo('landing')}>
-                   <Award className="h-8 w-8 md:h-10 md:w-10 text-indigo-600 mr-2" />
+                <div className="flex items-center cursor-pointer hover:scale-105 transition-transform" onClick={() => navigateTo('landing')}>
+                   <Award className="h-8 w-8 md:h-10 md:w-10 text-indigo-600 mr-2 drop-shadow-md" />
                    <div>
                       <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-none">ÖDÜLLÜ SINAV</h1>
                       <p className="text-[9px] md:text-[10px] font-bold text-indigo-600 uppercase tracking-widest">LGS Prova Merkezi</p>
@@ -553,25 +470,25 @@ export default function App() {
              <div className="flex flex-wrap justify-center gap-2 md:gap-3 items-center w-full md:w-auto mt-2 md:mt-0">
                {currentUser ? (
                  <>
-                    <button onClick={copyInviteLink} className="flex items-center text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm font-bold px-3 py-2 rounded-xl transition text-xs md:text-sm">
+                    <button onClick={copyInviteLink} className="flex items-center text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:shadow-md border border-indigo-200 shadow-sm font-bold px-3 py-2 rounded-xl transition-all text-xs md:text-sm">
                       <UserPlus className="w-4 h-4 mr-1.5"/> Davet Et
                     </button>
-                    <button onClick={() => navigateTo('profile')} className="bg-indigo-600 text-white px-4 py-2 md:px-6 md:py-2.5 rounded-xl font-black shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition flex items-center text-xs md:text-sm">
+                    <button onClick={() => navigateTo('profile')} className="bg-indigo-600 text-white px-4 py-2 md:px-6 md:py-2.5 rounded-xl font-black shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-indigo-300 hover:-translate-y-0.5 transition-all flex items-center text-xs md:text-sm">
                       <Users className="w-4 h-4 md:w-5 md:h-5 mr-1 md:mr-2" /> Panelim
                     </button>
-                    <button onClick={() => { setCurrentUser(null); navigateTo('landing'); }} className="text-red-500 hover:bg-red-50 p-2 rounded-xl border border-red-100 shadow-sm transition" title="Çıkış Yap">
+                    <button onClick={() => { setCurrentUser(null); navigateTo('landing'); }} className="text-red-500 hover:bg-red-50 hover:shadow-md p-2 rounded-xl border border-red-100 shadow-sm transition-all" title="Çıkış Yap">
                       <LogOut className="w-4 h-4 md:w-5 md:h-5" />
                     </button>
                  </>
                ) : (
                  <>
-                    <button onClick={copyInviteLink} className="flex items-center text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm font-bold px-3 py-2 rounded-xl transition text-xs md:text-sm">
+                    <button onClick={copyInviteLink} className="flex items-center text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:shadow-md border border-indigo-200 shadow-sm font-bold px-3 py-2 rounded-xl transition-all text-xs md:text-sm">
                       <UserPlus className="w-4 h-4 mr-1.5"/> Davet Et
                     </button>
-                    <button onClick={() => navigateTo('login')} className="bg-white border border-slate-200 shadow-sm text-slate-700 hover:text-indigo-600 hover:border-indigo-300 font-bold px-4 py-2 rounded-xl transition text-xs md:text-sm">
+                    <button onClick={() => navigateTo('login')} className="bg-white border border-slate-200 shadow-sm text-slate-700 hover:text-indigo-600 hover:border-indigo-300 hover:shadow-md font-bold px-4 py-2 rounded-xl transition-all text-xs md:text-sm">
                       Giriş Yap
                     </button>
-                    <button onClick={() => navigateTo('register')} className="bg-indigo-600 text-white px-4 py-2 md:px-6 md:py-2.5 rounded-xl font-black shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all text-xs md:text-sm">
+                    <button onClick={() => navigateTo('register')} className="bg-indigo-600 text-white px-4 py-2 md:px-6 md:py-2.5 rounded-xl font-black shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-indigo-300 hover:-translate-y-0.5 transition-all text-xs md:text-sm">
                       Kayıt Ol
                     </button>
                  </>
@@ -581,7 +498,7 @@ export default function App() {
         </div>
       </nav>
 
-      <main className="pb-0">
+      <main className="pb-0 animate-in fade-in duration-500">
         {currentView === 'landing' && <LandingPage navigateTo={navigateTo} currentUser={currentUser} scrollToSection={scrollToSection} exams={exams} zones={zones} />}
         {currentView === 'register' && 
           <RegistrationProcess 
@@ -593,7 +510,7 @@ export default function App() {
             students={registeredStudents}
           />}
         {currentView === 'login' && <LoginPage students={registeredStudents} setCurrentUser={setCurrentUser} navigateTo={navigateTo} />}
-        {currentView === 'profile' && <StudentProfile currentUser={currentUser} exams={exams} navigateTo={navigateTo} />}
+        {currentView === 'profile' && <StudentProfile currentUser={currentUser} exams={exams} navigateTo={navigateTo} setCurrentUser={setCurrentUser} />}
         
         {currentView === 'admin' && !adminAuth.isAuthenticated && (
            <AdminLogin setAdminAuth={setAdminAuth} zones={zones} />
@@ -612,102 +529,12 @@ export default function App() {
 
       <footer className="bg-slate-950 text-slate-400 py-16 text-sm text-center border-t-4 border-indigo-600">
         <div className="max-w-4xl mx-auto px-6">
-          <Award className="h-10 w-10 text-indigo-500 mx-auto mb-6" />
+          <Award className="h-10 w-10 text-indigo-500 mx-auto mb-6 opacity-75" />
           <p className="mb-2 text-lg font-bold text-slate-200">Sakarya, Kocaeli ve Yalova'nın En Prestijli LGS Provası</p>
           <p className="mb-8">Gerçek Sınav Deneyimi ve Büyük Ödüller Bir Arada</p>
           <p>© 2026 Ödüllü Sınav Merkezi. Tüm hakları saklıdır.</p>
         </div>
       </footer>
-    </div>
-  );
-}
-
-// ==========================================
-// 0. ADMIN LOGIN EKRANI
-// ==========================================
-function AdminLogin({ setAdminAuth, zones }) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-
-  const handleLogin = (e) => {
-    e.preventDefault();
-    setError('');
-
-    if (password !== '18881959') {
-      setError('Hatalı şifre girdiniz.');
-      return;
-    }
-
-    const normalizeStr = (str) => {
-      return str.replace(/İ/g, 'i').replace(/I/g, 'ı').toLowerCase().trim();
-    };
-
-    const searchStr = normalizeStr(username);
-
-    if (searchStr === 'genel merkez') {
-      setAdminAuth({ isAuthenticated: true, zoneId: 'ALL', isSuperAdmin: true });
-      return;
-    }
-
-    const activeZones = zones && zones.length > 0 ? zones : INITIAL_ZONES;
-
-    const matchedZone = activeZones.find(z => 
-      normalizeStr(z.name) === searchStr || 
-      (z.districts && z.districts.some(d => normalizeStr(d) === searchStr)) ||
-      (z.partialDistricts && Object.keys(z.partialDistricts).some(d => normalizeStr(d) === searchStr))
-    );
-
-    if (matchedZone) {
-      setAdminAuth({ isAuthenticated: true, zoneId: matchedZone.id, isSuperAdmin: false });
-    } else {
-      setError(`Tanımsız Bölge. Lütfen "Genel Merkez" veya sorumlu olduğunuz ilçe/bölge adını girin.`);
-    }
-  };
-
-  return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4 py-20">
-      <div className="bg-white p-10 md:p-14 rounded-[3rem] shadow-2xl shadow-indigo-100/50 border border-slate-100 w-full max-w-md">
-        <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner">
-          <KeyRound className="w-10 h-10 text-indigo-600" />
-        </div>
-        <h2 className="text-3xl font-black text-center text-slate-900 mb-2">Yönetici Girişi</h2>
-        <p className="text-center text-slate-500 font-bold mb-8">Sorumlu olduğunuz mıntıkayı yönetmek için giriş yapın.</p>
-        
-        {error && (
-          <div className="bg-red-50 text-red-600 font-bold p-4 rounded-2xl mb-6 text-sm text-center border border-red-100">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div>
-            <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">İlçe / Mıntıka Adı</label>
-            <input 
-              type="text" 
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Örn: Gebze, Serdivan..." 
-              className="w-full border-4 border-slate-100 rounded-2xl px-6 py-4 text-lg font-bold focus:border-indigo-500 outline-none transition"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">Şifre</label>
-            <input 
-              type="password" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••" 
-              className="w-full border-4 border-slate-100 rounded-2xl px-6 py-4 text-lg font-bold focus:border-indigo-500 outline-none transition"
-              required
-            />
-          </div>
-          <button type="submit" className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 transition shadow-xl shadow-indigo-500/30 mt-4">
-            Sisteme Giriş Yap
-          </button>
-        </form>
-      </div>
     </div>
   );
 }
@@ -735,31 +562,31 @@ function LandingPage({ navigateTo, currentUser, scrollToSection, exams, zones })
     <div>
       <section id="hero" className="relative bg-gradient-to-b from-indigo-900 via-indigo-800 to-indigo-950 text-white overflow-hidden pt-24 pb-32">
         <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col items-center text-center">
-          <div className="inline-flex items-center px-6 py-2.5 rounded-full bg-yellow-500/20 border border-yellow-400/50 text-yellow-300 text-sm font-black mb-10 backdrop-blur-sm uppercase tracking-wider">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col items-center text-center animate-in zoom-in-95 duration-500">
+          <div className="inline-flex items-center px-6 py-2.5 rounded-full bg-yellow-500/20 border border-yellow-400/50 text-yellow-300 text-sm font-black mb-10 backdrop-blur-sm uppercase tracking-wider hover:bg-yellow-500/30 transition-colors">
             <Award className="w-5 h-5 mr-2" /> 5, 6, 7 ve 8. Sınıflar İçin Kayıtlar Başladı!
           </div>
-          <h1 className="text-5xl md:text-8xl font-black mb-10 leading-tight tracking-tight">
+          <h1 className="text-5xl md:text-8xl font-black mb-10 leading-tight tracking-tight drop-shadow-2xl">
             Gerçek Sınav Ortamında <br/>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-yellow-400 to-amber-500 drop-shadow-lg">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-yellow-400 to-amber-500">
               LGS Provası!
             </span>
           </h1>
-          <p className="text-xl md:text-3xl text-indigo-100 mb-16 font-medium leading-relaxed">
+          <p className="text-xl md:text-3xl text-indigo-100 mb-16 font-medium leading-relaxed max-w-4xl drop-shadow-md">
             Sınav stresini gerçekçi bir deneyimle yenin. Bölgenize en yakın merkezde sınava girin, başarı sıranızı görün ve dev eğitim bursları kazanın.
           </p>
 
           {!currentUser ? (
-            <div className="flex flex-col sm:flex-row gap-6">
+            <div className="flex flex-col sm:flex-row gap-6 w-full sm:w-auto">
               <button 
                 onClick={() => navigateTo('register')} 
-                className="bg-yellow-500 text-indigo-950 px-10 py-5 rounded-3xl font-black text-xl hover:bg-yellow-400 hover:scale-105 transition-all shadow-[0_0_40px_rgba(234,179,8,0.4)] flex items-center justify-center z-20"
+                className="w-full sm:w-auto bg-gradient-to-r from-yellow-400 to-yellow-500 text-indigo-950 px-10 py-5 rounded-3xl font-black text-xl hover:from-yellow-300 hover:to-yellow-400 hover:scale-105 transition-all shadow-[0_0_40px_rgba(234,179,8,0.4)] hover:shadow-[0_0_60px_rgba(234,179,8,0.6)] flex items-center justify-center z-20"
               >
                 Kayıt Ol ve Sınava Katıl <ChevronRight className="ml-2 w-6 h-6"/>
               </button>
               <button 
                 onClick={() => navigateTo('login')} 
-                className="bg-white text-indigo-900 px-10 py-5 rounded-3xl font-black text-xl hover:bg-indigo-50 transition-all z-20"
+                className="w-full sm:w-auto bg-white/10 backdrop-blur-sm border-2 border-white/20 text-white px-10 py-5 rounded-3xl font-black text-xl hover:bg-white hover:text-indigo-900 transition-all z-20 shadow-xl"
               >
                 Giriş Yap
               </button>
@@ -767,7 +594,7 @@ function LandingPage({ navigateTo, currentUser, scrollToSection, exams, zones })
           ) : (
             <button 
               onClick={() => scrollToSection('takvim')} 
-              className="bg-green-500 text-white px-12 py-6 rounded-3xl font-black text-xl hover:bg-green-400 transition-all shadow-[0_0_60px_rgba(34,197,94,0.4)] flex items-center justify-center z-20"
+              className="bg-green-500 text-white px-12 py-6 rounded-3xl font-black text-xl hover:bg-green-400 hover:scale-105 transition-all shadow-[0_0_60px_rgba(34,197,94,0.4)] flex items-center justify-center z-20"
             >
               Yaklaşan Sınavlarını Görüntüle <ChevronRight className="ml-3 w-8 h-8"/>
             </button>
@@ -779,12 +606,12 @@ function LandingPage({ navigateTo, currentUser, scrollToSection, exams, zones })
       <section className="bg-slate-50 pb-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-32">
           <div id="analiz" className="flex flex-col md:flex-row items-center gap-16 pt-10">
-            <div className="w-full md:w-1/2 relative">
-              <div className="absolute inset-0 bg-blue-200 rounded-[3rem] transform -rotate-3 scale-105 opacity-50"></div>
-              <img src="2.png" alt="Sınav Analiz" className="relative w-full h-auto rounded-[3rem] shadow-2xl object-cover z-10" />
+            <div className="w-full md:w-1/2 relative group">
+              <div className="absolute inset-0 bg-blue-200 rounded-[3rem] transform -rotate-3 scale-105 opacity-50 group-hover:rotate-0 transition-transform duration-500"></div>
+              <img src="2.png" alt="Sınav Analiz" className="relative w-full h-auto rounded-[3rem] shadow-2xl object-cover z-10 transition-transform duration-500 group-hover:scale-[1.02]" />
             </div>
             <div className="w-full md:w-1/2">
-              <div className="w-16 h-16 bg-blue-100 rounded-3xl flex items-center justify-center mb-6 text-blue-600">
+              <div className="w-16 h-16 bg-blue-100 rounded-3xl flex items-center justify-center mb-6 text-blue-600 shadow-inner">
                 <FileText className="w-8 h-8" />
               </div>
               <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6 leading-tight">Sınav Sonrası <span className="text-blue-600">Birebir Analiz</span></h2>
@@ -792,20 +619,20 @@ function LandingPage({ navigateTo, currentUser, scrollToSection, exams, zones })
                 Sadece puanınızı değil, hangi konularda eksiğiniz olduğunu detaylı karne ile sunuyoruz. Uzman öğretmen kadromuz eşliğinde zayıf noktalarınızı keşfedip, gerçek LGS öncesi tam donanımlı hale gelin.
               </p>
               <ul className="space-y-4">
-                <li className="flex items-center text-lg font-bold text-slate-700"><CheckCircle2 className="w-6 h-6 text-blue-500 mr-3"/> Konu Bazlı Performans Karnesi</li>
-                <li className="flex items-center text-lg font-bold text-slate-700"><CheckCircle2 className="w-6 h-6 text-blue-500 mr-3"/> Türkiye ve İl Geneli Yüzdelik Dilim</li>
+                <li className="flex items-center text-lg font-bold text-slate-700 bg-white p-4 rounded-2xl shadow-sm border border-slate-100"><CheckCircle2 className="w-6 h-6 text-blue-500 mr-3"/> Konu Bazlı Performans Karnesi</li>
+                <li className="flex items-center text-lg font-bold text-slate-700 bg-white p-4 rounded-2xl shadow-sm border border-slate-100"><CheckCircle2 className="w-6 h-6 text-blue-500 mr-3"/> Türkiye ve İl Geneli Yüzdelik Dilim</li>
               </ul>
             </div>
           </div>
 
           <div id="burs" className="flex flex-col md:flex-row-reverse items-center gap-10 md:gap-16 pt-10">
-            <div className="w-full md:w-1/2 relative h-[280px] sm:h-[400px] md:h-[500px] mt-8 md:mt-0">
-              <div className="absolute top-4 md:top-10 right-4 md:right-10 w-full h-full bg-yellow-400/20 rounded-full blur-3xl -z-10"></div>
-              <img src="3.png" alt="Başarı" className="absolute top-0 left-0 w-[55%] md:w-3/5 rounded-2xl md:rounded-[2rem] shadow-2xl transform -rotate-6 border-4 md:border-8 border-white hover:rotate-0 transition-transform duration-500 z-20" />
-              <img src="4.png" alt="Hediyeler" className="absolute bottom-0 right-0 w-[60%] md:w-2/3 rounded-2xl md:rounded-[2rem] shadow-2xl transform rotate-6 border-4 md:border-8 border-white hover:rotate-0 transition-transform duration-500 z-10" />
+            <div className="w-full md:w-1/2 relative h-[280px] sm:h-[400px] md:h-[500px] mt-8 md:mt-0 group">
+              <div className="absolute top-4 md:top-10 right-4 md:right-10 w-full h-full bg-yellow-400/20 rounded-full blur-3xl -z-10 transition-all duration-700 group-hover:scale-110 group-hover:bg-yellow-400/30"></div>
+              <img src="3.png" alt="Başarı" className="absolute top-0 left-0 w-[55%] md:w-3/5 rounded-2xl md:rounded-[2rem] shadow-2xl transform -rotate-6 border-4 md:border-8 border-white hover:rotate-0 hover:z-30 transition-all duration-500 z-20" />
+              <img src="4.png" alt="Hediyeler" className="absolute bottom-0 right-0 w-[60%] md:w-2/3 rounded-2xl md:rounded-[2rem] shadow-2xl transform rotate-6 border-4 md:border-8 border-white hover:rotate-0 hover:z-30 transition-all duration-500 z-10" />
             </div>
             <div className="w-full md:w-1/2">
-              <div className="w-16 h-16 bg-yellow-100 rounded-3xl flex items-center justify-center mb-6 text-yellow-600">
+              <div className="w-16 h-16 bg-yellow-100 rounded-3xl flex items-center justify-center mb-6 text-yellow-600 shadow-inner">
                 <Gift className="w-8 h-8" />
               </div>
               <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6 leading-tight">Yüzde Yüze Varan <span className="text-yellow-500">Eğitim Bursları</span></h2>
@@ -813,19 +640,19 @@ function LandingPage({ navigateTo, currentUser, scrollToSection, exams, zones })
                 Başarınızı ödüllendiriyoruz! Sınavda dereceye giren öğrencilerimiz seçkin özel okullarda ve kurs merkezlerinde %100'e varan dev eğitim bursları kazanıyor.
               </p>
               <ul className="space-y-4">
-                <li className="flex items-center text-lg font-bold text-slate-700"><CheckCircle2 className="w-6 h-6 text-yellow-500 mr-3"/> İlk 3'e Girenlere %100 Burs</li>
-                <li className="flex items-center text-lg font-bold text-slate-700"><CheckCircle2 className="w-6 h-6 text-yellow-500 mr-3"/> Teknolojik Sürpriz Hediyeler</li>
+                <li className="flex items-center text-lg font-bold text-slate-700 bg-white p-4 rounded-2xl shadow-sm border border-slate-100"><CheckCircle2 className="w-6 h-6 text-yellow-500 mr-3"/> İlk 3'e Girenlere %100 Burs</li>
+                <li className="flex items-center text-lg font-bold text-slate-700 bg-white p-4 rounded-2xl shadow-sm border border-slate-100"><CheckCircle2 className="w-6 h-6 text-yellow-500 mr-3"/> Teknolojik Sürpriz Hediyeler</li>
               </ul>
             </div>
           </div>
 
           <div className="flex flex-col md:flex-row items-center gap-16">
-            <div className="w-full md:w-1/2 relative">
-              <div className="absolute inset-0 bg-emerald-200 rounded-[3rem] transform rotate-3 scale-105 opacity-50"></div>
-              <img src="5.png" alt="Gerçek Sınav" className="relative w-full h-auto rounded-[3rem] shadow-2xl object-contain bg-white p-8 z-10" />
+            <div className="w-full md:w-1/2 relative group">
+              <div className="absolute inset-0 bg-emerald-200 rounded-[3rem] transform rotate-3 scale-105 opacity-50 group-hover:rotate-0 transition-transform duration-500"></div>
+              <img src="5.png" alt="Gerçek Sınav" className="relative w-full h-auto rounded-[3rem] shadow-2xl object-contain bg-white p-8 z-10 transition-transform duration-500 group-hover:scale-[1.02]" />
             </div>
             <div className="w-full md:w-1/2">
-              <div className="w-16 h-16 bg-emerald-100 rounded-3xl flex items-center justify-center mb-6 text-emerald-600">
+              <div className="w-16 h-16 bg-emerald-100 rounded-3xl flex items-center justify-center mb-6 text-emerald-600 shadow-inner">
                 <Clock className="w-8 h-8" />
               </div>
               <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6 leading-tight">Gerçek Bir <span className="text-emerald-600">Sınav Simülasyonu</span></h2>
@@ -833,8 +660,8 @@ function LandingPage({ navigateTo, currentUser, scrollToSection, exams, zones })
                 Öğrencilerimiz sınav stresini ve heyecanını gerçek LGS öncesinde tecrübe ediyor. Salon başkanı, gözetmenler, optik okuyucu ve sıkı sınav kuralları ile tam bir simülasyon.
               </p>
               <ul className="space-y-4">
-                <li className="flex items-center text-lg font-bold text-slate-700"><CheckCircle2 className="w-6 h-6 text-emerald-500 mr-3"/> Gerçek Okul Binalarında Sınav</li>
-                <li className="flex items-center text-lg font-bold text-slate-700"><CheckCircle2 className="w-6 h-6 text-emerald-500 mr-3"/> Optik Form ve Sınav Süresi Yönetimi</li>
+                <li className="flex items-center text-lg font-bold text-slate-700 bg-white p-4 rounded-2xl shadow-sm border border-slate-100"><CheckCircle2 className="w-6 h-6 text-emerald-500 mr-3"/> Gerçek Okul Binalarında Sınav</li>
+                <li className="flex items-center text-lg font-bold text-slate-700 bg-white p-4 rounded-2xl shadow-sm border border-slate-100"><CheckCircle2 className="w-6 h-6 text-emerald-500 mr-3"/> Optik Form ve Sınav Süresi Yönetimi</li>
               </ul>
             </div>
           </div>
@@ -842,17 +669,17 @@ function LandingPage({ navigateTo, currentUser, scrollToSection, exams, zones })
           <div className="w-full h-px bg-slate-200 my-16"></div>
 
           {/* YENİ ÖDÜL TASARIMI (HALKA AÇIK) */}
-          <div id="oduller" className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 p-8 md:p-16 relative overflow-hidden pt-10">
+          <div id="oduller" className="bg-white rounded-[3rem] shadow-xl border border-slate-100 p-6 md:p-16 relative overflow-hidden pt-10">
             <div className="relative z-10">
-              <div className="flex items-center justify-center mb-6">
-                <Gift className="w-12 h-12 mr-4 text-yellow-500"/>
-                <h2 className="text-4xl md:text-5xl font-black text-slate-900">Ödül Havuzu</h2>
+              <div className="flex flex-col md:flex-row items-center justify-center mb-6 gap-4">
+                <div className="bg-yellow-100 p-4 rounded-full shadow-inner"><Gift className="w-10 h-10 text-yellow-600"/></div>
+                <h2 className="text-4xl md:text-5xl font-black text-slate-900 text-center">Ödül Havuzu</h2>
               </div>
-              <p className="text-xl text-slate-600 mb-12 text-center max-w-3xl mx-auto leading-relaxed">
-                {currentUser ? `Sistem tarafından ${currentUser.zone?.name} bölgesine atandın. Sınava katılarak aşağıdaki muhteşem ödülleri kazanma şansı yakalayacaksın!` : "Sınava katılarak aşağıdaki muhteşem ödülleri kazanma şansı yakalayacaksın! Hedefini belirle, başarıya ulaş."}
+              <p className="text-lg md:text-xl text-slate-600 mb-12 text-center max-w-3xl mx-auto leading-relaxed">
+                {currentUser ? `Sistem tarafından atandığınız bölgedeki yarışmada aşağıdaki muhteşem ödülleri kazanma şansı yakalayacaksın!` : "Sınava katılarak aşağıdaki muhteşem ödülleri kazanma şansı yakalayacaksın! Hedefini belirle, başarıya ulaş."}
               </p>
               
-              <div className="flex flex-col gap-12 max-w-4xl mx-auto">
+              <div className="flex flex-col gap-10 max-w-4xl mx-auto">
                 <ModernPrizeCard type="grand" prizeData={displayPrizes?.grand} selectedPrize={null} />
                 <ModernPrizeCard type="degree" prizeData={displayPrizes?.degree} selectedPrize={currentUser?.selectedDegreePrize} />
                 <ModernPrizeCard type="participation" prizeData={displayPrizes?.participation} selectedPrize={currentUser?.selectedParticipationPrize} />
@@ -897,6 +724,9 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
   const [showVerification, setShowVerification] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   const [enteredCode, setEnteredCode] = useState('');
+  
+  // Yeni Şifre Ekranda Göstermek İçin State
+  const [generatedPassword, setGeneratedPassword] = useState('');
 
   useEffect(() => {
     if (currentUser && step === 1) {
@@ -939,7 +769,8 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
     
     await sendSMS([{tel: [formData.phone], msg: `odullusinav.net dogrulama kodunuz: ${code}`}]);
     
-    alert(`[SİSTEM BİLGİSİ - SMS APİ AKTİF]\nEğer SMS bakiyeniz biterse veya operatör mesajı geç iletirse diye test kodu ekrana yazdırılmıştır:\nDoğrulama Kodunuz: ${code}`);
+    // Geliştirici veya Test için uyarı (Ekranda gösteriyoruz ki API bakiye vs sebebiyle gitmezse takılı kalmasın)
+    alert(`[SİSTEM BİLGİSİ - TEST KODU]\nDoğrulama Kodunuz: ${code}`);
   };
 
   const verifyCodeAndProceed = () => {
@@ -988,6 +819,10 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
     const finalDegreePrize = withoutExam ? '' : (selectedDegreePrize || (degreePrizesList.length === 1 ? degreePrizesList[0].title : ''));
     const finalPartPrize = withoutExam ? '' : (selectedParticipationPrize || (partPrizesList.length === 1 ? partPrizesList[0].title : ''));
 
+    // Benzersiz 6 Haneli Şifre Üretimi
+    const newPassword = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedPassword(newPassword);
+
     try {
       let finalUserObj;
       if (currentUser) {
@@ -1014,6 +849,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
       } else {
         const newStudent = withoutExam ? {
           ...formData,
+          password: newPassword, // Yeni şifre kaydediliyor
           examId: null,
           examTitle: null,
           selectedDate: null,
@@ -1025,6 +861,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
           createdAt: new Date().getTime()
         } : {
           ...formData,
+          password: newPassword, // Yeni şifre kaydediliyor
           examId: selectedExam.firebaseId || selectedExam.id,
           examTitle: selectedExam.title,
           selectedDate: selectedSlot.date,
@@ -1042,9 +879,10 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
         setCurrentUser(finalUserObj);
       }
 
+      // --- SMS GÖNDERİM KISMI ---
       if (withoutExam) {
-         sendSMS([{tel: [finalUserObj.phone], msg: `odullusinav.net basvurunuz alinmistir. Bolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`}]);
-      } else {
+         sendSMS([{tel: [finalUserObj.phone], msg: `odullusinav.net basvurunuz alinmistir. Sisteme giris sifreniz: ${newPassword}. Bolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`}]);
+      } else if (finalUserObj.selectedDate) {
          const centerInfo = getNeighborhoodDetails(matchedZone, finalUserObj.district, finalUserObj.neighborhood);
          const [y, m, d] = finalUserObj.selectedDate.split('-');
          const dateDayIndex = new Date(parseInt(y), parseInt(m)-1, parseInt(d)).getDay();
@@ -1055,7 +893,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
 
          const trDateFull = `${parseInt(d)} ${monthNameStr} ${dayNameStr} - ${finalUserObj.selectedTime}`;
 
-         const regMsg = `odullusinav.net basvurunuz alinmistir. Size en yakin sinav mahallimiz ${finalUserObj.district} ilcesi ${finalUserObj.neighborhood} mahallesindedir. Sinav saatinden 30 dakika once asagidaki konumda olmanizi rica ederiz.\n\nOturum: ${trDateFull}\nKonum: ${centerInfo.address || centerInfo.centerName}\nKonum Linki: ${centerInfo.mapLink}\nIletisim: ${centerInfo.phone}${SMS_FOOTER}`;
+         const regMsg = `odullusinav.net basvurunuz alinmistir. Giris Sifreniz: ${newPassword}. Size en yakin sinav mahallimiz ${finalUserObj.district} ilcesi ${finalUserObj.neighborhood} mahallesindedir. Sinav saatinden 30 dakika once asagidaki konumda olmanizi rica ederiz.\n\nOturum: ${trDateFull}\nKonum: ${centerInfo.address || centerInfo.centerName}\nKonum Linki: ${centerInfo.mapLink}\nIletisim: ${centerInfo.phone}${SMS_FOOTER}`;
          
          sendSMS([{tel: [finalUserObj.phone], msg: regMsg}]);
       }
@@ -1094,7 +932,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
                       const isSelected = selectedPrize === prize.title;
                       return (
                           <div key={idx} onClick={() => onSelect(prize.title)}
-                               className={`cursor-pointer flex items-center p-4 rounded-2xl border-4 transition-all ${isSelected ? 'border-green-500 bg-green-50 shadow-md' : 'border-slate-200 bg-white hover:border-green-300'}`}>
+                               className={`cursor-pointer flex items-center p-4 rounded-2xl border-4 transition-all hover:scale-105 ${isSelected ? 'border-green-500 bg-green-50 shadow-md' : 'border-slate-200 bg-white hover:border-green-300'}`}>
                                {prize.img ? (
                                   <img src={prize.img} alt={prize.title} className="w-16 h-16 object-cover rounded-xl shadow-sm border border-slate-200 mr-4 bg-white flex-shrink-0" />
                                ) : (
@@ -1103,7 +941,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
                                <div className="flex-1">
                                   <h4 className={`font-black text-lg ${isSelected ? 'text-green-700' : 'text-slate-700'}`}>{prize.title}</h4>
                                </div>
-                               {isSelected && <CheckCircle2 className="w-6 h-6 text-green-500 ml-2 flex-shrink-0" />}
+                               {isSelected && <CheckCircle2 className="w-6 h-6 text-green-500 ml-2 flex-shrink-0 animate-in zoom-in" />}
                           </div>
                       )
                   })}
@@ -1114,6 +952,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-16 relative">
+      {/* Doğrulama Kodu Modalı */}
       {showVerification && (
          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-md relative animate-in zoom-in-95">
@@ -1140,12 +979,12 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
 
       <div className="flex items-center justify-center mb-12">
         <div className={`flex items-center ${step >= 1 ? 'text-indigo-600' : 'text-slate-400'}`}>
-          <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black text-xl ${step >= 1 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-200'}`}>1</div>
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black text-xl shadow-sm ${step >= 1 ? 'bg-indigo-600 text-white shadow-indigo-200' : 'bg-slate-200'}`}>1</div>
           <span className="ml-3 font-black text-lg hidden sm:block">Kişisel Bilgiler</span>
         </div>
         <div className={`w-20 h-1.5 mx-4 rounded-full ${step >= 2 ? 'bg-indigo-600 shadow-lg shadow-indigo-200' : 'bg-slate-200'}`}></div>
         <div className={`flex items-center ${step >= 2 ? 'text-indigo-600' : 'text-slate-400'}`}>
-          <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black text-xl ${step >= 2 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-200'}`}>2</div>
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black text-xl shadow-sm ${step >= 2 ? 'bg-indigo-600 text-white shadow-indigo-200' : 'bg-slate-200'}`}>2</div>
           <span className="ml-3 font-black text-lg hidden sm:block">Konum & Sınav</span>
         </div>
       </div>
@@ -1191,7 +1030,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
             <button 
               onClick={handleStep1Submit}
               disabled={!formData.fullName || formData.phone.length !== 10 || !formData.parentName}
-              className="w-full bg-indigo-600 text-white font-black text-2xl py-6 rounded-2xl mt-8 hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition shadow-2xl shadow-indigo-500/30 flex justify-center items-center"
+              className="w-full bg-indigo-600 text-white font-black text-2xl py-6 rounded-2xl mt-8 hover:bg-indigo-700 hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100 disabled:hover:bg-indigo-600 transition-all shadow-2xl shadow-indigo-500/30 flex justify-center items-center"
             >
               Devam Et: Konum Seçimi <ChevronRight className="ml-3 w-8 h-8"/>
             </button>
@@ -1199,7 +1038,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
         )}
 
         {step === 2 && (
-          <div className="space-y-8 animate-in fade-in zoom-in-95 duration-300">
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-500">
             <h2 className="text-4xl font-black text-slate-800 border-b-2 border-slate-100 pb-6 flex items-center">
               <MapPin className="mr-4 w-10 h-10 text-indigo-600" /> Konum ve Sınav Seçimi
             </h2>
@@ -1207,7 +1046,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
             <div className="bg-indigo-50/80 p-6 rounded-2xl border border-indigo-100 flex items-start">
               <AlertCircle className="text-indigo-600 w-8 h-8 mr-4 flex-shrink-0" />
               <p className="text-lg text-indigo-900 leading-relaxed font-medium">
-                Sistemin size en yakın aktif sınavları sunabilmesi için konumunuzu doğru belirleyin. Seçiminize göre arka planda <b>Mıntıka Eşleşmesi</b> yapılacaktır.
+                Sistemin size en yakın aktif sınavları sunabilmesi için konumunuzu doğru belirleyin. Seçiminize göre arka planda <b>Bölge Eşleşmesi</b> yapılacaktır.
               </p>
             </div>
 
@@ -1253,7 +1092,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
             </div>
 
             {formData.district && formData.neighborhood && (
-              <div className="mt-10 pt-10 border-t-2 border-slate-100">
+              <div className="mt-10 pt-10 border-t-2 border-slate-100 animate-in fade-in">
                 {matchedZone ? (
                   <div className="mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-inner">
                     <div>
@@ -1281,7 +1120,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
                         const examSessions = exam.sessions || (exam.date && exam.slots ? [{ date: exam.date, slots: exam.slots }] : []);
                         
                         return (
-                          <div key={exam.firebaseId || exam.id} className={`border-4 rounded-3xl p-6 md:p-8 transition-all ${selectedExam?.firebaseId === exam.firebaseId ? 'border-indigo-600 bg-indigo-50 ring-4 ring-indigo-500/20 shadow-xl' : 'border-slate-100 bg-white hover:border-indigo-300 hover:shadow-md cursor-pointer'}`}
+                          <div key={exam.firebaseId || exam.id} className={`border-4 rounded-3xl p-6 md:p-8 transition-all hover:-translate-y-1 ${selectedExam?.firebaseId === exam.firebaseId ? 'border-indigo-600 bg-indigo-50 ring-4 ring-indigo-500/20 shadow-xl' : 'border-slate-100 bg-white hover:border-indigo-300 hover:shadow-lg cursor-pointer'}`}
                               onClick={() => { setSelectedExam(exam); setSelectedSlot(null); }}>
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
                               <h4 className="font-black text-3xl text-slate-800 mb-2 md:mb-0">{exam.title}</h4>
@@ -1306,8 +1145,8 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
                                               setSelectedExam(exam); 
                                               setSelectedSlot({ date: session.date, time: slot }); 
                                             }}
-                                            className={`px-8 py-4 rounded-2xl text-xl font-black border-4 transition-all flex items-center ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-xl scale-105' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-indigo-400'}`}>
-                                            {isSelected ? <CheckCircle2 className="w-5 h-5 mr-2" /> : <Clock className="w-5 h-5 mr-2 opacity-70" />} {slot}
+                                            className={`px-8 py-4 rounded-2xl text-xl font-black border-4 transition-all hover:scale-105 flex items-center ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-xl' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-indigo-400'}`}>
+                                            {isSelected ? <CheckCircle2 className="w-5 h-5 mr-2" /> : <Clock className="w-5 h-5 mr-2 opacity-70" />} {slot.replace(':', '.')}
                                           </button>
                                         )
                                       })}
@@ -1335,7 +1174,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
                       <button 
                         onClick={() => handleComplete(false)}
                         disabled={!isFormValid || isSubmitting}
-                        className="w-full bg-green-500 text-white font-black py-6 rounded-2xl hover:bg-green-600 disabled:opacity-50 disabled:hover:bg-green-500 transition flex justify-center items-center text-xl shadow-2xl shadow-green-500/40"
+                        className="w-full bg-green-500 text-white font-black py-6 rounded-2xl hover:bg-green-600 hover:scale-[1.02] disabled:scale-100 disabled:opacity-50 disabled:hover:bg-green-500 transition-all flex justify-center items-center text-xl shadow-2xl shadow-green-500/40"
                       >
                         {isSubmitting ? "Sisteme Kaydediliyor..." : "Kaydı Tamamla"} {!isSubmitting && <CheckCircle2 className="ml-3 w-8 h-8"/>}
                       </button>
@@ -1351,7 +1190,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
                         {sortedAlternativeExams.map((exam) => {
                           const examSessions = exam.sessions || (exam.date && exam.slots ? [{ date: exam.date, slots: exam.slots }] : []);
                           return (
-                            <div key={exam.firebaseId || exam.id} className={`border-4 rounded-3xl p-6 md:p-8 transition-all ${selectedExam?.firebaseId === exam.firebaseId ? 'border-indigo-600 bg-indigo-50 ring-4 ring-indigo-500/20 shadow-xl' : 'border-slate-100 bg-white hover:border-indigo-300 hover:shadow-md cursor-pointer'}`}
+                            <div key={exam.firebaseId || exam.id} className={`border-4 rounded-3xl p-6 md:p-8 transition-all hover:-translate-y-1 ${selectedExam?.firebaseId === exam.firebaseId ? 'border-indigo-600 bg-indigo-50 ring-4 ring-indigo-500/20 shadow-xl' : 'border-slate-100 bg-white hover:border-indigo-300 hover:shadow-lg cursor-pointer'}`}
                                 onClick={() => { setSelectedExam(exam); setSelectedSlot(null); }}>
                               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
                                 <div>
@@ -1380,8 +1219,8 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
                                               setSelectedExam(exam); 
                                               setSelectedSlot({ date: session.date, time: slot }); 
                                             }}
-                                            className={`px-8 py-4 rounded-2xl text-xl font-black border-4 transition-all flex items-center ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-xl scale-105' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-indigo-400'}`}>
-                                              {isSelected ? <CheckCircle2 className="w-5 h-5 mr-2" /> : <Clock className="w-5 h-5 mr-2 opacity-70" />} {slot}
+                                            className={`px-8 py-4 rounded-2xl text-xl font-black border-4 transition-all hover:scale-105 flex items-center ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-xl' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-indigo-400'}`}>
+                                              {isSelected ? <CheckCircle2 className="w-5 h-5 mr-2" /> : <Clock className="w-5 h-5 mr-2 opacity-70" />} {slot.replace(':', '.')}
                                             </button>
                                           )
                                         })}
@@ -1405,7 +1244,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
                       <button 
                         onClick={() => handleComplete(false)} 
                         disabled={!selectedSlot && !isSubmitting}
-                        className="w-full bg-green-500 text-white font-black py-6 rounded-2xl hover:bg-green-600 disabled:opacity-50 transition flex justify-center items-center text-xl shadow-2xl shadow-green-500/40"
+                        className="w-full bg-green-500 text-white font-black py-6 rounded-2xl hover:bg-green-600 hover:scale-[1.02] disabled:scale-100 disabled:opacity-50 transition-all flex justify-center items-center text-xl shadow-2xl shadow-green-500/40"
                       >
                         {selectedSlot ? "Seçtiğim Sınavla Kaydı Tamamla" : "Sınav Seçmediniz"}
                       </button>
@@ -1421,7 +1260,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
 
                 ) : (
                   
-                  <div className="bg-amber-50 border-4 border-amber-200 rounded-3xl p-10 text-center shadow-lg">
+                  <div className="bg-amber-50 border-4 border-amber-200 rounded-3xl p-10 text-center shadow-lg animate-in zoom-in-95">
                     <AlertCircle className="w-20 h-20 text-amber-500 mx-auto mb-6" />
                     <h4 className="font-black text-amber-900 text-3xl mb-4">Bölgenizde Açık Sınav Yok</h4>
                     <p className="text-amber-800 text-xl mb-10 max-w-2xl mx-auto leading-relaxed">
@@ -1449,14 +1288,22 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
               <CheckCircle2 className="w-20 h-20 text-green-600" />
             </div>
             <h2 className="text-5xl font-black text-slate-900 mb-6">Harika, Kaydınız Onaylandı!</h2>
-            <p className="text-slate-600 text-2xl mb-12 max-w-2xl mx-auto leading-relaxed">
+            <p className="text-slate-600 text-2xl mb-8 max-w-2xl mx-auto leading-relaxed">
               Sistemdeki profiliniz başarıyla oluşturuldu. Eğer bir sınava kayıt olduysanız bilgileriniz iletişim numaranıza SMS olarak gönderilecektir.
             </p>
+            
+            <div className="bg-indigo-50 border-4 border-indigo-200 border-dashed rounded-3xl p-8 max-w-lg mx-auto mb-12 relative overflow-hidden group">
+               <div className="absolute top-0 left-0 w-2 h-full bg-indigo-500"></div>
+               <p className="text-sm font-black text-indigo-500 uppercase tracking-widest mb-3">Sisteme Giriş Şifreniz</p>
+               <div className="text-5xl font-black text-indigo-900 tracking-[0.2em]">{generatedPassword}</div>
+               <p className="text-sm font-medium text-slate-500 mt-4">Bu şifreyi ve telefon numaranızı kullanarak <br/>öğrenci panelinize giriş yapabilirsiniz.</p>
+            </div>
+
             <button 
               onClick={() => navigateTo('profile')}
-              className="bg-indigo-600 text-white font-black text-2xl py-6 px-12 rounded-3xl hover:bg-indigo-700 transition shadow-2xl shadow-indigo-500/40"
+              className="bg-indigo-600 text-white font-black text-2xl py-6 px-12 rounded-3xl hover:bg-indigo-700 hover:-translate-y-1 transition-all shadow-2xl shadow-indigo-500/40 flex items-center mx-auto"
             >
-              Öğrenci Paneline Git
+              Öğrenci Paneline Git <ChevronRight className="ml-2 w-8 h-8"/>
             </button>
           </div>
         )}
@@ -1468,7 +1315,10 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
 // ==========================================
 // 3. ÖĞRENCİ PANELİ
 // ==========================================
-function StudentProfile({ currentUser, exams, navigateTo }) {
+function StudentProfile({ currentUser, exams, navigateTo, setCurrentUser }) {
+  const [showSettings, setShowSettings] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+
   if (!currentUser) return <div className="text-center py-32 text-2xl font-black text-slate-500">Lütfen önce giriş yapın veya kayıt oluşturun.</div>;
 
   const hasActiveExam = !!(currentUser.examId || currentUser.examTitle || currentUser.exam);
@@ -1476,14 +1326,56 @@ function StudentProfile({ currentUser, exams, navigateTo }) {
   const neighborhoodDetails = getNeighborhoodDetails(currentUser.zone, currentUser.district, currentUser.neighborhood);
   const zoneExams = exams.filter(e => e.zoneId === currentUser?.zone?.id);
 
+  const handlePasswordChange = async () => {
+    if(newPassword.length < 4) return alert("Şifre en az 4 haneli olmalıdır.");
+    try {
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', currentUser.firebaseId), { password: newPassword });
+      setCurrentUser({ ...currentUser, password: newPassword });
+      alert("Şifreniz başarıyla güncellendi!");
+      setShowSettings(false);
+      setNewPassword('');
+    } catch(e) {
+       console.error(e);
+       alert("Bir hata oluştu.");
+    }
+  };
+
   return (
-    <div className="max-w-7xl mx-auto px-4 py-16">
+    <div className="max-w-7xl mx-auto px-4 py-16 relative">
+      {/* Ayarlar Modalı */}
+      {showSettings && (
+         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-md relative animate-in zoom-in-95">
+               <button onClick={() => setShowSettings(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"><Plus className="w-8 h-8 transform rotate-45"/></button>
+               <Settings className="w-16 h-16 text-indigo-500 mx-auto mb-6" />
+               <h3 className="text-3xl font-black text-center text-slate-900 mb-2">Profil Ayarları</h3>
+               <p className="text-center text-slate-500 font-bold mb-8">Sisteme giriş şifrenizi buradan değiştirebilirsiniz.</p>
+               
+               <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">Yeni Şifre Belirle</label>
+               <input 
+                 type="text" 
+                 value={newPassword} 
+                 onChange={e => setNewPassword(e.target.value.replace(/\D/g, ''))} 
+                 className="w-full text-center tracking-widest border-4 border-slate-100 rounded-2xl px-6 py-4 text-2xl font-black focus:border-indigo-500 outline-none mb-6" 
+                 placeholder="Yeni Şifre" 
+               />
+               
+               <button onClick={handlePasswordChange} disabled={newPassword.length < 4} className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 disabled:opacity-50 transition shadow-xl shadow-indigo-500/30">
+                 Şifreyi Kaydet
+               </button>
+            </div>
+         </div>
+      )}
+
       <div className="flex flex-col lg:flex-row gap-10">
         
         {/* SOL: Profil Kartı */}
-        <div className="w-full lg:w-1/3 space-y-8">
+        <div className="w-full lg:w-1/3 space-y-8 animate-in slide-in-from-left-8 duration-500">
           <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden relative">
             <div className="bg-gradient-to-br from-indigo-700 to-indigo-950 h-40 relative">
+              <button onClick={() => setShowSettings(true)} className="absolute top-6 right-6 text-white hover:text-indigo-200 transition bg-white/10 p-2 rounded-xl backdrop-blur-sm" title="Ayarlar / Şifre Değiştir">
+                 <Settings className="w-6 h-6"/>
+              </button>
               <div className="absolute -bottom-16 left-10 w-32 h-32 bg-white rounded-full border-8 border-white flex items-center justify-center text-5xl font-black text-indigo-600 shadow-2xl">
                 {currentUser?.fullName?.charAt(0) || "Ö"}
               </div>
@@ -1495,7 +1387,7 @@ function StudentProfile({ currentUser, exams, navigateTo }) {
               <div className="space-y-5 bg-slate-50 p-6 rounded-2xl border border-slate-100">
                 <div className="flex justify-between items-center text-base border-b border-slate-200 pb-4">
                   <span className="text-slate-500 font-bold uppercase tracking-wider text-xs">Kayıt No</span>
-                  <span className="font-mono font-black text-indigo-800">{currentUser?.id?.toUpperCase()}</span>
+                  <span className="font-mono font-black text-indigo-800">{currentUser?.id?.toUpperCase() || currentUser?.firebaseId.substring(0,6).toUpperCase()}</span>
                 </div>
                 <div className="flex justify-between items-center text-base border-b border-slate-200 pb-4">
                   <span className="text-slate-500 font-bold uppercase tracking-wider text-xs">Telefon</span>
@@ -1520,10 +1412,10 @@ function StudentProfile({ currentUser, exams, navigateTo }) {
         </div>
 
         {/* SAĞ: Aktif Sınav Bilgileri & Geçmiş Sonuçlar */}
-        <div className="w-full lg:w-2/3 space-y-10">
+        <div className="w-full lg:w-2/3 space-y-10 animate-in slide-in-from-right-8 duration-500">
           
           {hasActiveExam ? (
-            <div className="bg-gradient-to-r from-indigo-600 to-blue-700 rounded-[3rem] p-10 md:p-12 text-white relative overflow-hidden shadow-2xl shadow-indigo-500/30">
+            <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[3rem] p-10 md:p-12 text-white relative overflow-hidden shadow-2xl shadow-indigo-500/30">
               <div className="absolute top-0 right-0 w-96 h-96 bg-white opacity-5 rounded-full -mr-20 -mt-20 z-0 pointer-events-none"></div>
               
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 relative z-10">
@@ -1531,7 +1423,7 @@ function StudentProfile({ currentUser, exams, navigateTo }) {
                   <div className="bg-white/20 backdrop-blur-md inline-block px-4 py-2 rounded-xl text-sm font-black uppercase tracking-widest mb-4 border border-white/30">
                     ONAYLANAN OTURUMUNUZ
                   </div>
-                  <h4 className="text-4xl font-black leading-tight">{currentUser?.examTitle || currentUser?.exam?.title}</h4>
+                  <h4 className="text-4xl font-black leading-tight drop-shadow-md">{currentUser?.examTitle || currentUser?.exam?.title}</h4>
                 </div>
                 <div className="mt-4 md:mt-0 bg-green-500 text-white px-6 py-3 rounded-2xl text-lg font-black shadow-lg shadow-green-500/40 flex items-center border border-green-400">
                   <Check className="w-6 h-6 mr-2"/> ONAYLI
@@ -1545,7 +1437,7 @@ function StudentProfile({ currentUser, exams, navigateTo }) {
                 </div>
                 <div>
                   <div className="text-indigo-200 text-sm font-bold mb-2 uppercase tracking-wider">Seans</div>
-                  <div className="font-black text-2xl flex items-center"><Clock className="w-6 h-6 mr-2 opacity-80"/> {currentUser?.selectedTime || currentUser?.slot}</div>
+                  <div className="font-black text-2xl flex items-center"><Clock className="w-6 h-6 mr-2 opacity-80"/> {(currentUser?.selectedTime || currentUser?.slot)?.replace(':', '.')}</div>
                 </div>
                 <div className="col-span-2 md:col-span-3 mt-4">
                   <div className="text-indigo-200 text-sm font-bold mb-2 uppercase tracking-wider">Sınav Merkezi Adresi ve İletişim</div>
@@ -1583,7 +1475,7 @@ function StudentProfile({ currentUser, exams, navigateTo }) {
               <p className="text-lg text-slate-600 mb-8 font-medium">Önceki sınavlarınızın sonuçlarını aşağıdan inceleyebilir, bölgenizde açılan yeni sınavlara hemen başvurabilirsiniz.</p>
               <button 
                 onClick={() => navigateTo('register')} 
-                className="bg-indigo-600 text-white font-black text-xl py-5 px-10 rounded-2xl hover:bg-indigo-700 transition shadow-xl shadow-indigo-500/30"
+                className="bg-indigo-600 text-white font-black text-xl py-5 px-10 rounded-2xl hover:bg-indigo-700 hover:scale-105 transition shadow-xl shadow-indigo-500/30"
               >
                 Yeni Bir Sınava Başvur
               </button>
@@ -1604,11 +1496,11 @@ function StudentProfile({ currentUser, exams, navigateTo }) {
               </div>
               <div className="space-y-6">
                 {pastExams.map((past, idx) => (
-                  <div key={idx} className="bg-white rounded-3xl shadow-lg border border-slate-100 p-8 flex flex-col md:flex-row items-center justify-between gap-6">
+                  <div key={idx} className="bg-white rounded-3xl shadow-lg border border-slate-100 p-8 flex flex-col md:flex-row items-center justify-between gap-6 hover:shadow-xl hover:-translate-y-1 transition-all">
                     <div>
                       <h4 className="text-2xl font-black text-slate-800 mb-2">{past.title}</h4>
                       <p className="text-slate-500 font-bold flex items-center">
-                        <CalendarIcon className="w-5 h-5 mr-2 text-indigo-400"/> {past.date} - {past.time} Oturumu
+                        <CalendarIcon className="w-5 h-5 mr-2 text-indigo-400"/> {past.date} - {past.time.replace(':', '.')} Oturumu
                       </p>
                     </div>
                     <div className="flex gap-4">
@@ -1634,7 +1526,7 @@ function StudentProfile({ currentUser, exams, navigateTo }) {
 }
 
 // ==========================================
-// 4. ADMIN PANELİ (GENEL MERKEZ DESTEKLİ VE EXCEL EKLENTİLİ)
+// 4. ADMIN PANELİ
 // ==========================================
 function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exams }) {
   const [activeTab, setActiveTab] = useState('ayarlar'); 
@@ -1831,7 +1723,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
     rows.forEach(row => {
        if(!row.trim()) return;
        const cols = row.split('\t');
-       if(cols.length < 3) return; // En az ilçe, mahalle ve kurum adı olmalı
+       if(cols.length < 3) return; 
        
        const district = cols[0].trim();
        const neighborhood = cols[1].trim();
@@ -1932,7 +1824,6 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
   const handleBulkSMS = async () => {
     setSmsModal({ ...smsModal, loading: true });
     
-    // Eğer belli bir öğrenci seçildiyse onu kullan, yoksa tüm listeyi kullan
     const targetStudents = smsModal.targetStudent ? [smsModal.targetStudent] : filteredStudents;
     const validStudents = targetStudents.filter(s => s.phone && s.phone.length >= 10);
     
@@ -2026,7 +1917,6 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
          }
       }
     }
-    // Geliştirme: Zaten atanmış mahalleleri listeden çıkartıyoruz
     const mappedHoods = adminMappings.filter(m => m.district === district).map(m => m.neighborhood);
     return allHoods.filter(h => !mappedHoods.includes(h));
   };
@@ -2075,12 +1965,11 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            {/* ÖDÜL YÖNETİMİ (YENİ TASARIM GİRİŞİ) */}
+            {/* ÖDÜL YÖNETİMİ */}
             <div>
               <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider flex items-center"><Gift className="w-6 h-6 mr-2"/> {isSuperAdmin ? 'Tüm Türkiye' : 'Bölge'} Ödüllerini Yönet</div>
               <div className="space-y-6 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
                 
-                {/* Büyük Ödül */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-200">
                   <div className="text-sm font-black text-slate-800 mb-3 flex items-center"><Trophy className="w-5 h-5 text-yellow-500 mr-2"/> Büyük Ödül</div>
                   <input type="text" value={localPrizes.grand.title} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, title: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2" placeholder="Ödül Başlığı (Örn: PlayStation 5)"/>
@@ -2088,7 +1977,6 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
                   <input type="text" value={localPrizes.grand.img} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, img: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Resim Linki veya Dosya Adı (Örn: ps5.png)"/>
                 </div>
 
-                {/* Derece Ödülleri */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-200">
                   <div className="text-sm font-black text-slate-800 mb-3 flex justify-between items-center">
                      <span className="flex items-center"><Award className="w-5 h-5 text-indigo-500 mr-2"/> Derece Ödülleri</span>
@@ -2106,7 +1994,6 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
                   ))}
                 </div>
 
-                {/* Katılım Ödülleri */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-200">
                   <div className="text-sm font-black text-slate-800 mb-3 flex justify-between items-center">
                      <span className="flex items-center"><Gift className="w-5 h-5 text-emerald-500 mr-2"/> Katılım Ödülleri</span>
@@ -2192,7 +2079,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
         </div>
       )}
 
-      {/* 2. YENİ SEKMEYE AİT İÇERİKLER: Sınav Merkezleri ve Atamalar (Sadece Normal Adminler Görür) */}
+      {/* 2. YENİ SEKMEYE AİT İÇERİKLER: Sınav Merkezleri ve Atamalar */}
       {activeTab === 'merkezler' && !isSuperAdmin && (
          <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b-2 border-slate-100 pb-8 gap-4">
@@ -2204,10 +2091,8 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
               
-              {/* Kurum Ekleme ve Excel'den Yükleme Alanı */}
               <div className="lg:col-span-1 space-y-8">
                  
-                 {/* Tekli Kurum Ekleme */}
                  <div>
                     <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider flex items-center"><Building2 className="w-6 h-6 mr-2"/> Yeni Kurum / Sınav Yeri Ekle</div>
                     <div className="space-y-4 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
@@ -2227,7 +2112,6 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
                     </div>
                  </div>
 
-                 {/* Toplu Ekleme (Excel'den) */}
                  <div>
                     <div className="text-sm font-black text-emerald-600 uppercase mb-4 tracking-wider flex items-center"><FileText className="w-6 h-6 mr-2"/> Toplu Ekle (Excel'den Yapıştır)</div>
                     <div className="space-y-4 bg-emerald-50/50 p-6 rounded-3xl border-2 border-emerald-100">
@@ -2271,7 +2155,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
                     }
 
                     return (
-                      <div key={center.id} className="border-4 border-slate-100 rounded-3xl p-6 bg-white relative group">
+                      <div key={center.id} className="border-4 border-slate-100 rounded-3xl p-6 bg-white relative group animate-in fade-in zoom-in-95 duration-300">
                         <div className="absolute top-6 right-6 flex gap-2">
                            <button onClick={() => setEditingCenter(center)} className="p-2 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Düzenle"><Edit3 className="w-5 h-5"/></button>
                            <button onClick={() => handleDeleteCenter(center.id)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Sil"><Trash2 className="w-5 h-5"/></button>
@@ -2315,7 +2199,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
                           <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Bağlı Olan Mahalleler ({mappedHoods.length})</h5>
                           <div className="flex flex-wrap gap-3">
                             {mappedHoods.length > 0 ? mappedHoods.map((m, i) => (
-                               <div key={i} className="flex flex-col bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm relative group pr-10">
+                               <div key={i} className="flex flex-col bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm relative group pr-10 hover:shadow-md transition">
                                   <span className="font-black text-slate-800 mb-1">{m.district} / {m.neighborhood}</span>
                                   <span className="text-slate-500 font-medium text-xs"><Users className="w-3 h-3 inline mr-1"/>{m.contactName || 'İsimsiz'} - {m.phone}</span>
                                   <button onClick={() => handleDeleteMapping(m.district, m.neighborhood)} className="absolute top-1/2 right-3 transform -translate-y-1/2 text-slate-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100"><Trash2 className="w-5 h-5"/></button>
@@ -2373,7 +2257,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
                     const stdCenter = getNeighborhoodDetails(realZoneData, student.district, student.neighborhood);
                     
                     return (
-                      <tr key={student.firebaseId} className="hover:bg-slate-50 transition-colors">
+                      <tr key={student.firebaseId} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
                         <td className="p-6 font-black text-slate-900 text-lg">
                           {student.fullName}
                           <div className="text-xs font-bold text-slate-400">{student.grade}. Sınıf - {student.phone}</div>
@@ -2500,6 +2384,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
 // ==========================================
 function LoginPage({ students, setCurrentUser, navigateTo }) {
   const [phoneQuery, setPhoneQuery] = useState('');
+  const [passwordQuery, setPasswordQuery] = useState('');
 
   const handleSearch = () => {
     let q = phoneQuery.replace(/\D/g, ''); 
@@ -2510,36 +2395,48 @@ function LoginPage({ students, setCurrentUser, navigateTo }) {
       return;
     }
 
-    const foundStudent = students.find(s => s.phone === q);
+    const foundStudent = students.find(s => s.phone === q && (s.password === passwordQuery || (!s.password && passwordQuery === "")));
     
     if(foundStudent) {
       setCurrentUser(foundStudent);
       navigateTo('profile');
     } else {
-      alert("Bu telefon numarasıyla eşleşen bir kayıt bulunamadı. Lütfen önce kayıt olun.");
+      alert("Telefon numarası veya şifre hatalı. Lütfen tekrar deneyin. Şifreniz yoksa boş bırakıp deneyin.");
     }
   };
 
   return (
-    <div className="max-w-xl mx-auto px-4 py-32 text-center">
+    <div className="max-w-xl mx-auto px-4 py-32 text-center animate-in fade-in zoom-in-95 duration-500">
       <div className="bg-white p-12 rounded-[3rem] shadow-2xl shadow-indigo-100/50 border border-slate-100">
         <div className="w-24 h-24 bg-indigo-50 rounded-[2rem] flex items-center justify-center mx-auto mb-8">
           <Users className="w-12 h-12 text-indigo-600" />
         </div>
         <h2 className="text-4xl font-black text-slate-900 mb-4">Öğrenci Girişi</h2>
-        <p className="text-slate-500 text-lg mb-10 font-bold leading-relaxed">Kayıt esnasında kullandığınız telefon numarasını girerek panelinize erişebilirsiniz.</p>
+        <p className="text-slate-500 text-lg mb-10 font-bold leading-relaxed">Kayıt esnasında kullandığınız telefon numarasını ve şifrenizi girerek panelinize erişebilirsiniz.</p>
         
-        <div className="relative mb-8">
-          <span className="absolute inset-y-0 left-0 flex items-center pl-8 text-slate-400 font-black text-2xl">0</span>
-          <input 
-            type="tel" 
-            value={phoneQuery}
-            onChange={e => setPhoneQuery(e.target.value)}
-            placeholder="5XX XXX XX XX" 
-            className="w-full text-center border-4 border-slate-100 rounded-[2rem] pl-12 pr-6 py-6 text-2xl font-black tracking-widest focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition"
-          />
+        <div className="space-y-4 mb-8">
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-8 text-slate-400 font-black text-2xl">0</span>
+              <input 
+                type="tel" 
+                value={phoneQuery}
+                onChange={e => setPhoneQuery(e.target.value)}
+                placeholder="5XX XXX XX XX" 
+                className="w-full text-center border-4 border-slate-100 rounded-[2rem] pl-12 pr-6 py-6 text-2xl font-black tracking-widest focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition"
+              />
+            </div>
+            <div className="relative">
+              <input 
+                type="password" 
+                value={passwordQuery}
+                onChange={e => setPasswordQuery(e.target.value)}
+                placeholder="•••••• (6 Haneli Şifreniz)" 
+                className="w-full text-center border-4 border-slate-100 rounded-[2rem] px-6 py-6 text-2xl font-black tracking-widest focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition"
+              />
+            </div>
         </div>
-        <button onClick={handleSearch} className="w-full bg-indigo-600 text-white font-black text-xl py-6 rounded-[2rem] hover:bg-indigo-700 transition shadow-2xl shadow-indigo-500/40 mb-6">
+
+        <button onClick={handleSearch} disabled={phoneQuery.length < 10} className="w-full bg-indigo-600 text-white font-black text-xl py-6 rounded-[2rem] hover:bg-indigo-700 transition hover:scale-[1.02] shadow-2xl shadow-indigo-500/40 mb-6 disabled:opacity-50">
           Giriş Yap
         </button>
         <button onClick={() => navigateTo('register')} className="text-slate-500 hover:text-indigo-600 font-bold transition">
