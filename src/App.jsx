@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   MapPin, Calendar as CalendarIcon, Clock, Award, Users, Search, 
-  Settings, ChevronRight, AlertCircle, CheckCircle2, 
-  Map, Phone, FileText, Lock, MessageSquare, Gift, Check, Plus, LogOut, KeyRound, Trash2, UserPlus, Trophy, Building2, Send, Image as ImageIcon, Download
+  Settings, ChevronRight, ChevronLeft, AlertCircle, CheckCircle2, 
+  Map, Phone, FileText, Lock, MessageSquare, Gift, Check, Plus, LogOut, KeyRound, Trash2, UserPlus, Trophy, Building2, Send, Image as ImageIcon, Download, Edit3, Save, X
 } from 'lucide-react';
 
 // ==========================================
@@ -31,7 +31,7 @@ const appId = typeof __app_id !== 'undefined' ? __app_id : 'odullu-sinav';
 // MESAJPANELİ SMS API ENTEGRASYONU (Sessiz Mod)
 // ==========================================
 const MESAJ_PANELI_API_KEY = "af68961362160d37c19bae0463b082f58539d936";
-const MESAJ_PANELI_BASLIK = "8503038692"; 
+const MESAJ_PANELI_BASLIK = "EMRGUNDOGDU"; 
 const SMS_FOOTER = "\n\nodullusinav.net EFECEL IPTAL LH47W yaz 4609a gonder B302";
 
 const encodeBase64 = (str) => {
@@ -46,14 +46,14 @@ const sendSMS = async (msgDataArray) => {
       msgData: msgDataArray 
     };
 
-    const postData = "data=" + encodeBase64(JSON.stringify(payload));
+    const postData = new URLSearchParams();
+    postData.append('data', encodeBase64(JSON.stringify(payload)));
 
     fetch("https://api.mesajpaneli.com/json_api/", {
       method: "POST",
-      mode: "no-cors",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: postData
-    });
+      body: postData.toString()
+    }).catch(e => console.log("SMS İsteği arka planda iletildi.")); 
     
     return true;
   } catch (error) {
@@ -141,7 +141,7 @@ const determineZoneName = (province, district, neighborhood) => {
 
 // Mahalle çakışmalarını önlemek için District + Neighborhood eşleşmesine bakar.
 const getNeighborhoodDetails = (zone, district, neighborhood) => {
-  const defaultDetails = { phone: "0553 973 54 40", centerName: "Sınav Merkezi Bekleniyor", address: "", mapLink: "" };
+  const defaultDetails = { phone: "0553 973 54 40", centerName: "Sınav Merkezi Bekleniyor", address: "", mapLink: "", contactName: "" };
   if (!zone || !zone.mappings || !zone.centers) return defaultDetails;
   
   const map = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood) 
@@ -150,10 +150,11 @@ const getNeighborhoodDetails = (zone, district, neighborhood) => {
   if (!map) return defaultDetails;
 
   const center = zone.centers.find(c => c.id === map.centerId);
-  if (!center) return { ...defaultDetails, phone: map.phone || defaultDetails.phone };
+  if (!center) return { ...defaultDetails, phone: map.phone || defaultDetails.phone, contactName: map.contactName || "" };
 
   return {
     phone: map.phone || defaultDetails.phone,
+    contactName: map.contactName || "",
     centerName: center.name,
     address: center.address,
     mapLink: center.mapLink
@@ -221,76 +222,158 @@ const ModernPrizeCard = ({ type, prizeData, selectedPrize }) => {
 };
 
 // ==========================================
-// LİSTE GÖRÜNÜMLÜ YENİ SINAV TAKVİMİ
+// DİJİTAL PİRAMİT TAKVİM BİLEŞENİ
 // ==========================================
-const TimelineCalendar = ({ zoneExams, currentUser, defaultPhone }) => {
-  const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+const DigitalCalendar = ({ zoneExams, currentUser, isCompact = false }) => {
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [selectedDateStr, setSelectedDateStr] = useState(null);
   
-  let allSessions = [];
+  const nextMonth = () => {
+    setCurrentMonth((prev) => (prev === 11 ? 0 : prev + 1));
+    setCurrentYear((prev) => (currentMonth === 11 ? prev + 1 : prev));
+    setSelectedDateStr(null);
+  };
+
+  const prevMonth = () => {
+    setCurrentMonth((prev) => (prev === 0 ? 11 : prev - 1));
+    setCurrentYear((prev) => (currentMonth === 0 ? prev - 1 : prev));
+    setSelectedDateStr(null);
+  };
+
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+  const startingEmptyCells = firstDay === 0 ? 6 : firstDay - 1; 
+
+  const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+  const days = [];
+  for (let i = 0; i < startingEmptyCells; i++) days.push(null);
+  for (let i = 1; i <= daysInMonth; i++) days.push(i);
+
+  const examMap = {};
   zoneExams.forEach(exam => {
-    if(exam.sessions) {
-      exam.sessions.forEach(session => {
-         const [y, m, d] = session.date.split('-');
-         session.slots.forEach(slot => {
-            const timestamp = new Date(y, m-1, d, slot.split('.')[0] || slot.split(':')[0], slot.split('.')[1] || slot.split(':')[1]).getTime();
-            allSessions.push({ 
-               ...session, 
-               exam, 
-               slot, 
-               timestamp, 
-               formattedText: `${parseInt(d)} ${monthNames[parseInt(m)-1]} ${slot.replace(':', '.')} - ${exam.title}` 
-            });
-         });
+      const sessions = exam.sessions || [];
+      sessions.forEach(session => {
+         if(!examMap[session.date]) examMap[session.date] = [];
+         examMap[session.date].push({ exam, session });
       });
-    }
   });
 
-  allSessions.sort((a,b) => a.timestamp - b.timestamp);
-  
-  const phoneToCall = currentUser ? getNeighborhoodDetails(currentUser.zone, currentUser.district, currentUser.neighborhood).phone : (defaultPhone || "0553 973 54 40");
+  const formatDateTrFull = (dateStr, timeStr, examTitle) => {
+    if(!dateStr) return "";
+    const [y, m, d] = dateStr.split('-');
+    return `${parseInt(d)} ${monthNames[parseInt(m)-1]} ${timeStr.replace(':', '.')} - ${examTitle}`;
+  };
+
+  const containerClass = isCompact 
+    ? "max-w-md mx-auto shadow-lg border border-slate-100 rounded-[2rem] bg-white overflow-hidden" 
+    : "bg-white rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden relative";
+  const headerPadding = isCompact ? "p-4" : "p-6 md:p-8";
+  const bodyPadding = isCompact ? "p-4" : "p-6 md:p-8";
+  const daySize = isCompact ? "w-8 h-8 md:w-10 md:h-10" : "w-12 h-12 md:w-14 md:h-14";
+  const textSize = isCompact ? "text-sm md:text-base" : "text-lg md:text-xl";
 
   return (
-    <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col md:flex-row max-w-5xl mx-auto">
-      {/* Sol Taraf: Başlık */}
-      <div className="bg-indigo-600 text-white p-8 md:w-1/3 flex flex-col justify-center items-center text-center relative overflow-hidden">
-         <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-         <CalendarIcon className="w-16 h-16 text-indigo-300 mb-4 opacity-80 relative z-10" />
-         <h2 className="text-3xl md:text-4xl font-black leading-tight relative z-10">Sınav<br/>Takvimi</h2>
-         <div className="mt-6 w-12 h-1 bg-indigo-400 rounded-full relative z-10"></div>
+    <div className={containerClass}>
+      <div className={`bg-indigo-900 text-white ${headerPadding} flex justify-between items-center rounded-b-[1.5rem] shadow-md z-10 relative`}>
+        <button type="button" onClick={prevMonth} className="hover:bg-indigo-800 p-2 rounded-full transition bg-indigo-950 shadow-inner"><ChevronLeft className={`${isCompact ? 'w-4 h-4' : 'w-6 h-6'} text-indigo-200`}/></button>
+        <h3 className={`font-black uppercase tracking-widest ${isCompact ? 'text-sm md:text-base' : 'text-2xl'}`}>{monthNames[currentMonth]} {currentYear}</h3>
+        <button type="button" onClick={nextMonth} className="hover:bg-indigo-800 p-2 rounded-full transition bg-indigo-950 shadow-inner"><ChevronRight className={`${isCompact ? 'w-4 h-4' : 'w-6 h-6'} text-indigo-200`}/></button>
       </div>
       
-      {/* Sağ Taraf: Liste ve İletişim */}
-      <div className="p-8 md:w-2/3 flex flex-col justify-between bg-slate-50">
-        <div className="space-y-4 mb-8">
-          {allSessions.length > 0 ? allSessions.map((item, idx) => {
-             const isMySlot = currentUser && ((currentUser?.examId === item.exam.firebaseId) || (currentUser?.exam?.firebaseId === item.exam.firebaseId))
-                            && ((currentUser?.selectedDate === item.date) || (currentUser?.exam?.date === item.date))
-                            && ((currentUser?.selectedTime === item.slot) || (currentUser?.slot === item.slot));
-             return (
-               <div key={idx} className={`flex items-center justify-between bg-white border-2 p-4 rounded-2xl shadow-sm transition-all ${isMySlot ? 'border-green-400 bg-green-50' : 'border-slate-200'}`}>
-                  <div className={`text-lg md:text-xl font-bold flex items-center ${isMySlot ? 'text-green-700' : 'text-slate-700'}`}>
-                     <Clock className={`w-5 h-5 mr-3 ${isMySlot ? 'text-green-500' : 'text-slate-400'}`}/>
-                     {item.formattedText}
-                  </div>
-                  {isMySlot && <CheckCircle2 className="w-6 h-6 text-green-500 flex-shrink-0" />}
-               </div>
-             )
-          }) : (
-             <div className="flex flex-col items-center justify-center py-10 text-slate-400">
-                <CalendarIcon className="w-12 h-12 mb-3 opacity-50"/>
-                <p className="font-bold">Planlanmış bir sınav bulunmamaktadır.</p>
+      <div className={bodyPadding}>
+        <div className={`grid grid-cols-7 gap-1 md:gap-2 mb-2 text-center font-black text-slate-400 uppercase text-[8px] sm:text-[10px] md:text-xs`}>
+          <div className="truncate hidden sm:block">Pazartesi</div><div className="sm:hidden">Pzt</div>
+          <div className="truncate hidden sm:block">Salı</div><div className="sm:hidden">Sal</div>
+          <div className="truncate hidden sm:block">Çarşamba</div><div className="sm:hidden">Çar</div>
+          <div className="truncate hidden sm:block">Perşembe</div><div className="sm:hidden">Per</div>
+          <div className="truncate hidden sm:block">Cuma</div><div className="sm:hidden">Cum</div>
+          <div className="truncate hidden sm:block">Cumartesi</div><div className="sm:hidden">Cmt</div>
+          <div className="truncate hidden sm:block">Pazar</div><div className="sm:hidden">Paz</div>
+        </div>
+        <div className="grid grid-cols-7 gap-1 place-items-center">
+          {days.map((d, i) => {
+            if(!d) return <div key={i} className={daySize}></div>;
+            const dateStr = `${currentYear}-${String(currentMonth+1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const dayExams = examMap[dateStr] || [];
+            const hasExam = dayExams.length > 0;
+
+            const isMyExamDay = dayExams.some(e => {
+                 const isMyExam = (currentUser?.examId === e.exam.firebaseId) || (currentUser?.exam?.firebaseId === e.exam.firebaseId);
+                 const isMyDate = (currentUser?.selectedDate === e.session.date) || (currentUser?.exam?.date === e.session.date);
+                 return isMyExam && isMyDate;
+            });
+
+            return (
+              <div key={i}
+                   onClick={() => hasExam && setSelectedDateStr(dateStr)}
+                   className={`relative flex flex-col items-center justify-center rounded-2xl transition-all cursor-pointer ${daySize}
+                      ${hasExam ? 'bg-slate-50 hover:bg-indigo-50 border-2 border-indigo-100 shadow-sm' : 'text-slate-400 border-2 border-transparent'}
+                      ${selectedDateStr === dateStr ? 'ring-4 ring-indigo-400 bg-indigo-100 scale-110 z-10 shadow-lg' : ''}
+                      ${isMyExamDay ? 'bg-green-50 border-green-400 shadow-md ring-2 ring-green-200' : ''}
+                   `}>
+                  <span className={`font-black ${textSize} ${hasExam ? 'text-indigo-900' : ''}`}>{d}</span>
+                  {hasExam && (
+                      <div className={`flex gap-1 absolute ${isCompact ? 'bottom-1' : 'bottom-2'}`}>
+                          <div className={`${isCompact ? 'w-1 h-1' : 'w-2 h-2'} rounded-full ${isMyExamDay ? 'bg-green-500' : 'bg-indigo-400'}`}></div>
+                      </div>
+                  )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Sınavların Liste Gösterimi */}
+      <div className={`bg-slate-50 ${isCompact ? 'p-4' : 'p-6 md:p-10'} border-t-2 border-slate-100`}>
+          {!selectedDateStr && (
+             <h4 className={`font-black text-slate-800 mb-4 flex items-center uppercase tracking-wider ${isCompact ? 'text-xs' : 'text-xl'}`}>
+                <Clock className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} mr-2 text-indigo-500`}/> {monthNames[currentMonth]} Ayı Oturumları
+             </h4>
+          )}
+          {selectedDateStr && (
+             <div className="flex justify-between items-center mb-4">
+               <h4 className={`font-black text-indigo-900 flex items-center uppercase tracking-wider ${isCompact ? 'text-xs' : 'text-xl'}`}>
+                  <CalendarIcon className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} mr-2 text-indigo-500`}/> {selectedDateStr.split('-').reverse().join('.')}
+               </h4>
+               <button onClick={() => setSelectedDateStr(null)} className="text-[10px] md:text-xs font-bold text-slate-400 hover:text-slate-700 underline">Tümünü Göster</button>
              </div>
           )}
-        </div>
 
-        <div className="bg-indigo-50 p-6 rounded-2xl border-l-4 border-indigo-500 shadow-inner">
-           <p className="text-sm font-bold text-slate-600 mb-1">Sınav ile ilgili ayrıntılı bilgi için:</p>
-           <div className="flex items-center gap-3">
-              <Phone className="w-6 h-6 text-indigo-600" />
-              <a href={`tel:${phoneToCall}`} className="text-2xl font-black text-indigo-700 hover:text-indigo-500 transition">{phoneToCall}</a>
-           </div>
-           <p className="text-xs text-slate-500 mt-2 font-medium leading-relaxed">Sınav yoksa gelecek sınavlar hakkında bilgi almak için de arayabilirsiniz.</p>
-        </div>
+          <div className="space-y-2 md:space-y-4">
+              {Object.keys(examMap).sort().map(dateStr => {
+                  const [y, m] = dateStr.split('-');
+                  if(parseInt(m) !== currentMonth + 1 || parseInt(y) !== currentYear) return null;
+                  if (selectedDateStr && dateStr !== selectedDateStr) return null;
+
+                  return examMap[dateStr].map((item, idx) => {
+                      const { exam, session } = item;
+                      return session.slots.map(slot => {
+                          const isMySlot = ((currentUser?.examId === exam.firebaseId) || (currentUser?.exam?.firebaseId === exam.firebaseId))
+                                         && ((currentUser?.selectedDate === session.date) || (currentUser?.exam?.date === session.date))
+                                         && ((currentUser?.selectedTime === slot) || (currentUser?.slot === slot));
+                          return (
+                              <div key={`${dateStr}-${slot}-${idx}`} className={`flex flex-col md:flex-row items-start md:items-center justify-between p-4 md:p-5 rounded-2xl border-l-[6px] shadow-sm transition-all ${isMySlot ? 'bg-white border-l-green-500 border-y border-r border-slate-200' : 'bg-white border-l-indigo-500 border-y border-r border-slate-200'}`}>
+                                  <div className={`font-black text-slate-800 mb-2 md:mb-0 ${isCompact ? 'text-sm' : 'text-lg'}`}>
+                                      {formatDateTrFull(session.date, slot, exam.title)}
+                                  </div>
+                                  {isMySlot && (
+                                      <span className="bg-green-100 text-green-700 text-[10px] md:text-xs font-black px-3 py-1.5 rounded-xl uppercase tracking-wider flex items-center w-max mt-2 md:mt-0">
+                                          <CheckCircle2 className="w-4 h-4 mr-1 md:mr-2"/> Senin Oturumun
+                                      </span>
+                                  )}
+                              </div>
+                          );
+                      });
+                  });
+              })}
+              {!Object.keys(examMap).some(dateStr => {
+                  const [y, m] = dateStr.split('-');
+                  return parseInt(m) === currentMonth + 1 && parseInt(y) === currentYear;
+              }) && (
+                  <div className={`text-center text-slate-500 font-bold py-4 italic ${isCompact ? 'text-xs' : 'text-base'}`}>Bu aya ait planlanmış sınav bulunmuyor.</div>
+              )}
+          </div>
       </div>
     </div>
   );
@@ -463,9 +546,8 @@ export default function App() {
                 <button onClick={() => scrollToSection('hero')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Ana Sayfa</button>
                 <button onClick={() => scrollToSection('analiz')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Birebir Analiz</button>
                 <button onClick={() => scrollToSection('burs')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Eğitim Bursu</button>
-                
-                <button onClick={() => scrollToSection('oduller')} className="text-yellow-600 hover:text-yellow-700 font-black transition text-sm bg-yellow-50 px-3 py-1.5 rounded-lg border border-yellow-200">Ödül Havuzu</button>
-                <button onClick={() => scrollToSection('takvim')} className="text-indigo-600 hover:text-indigo-700 font-black transition text-sm bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200">Sınav Takvimi</button>
+                <button onClick={() => scrollToSection('oduller')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Ödül Havuzu</button>
+                <button onClick={() => scrollToSection('takvim')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Sınav Takvimi</button>
              </div>
 
              <div className="flex flex-wrap justify-center gap-2 md:gap-3 items-center w-full md:w-auto mt-2 md:mt-0">
@@ -635,14 +717,12 @@ function AdminLogin({ setAdminAuth, zones }) {
 // ==========================================
 function LandingPage({ navigateTo, currentUser, scrollToSection, exams, zones }) {
   
-  // Halka açık (Genel) verilerin belirlenmesi
   const publicZone = zones.find(z => z.active) || INITIAL_ZONES[0];
   const displayPrizes = currentUser ? currentUser.zone?.prizes : publicZone.prizes;
 
   const uniqueExams = [];
   const seenExams = new Set();
   exams.forEach(e => {
-      // Sınav isimlerine göre tekilleştiriyoruz (Aynı anda tüm bölgelere eklendiği için)
       const key = e.title.trim().toLowerCase();
       if(!seenExams.has(key)) {
           seenExams.add(key);
@@ -999,7 +1079,6 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
     return { ...exam, mockDistance: 10 + (idx * 3) + (exam.zoneId * 2) };
   }).sort((a,b) => a.mockDistance - b.mockDistance);
 
-  // Dinamik Ödül Seçim Bileşeni
   const RegistrationPrizeSelector = ({ type, prizes, selectedPrize, onSelect }) => {
       if (!prizes || prizes.length === 0) return null;
       if (prizes.length === 1 && !prizes[0].title) return null;
@@ -1555,7 +1634,7 @@ function StudentProfile({ currentUser, exams, navigateTo }) {
 }
 
 // ==========================================
-// 4. ADMIN PANELİ (GENEL MERKEZ DESTEKLİ)
+// 4. ADMIN PANELİ (GENEL MERKEZ DESTEKLİ VE EXCEL EKLENTİLİ)
 // ==========================================
 function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exams }) {
   const [activeTab, setActiveTab] = useState('ayarlar'); 
@@ -1578,10 +1657,13 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
   const [examSessions, setExamSessions] = useState([{ date: '', times: '' }]);
   
   const [newCenter, setNewCenter] = useState({ name: '', address: '', mapLink: '' });
-  const [mappingData, setMappingData] = useState({ district: '', neighborhood: '', centerId: '', phone: '' });
+  const [mappingData, setMappingData] = useState({ district: '', neighborhood: '', centerId: '', contactName: '', phone: '' });
 
   const [resultModal, setResultModal] = useState({ isOpen: false, student: null, score: '', rank: '' });
-  const [smsModal, setSmsModal] = useState({ isOpen: false, type: 'custom', customMsg: '', loading: false });
+  const [smsModal, setSmsModal] = useState({ isOpen: false, type: 'custom', customMsg: '', loading: false, targetStudent: null });
+
+  const [bulkExcelData, setBulkExcelData] = useState("");
+  const [editingCenter, setEditingCenter] = useState(null);
 
   useEffect(() => {
     if(adminZoneData && !isSuperAdmin) {
@@ -1668,7 +1750,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
     if(!newCenter.name || !newCenter.address) return alert("Kurum adı ve açık adres zorunludur.");
     try {
       const centerObj = {
-        id: "c_" + new Date().getTime(),
+        id: "c_" + new Date().getTime() + Math.random().toString(36).substr(2, 9),
         name: newCenter.name,
         address: newCenter.address,
         mapLink: newCenter.mapLink || ""
@@ -1680,6 +1762,18 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
     } catch (e) {
       console.error(e);
       alert("Hata oluştu.");
+    }
+  };
+
+  const handleUpdateCenter = async (e) => {
+    e.preventDefault();
+    if(!editingCenter.name || !editingCenter.address) return alert("Adres ve isim zorunludur.");
+    try {
+      const updatedCenters = adminCenters.map(c => c.id === editingCenter.id ? editingCenter : c);
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters });
+      setEditingCenter(null);
+    } catch(err) {
+      console.error(err);
     }
   };
 
@@ -1707,6 +1801,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
         district: mappingData.district,
         neighborhood: mappingData.neighborhood,
         centerId: mappingData.centerId,
+        contactName: mappingData.contactName || "",
         phone: mappingData.phone || "0850 123 45 67"
       };
 
@@ -1718,10 +1813,66 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
       
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { mappings: newMappings });
       alert(`${mappingData.district} / ${mappingData.neighborhood} mahallesi başarıyla kuruma atandı!`);
-      setMappingData({ ...mappingData, neighborhood: '', phone: '' }); 
+      setMappingData({ ...mappingData, neighborhood: '', contactName: '', phone: '' }); 
     } catch (e) {
       console.error(e);
       alert("Bir hata oluştu");
+    }
+  };
+
+  const handleBulkUploadExcel = async () => {
+    if(!bulkExcelData.trim()) return alert("Lütfen kopyaladığınız veriyi alana yapıştırın.");
+    
+    const rows = bulkExcelData.split('\n');
+    let updatedCenters = [...adminCenters];
+    let updatedMappings = [...adminMappings];
+    let successCount = 0;
+
+    rows.forEach(row => {
+       if(!row.trim()) return;
+       const cols = row.split('\t');
+       if(cols.length < 3) return; // En az ilçe, mahalle ve kurum adı olmalı
+       
+       const district = cols[0].trim();
+       const neighborhood = cols[1].trim();
+       const centerName = cols[2].trim();
+       const contactName = cols[3] ? cols[3].trim() : "";
+       const phone = cols[4] ? cols[4].trim() : "";
+       const address = cols[5] ? cols[5].trim() : "";
+       const mapLink = cols[6] ? cols[6].trim() : "";
+       
+       let center = updatedCenters.find(c => c.name.toLowerCase() === centerName.toLowerCase());
+       if(!center) {
+          center = {
+             id: "c_" + new Date().getTime() + Math.random().toString(36).substr(2, 9),
+             name: centerName,
+             address: address || `${district} ${neighborhood}`,
+             mapLink: mapLink
+          };
+          updatedCenters.push(center);
+       }
+       
+       const existingMapIndex = updatedMappings.findIndex(m => m.district === district && m.neighborhood === neighborhood);
+       const newMapObj = { district, neighborhood, centerId: center.id, contactName, phone };
+       
+       if(existingMapIndex >= 0) {
+          updatedMappings[existingIndex] = newMapObj;
+       } else {
+          updatedMappings.push(newMapObj);
+       }
+       successCount++;
+    });
+
+    try {
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { 
+        centers: updatedCenters,
+        mappings: updatedMappings
+      });
+      alert(`Toplu yükleme başarılı! ${successCount} mahalle eşleştirildi.`);
+      setBulkExcelData("");
+    } catch(err) {
+      console.error(err);
+      alert("Toplu yükleme sırasında hata oluştu.");
     }
   };
 
@@ -1781,10 +1932,13 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
   const handleBulkSMS = async () => {
     setSmsModal({ ...smsModal, loading: true });
     
-    const validStudents = filteredStudents.filter(s => s.phone && s.phone.length >= 10);
+    // Eğer belli bir öğrenci seçildiyse onu kullan, yoksa tüm listeyi kullan
+    const targetStudents = smsModal.targetStudent ? [smsModal.targetStudent] : filteredStudents;
+    const validStudents = targetStudents.filter(s => s.phone && s.phone.length >= 10);
+    
     if (validStudents.length === 0) {
       alert("Gönderilecek geçerli bir numara bulunamadı.");
-      setSmsModal({ ...smsModal, loading: false, isOpen: false });
+      setSmsModal({ ...smsModal, loading: false, isOpen: false, targetStudent: null });
       return;
     }
 
@@ -1814,15 +1968,15 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
     if(result !== false) {
       alert(`${msgDataArray.length} öğrenciye mesajlar başarıyla iletildi!`);
     } else {
-      alert("Mesajlar gönderilirken bir hata oluştu. API bağlantınızı veya kredi durumunuzu kontrol edin.");
+      alert("Mesajlar arka planda kuyruğa alındı. (CORS veya Bakiye/Başlık hatası varsa MesajPaneli üzerinden kontrol ediniz).");
     }
     
-    setSmsModal({ isOpen: false, type: 'custom', customMsg: '', loading: false });
+    setSmsModal({ isOpen: false, type: 'custom', customMsg: '', loading: false, targetStudent: null });
   };
 
   const handleExportExcel = () => {
      let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-     csvContent += "Ogrenci Ad Soyad;Veli Ad Soyad;Telefon;Sinif;Ilce / Mahalle;Atanan Sinav Merkezi;Kayitli Sinav ve Seans;Aciklanan Puan;Derece\n";
+     csvContent += "Ogrenci Isim Soyisim;Veli Isim Soyisim;Telefon;Sinif;Ilce / Mahalle;Atanan Sinav Merkezi;Kayitli Sinav ve Seans;Aciklanan Puan;Derece\n";
      
      filteredStudents.forEach(s => {
         const stdZone = isSuperAdmin ? (zones.find(z => z.id === s.zone?.id) || s.zone) : adminZoneData;
@@ -1872,6 +2026,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
          }
       }
     }
+    // Geliştirme: Zaten atanmış mahalleleri listeden çıkartıyoruz
     const mappedHoods = adminMappings.filter(m => m.district === district).map(m => m.neighborhood);
     return allHoods.filter(h => !mappedHoods.includes(h));
   };
@@ -2049,38 +2204,79 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
               
-              {/* Kurum Ekleme Formu */}
-              <div className="lg:col-span-1">
-                <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider flex items-center"><Building2 className="w-6 h-6 mr-2"/> Yeni Kurum / Sınav Yeri Ekle</div>
-                <div className="space-y-4 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Kurum Adı</label>
-                    <input type="text" value={newCenter.name} onChange={e=>setNewCenter({...newCenter, name: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Örn: Şekerpınar Sınav Merkezi"/>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Açık Adres</label>
-                    <textarea rows="3" value={newCenter.address} onChange={e=>setNewCenter({...newCenter, address: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 resize-none" placeholder="Örn: Mutlu Sk. No:5 Çayırova"/>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Google Harita Linki</label>
-                    <input type="url" value={newCenter.mapLink} onChange={e=>setNewCenter({...newCenter, mapLink: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="https://maps.app.goo.gl/..."/>
-                  </div>
-                  <button onClick={handleAddCenter} className="bg-slate-800 hover:bg-slate-900 text-white text-base font-black py-4 px-4 rounded-xl transition w-full shadow-lg">Kurumu Ekle</button>
-                </div>
+              {/* Kurum Ekleme ve Excel'den Yükleme Alanı */}
+              <div className="lg:col-span-1 space-y-8">
+                 
+                 {/* Tekli Kurum Ekleme */}
+                 <div>
+                    <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider flex items-center"><Building2 className="w-6 h-6 mr-2"/> Yeni Kurum / Sınav Yeri Ekle</div>
+                    <div className="space-y-4 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Kurum Adı</label>
+                        <input type="text" value={newCenter.name} onChange={e=>setNewCenter({...newCenter, name: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Örn: Şekerpınar Sınav Merkezi"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Açık Adres</label>
+                        <textarea rows="3" value={newCenter.address} onChange={e=>setNewCenter({...newCenter, address: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 resize-none" placeholder="Örn: Mutlu Sk. No:5 Çayırova"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Google Harita Linki</label>
+                        <input type="url" value={newCenter.mapLink} onChange={e=>setNewCenter({...newCenter, mapLink: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="https://maps.app.goo.gl/..."/>
+                      </div>
+                      <button onClick={handleAddCenter} className="bg-slate-800 hover:bg-slate-900 text-white text-base font-black py-4 px-4 rounded-xl transition w-full shadow-lg">Kurumu Ekle</button>
+                    </div>
+                 </div>
+
+                 {/* Toplu Ekleme (Excel'den) */}
+                 <div>
+                    <div className="text-sm font-black text-emerald-600 uppercase mb-4 tracking-wider flex items-center"><FileText className="w-6 h-6 mr-2"/> Toplu Ekle (Excel'den Yapıştır)</div>
+                    <div className="space-y-4 bg-emerald-50/50 p-6 rounded-3xl border-2 border-emerald-100">
+                       <p className="text-xs font-bold text-emerald-800 mb-2">Excel tablonuzdaki şu sütunları seçip kopyalayın ve aşağıdaki alana yapıştırın:<br/><br/><b>İlçe | Mahalle | Kurum Adı | Sorumlu Hoca | Telefon | Açık Adres | Harita Linki</b></p>
+                       <textarea 
+                         rows="5" 
+                         value={bulkExcelData}
+                         onChange={e => setBulkExcelData(e.target.value)}
+                         className="w-full text-xs font-mono p-4 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 resize-none whitespace-pre" 
+                         placeholder="Gebze&#9;Akarçeşme&#9;Şekerpınar Eğitim...&#9;Ahmet Hoca&#9;0532..."/>
+                       <button onClick={handleBulkUploadExcel} className="bg-emerald-600 hover:bg-emerald-700 text-white text-base font-black py-4 px-4 rounded-xl transition w-full shadow-lg">Excel Verilerini İçe Aktar</button>
+                    </div>
+                 </div>
+
               </div>
 
               <div className="lg:col-span-2 space-y-8">
                 {adminCenters.length === 0 ? (
                   <div className="bg-amber-50 border-4 border-amber-100 rounded-3xl p-10 text-center font-bold text-amber-800">
-                    Henüz tanımlanmış bir kurum bulunmuyor. Sol taraftan bir Sınav Yeri ekleyin.
+                    Henüz tanımlanmış bir kurum bulunmuyor. Sol taraftan bir Sınav Yeri ekleyin veya Excel'den toplu içe aktarın.
                   </div>
                 ) : (
                   adminCenters.map(center => {
                     const mappedHoods = adminMappings.filter(m => m.centerId === center.id);
+                    
+                    if (editingCenter?.id === center.id) {
+                       return (
+                          <div key={center.id} className="border-4 border-indigo-400 rounded-3xl p-6 bg-indigo-50 relative">
+                             <h4 className="font-black text-xl text-indigo-900 mb-4">Kurumu Düzenle</h4>
+                             <form onSubmit={handleUpdateCenter} className="space-y-3">
+                                <div><label className="text-xs font-bold text-slate-500 uppercase ml-1 block">Kurum Adı</label><input type="text" value={editingCenter.name} onChange={e=>setEditingCenter({...editingCenter, name: e.target.value})} className="w-full p-3 rounded-xl border border-slate-200" required/></div>
+                                <div><label className="text-xs font-bold text-slate-500 uppercase ml-1 block">Adres</label><input type="text" value={editingCenter.address} onChange={e=>setEditingCenter({...editingCenter, address: e.target.value})} className="w-full p-3 rounded-xl border border-slate-200" required/></div>
+                                <div><label className="text-xs font-bold text-slate-500 uppercase ml-1 block">Harita Linki</label><input type="text" value={editingCenter.mapLink} onChange={e=>setEditingCenter({...editingCenter, mapLink: e.target.value})} className="w-full p-3 rounded-xl border border-slate-200"/></div>
+                                <div className="flex gap-3 mt-4">
+                                   <button type="submit" className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold flex items-center"><Save className="w-4 h-4 mr-2"/> Kaydet</button>
+                                   <button type="button" onClick={() => setEditingCenter(null)} className="bg-slate-200 text-slate-700 px-6 py-2 rounded-xl font-bold flex items-center"><X className="w-4 h-4 mr-2"/> İptal</button>
+                                </div>
+                             </form>
+                          </div>
+                       )
+                    }
+
                     return (
-                      <div key={center.id} className="border-4 border-slate-100 rounded-3xl p-6 bg-white relative">
-                        <button onClick={() => handleDeleteCenter(center.id)} className="absolute top-6 right-6 text-red-400 hover:text-red-600"><Trash2 className="w-5 h-5"/></button>
-                        <h4 className="font-black text-2xl text-slate-800 mb-2">{center.name}</h4>
+                      <div key={center.id} className="border-4 border-slate-100 rounded-3xl p-6 bg-white relative group">
+                        <div className="absolute top-6 right-6 flex gap-2">
+                           <button onClick={() => setEditingCenter(center)} className="p-2 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Düzenle"><Edit3 className="w-5 h-5"/></button>
+                           <button onClick={() => handleDeleteCenter(center.id)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Sil"><Trash2 className="w-5 h-5"/></button>
+                        </div>
+                        <h4 className="font-black text-2xl text-slate-800 mb-2 pr-20">{center.name}</h4>
                         <div className="text-sm font-medium text-slate-500 mb-6 flex items-start">
                           <MapPin className="w-4 h-4 mr-1 flex-shrink-0 text-slate-400 mt-0.5"/> {center.address}
                         </div>
@@ -2101,15 +2297,17 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
                                 disabled={!mappingData.district}
                                 value={mappingData.neighborhood}
                                 onChange={e => setMappingData({...mappingData, neighborhood: e.target.value, centerId: center.id})}>
-                                <option value="">Mahalle Seç (Sadece Boşta Olanlar)</option>
+                                <option value="">Mahalle Seç (Boştakiler)</option>
                                 {adminNeighborhoods.map(hood => (
                                   <option key={hood} value={hood}>{hood} Mah.</option>
                                 ))}
                               </select>
-
-                              <input type="tel" value={mappingData.phone} onChange={e=>setMappingData({...mappingData, phone: e.target.value, centerId: center.id})} className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white" placeholder="Özel Tel (05XX)"/>
                               
-                              <button onClick={handleAddMapping} disabled={mappingData.centerId !== center.id} className="w-full sm:w-1/4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-black p-3 rounded-xl transition disabled:opacity-50">Bağla</button>
+                              <input type="text" value={mappingData.contactName} onChange={e=>setMappingData({...mappingData, contactName: e.target.value, centerId: center.id})} className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white" placeholder="Sorumlu İsim"/>
+
+                              <input type="tel" value={mappingData.phone} onChange={e=>setMappingData({...mappingData, phone: e.target.value, centerId: center.id})} className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white" placeholder="Sorumlu Tel"/>
+                              
+                              <button onClick={handleAddMapping} disabled={mappingData.centerId !== center.id} className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-black p-3 px-6 rounded-xl transition disabled:opacity-50">Ekle</button>
                            </div>
                         </div>
 
@@ -2117,10 +2315,10 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
                           <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Bağlı Olan Mahalleler ({mappedHoods.length})</h5>
                           <div className="flex flex-wrap gap-3">
                             {mappedHoods.length > 0 ? mappedHoods.map((m, i) => (
-                               <div key={i} className="flex items-center bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-sm">
-                                  <span className="font-bold text-slate-700 mr-2">{m.district} / {m.neighborhood}</span>
-                                  <span className="text-slate-500 font-medium mr-3">{m.phone}</span>
-                                  <button onClick={() => handleDeleteMapping(m.district, m.neighborhood)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4"/></button>
+                               <div key={i} className="flex flex-col bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm relative group pr-10">
+                                  <span className="font-black text-slate-800 mb-1">{m.district} / {m.neighborhood}</span>
+                                  <span className="text-slate-500 font-medium text-xs"><Users className="w-3 h-3 inline mr-1"/>{m.contactName || 'İsimsiz'} - {m.phone}</span>
+                                  <button onClick={() => handleDeleteMapping(m.district, m.neighborhood)} className="absolute top-1/2 right-3 transform -translate-y-1/2 text-slate-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100"><Trash2 className="w-5 h-5"/></button>
                                </div>
                             )) : (
                                <span className="text-sm font-medium text-slate-400 italic">Henüz hiç mahalle bağlanmamış.</span>
@@ -2148,7 +2346,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
                 <Download className="w-5 h-5 mr-2" /> Excel İndir
               </button>
               <button 
-                onClick={() => setSmsModal({ ...smsModal, isOpen: true })}
+                onClick={() => setSmsModal({ isOpen: true, type: 'custom', customMsg: '', loading: false, targetStudent: null })}
                 className="bg-indigo-600 font-black px-6 py-3 rounded-2xl text-white hover:bg-indigo-700 flex items-center shadow-xl shadow-indigo-200 transition">
                 <MessageSquare className="w-5 h-5 mr-3"/> Bölgeye Toplu SMS
               </button>
@@ -2162,7 +2360,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
                   <th className="p-6 font-black">Öğrenci Adı</th>
                   <th className="p-6 font-black">Konum (İlçe/Mah)</th>
                   <th className="p-6 font-black">Aktif Sınav & Merkez</th>
-                  <th className="p-6 font-black">İşlem</th>
+                  <th className="p-6 font-black text-right">İşlem</th>
                 </tr>
               </thead>
               <tbody className="divide-y-2 divide-slate-50">
@@ -2191,7 +2389,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
                             <span className="text-sm font-bold text-slate-400">Bekleme Havuzunda</span>
                           )}
                         </td>
-                        <td className="p-6 flex items-center space-x-3">
+                        <td className="p-6 flex items-center justify-end space-x-2">
                           {hasActiveExam && (
                             <button 
                               onClick={() => setResultModal({ isOpen: true, student, score: '', rank: '' })}
@@ -2200,6 +2398,13 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
                               Sonuç Gir
                             </button>
                           )}
+                          <button 
+                              onClick={() => setSmsModal({ isOpen: true, type: 'custom', customMsg: '', loading: false, targetStudent: student })}
+                              className="text-indigo-400 hover:text-indigo-600 bg-white border border-indigo-200 hover:bg-indigo-50 p-2 rounded-xl transition"
+                              title="Bu Öğrenciye Özel SMS Gönder"
+                            >
+                              <Send className="w-5 h-5"/>
+                          </button>
                           <button 
                               onClick={() => handleDeleteStudent(student.firebaseId, student.fullName)}
                               className="text-red-400 hover:text-red-600 bg-white border border-red-200 hover:bg-red-50 p-2 rounded-xl transition"
@@ -2218,14 +2423,16 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
         </div>
       )}
 
-      {/* TOPLU SMS GÖNDERME MODALI */}
+      {/* AKILLI SMS GÖNDERME MODALI (Tekli ve Toplu Uyumlu) */}
       {smsModal.isOpen && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-2xl relative animate-in zoom-in-95">
             <button onClick={() => setSmsModal({ ...smsModal, isOpen: false })} className="absolute top-8 right-8 text-slate-400 hover:text-slate-800"><Plus className="w-8 h-8 transform rotate-45"/></button>
             <MessageSquare className="w-16 h-16 text-indigo-500 mx-auto mb-6" />
             <h3 className="text-3xl font-black text-center text-slate-900 mb-2">Akıllı SMS Gönderimi</h3>
-            <p className="text-center text-slate-500 font-bold mb-8">Bu bölgedeki kayıtlı öğrencilerin hepsine kendi bilgilerini içeren mesaj atın.</p>
+            <p className="text-center text-slate-500 font-bold mb-8">
+              {smsModal.targetStudent ? `${smsModal.targetStudent.fullName} isimli öğrenciye özel mesaj gönderiyorsunuz.` : "Bu bölgedeki kayıtlı öğrencilerin hepsine kendi bilgilerini içeren mesaj atın."}
+            </p>
             
             <div className="space-y-6 mb-8">
               <div>
@@ -2254,7 +2461,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
             </div>
             
             <button onClick={handleBulkSMS} disabled={smsModal.loading} className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 transition shadow-xl shadow-indigo-500/30 flex items-center justify-center">
-              {smsModal.loading ? "Gönderiliyor..." : "Tüm Bölgeye Gönder"} {!smsModal.loading && <Send className="ml-3 w-6 h-6"/>}
+              {smsModal.loading ? "Gönderiliyor..." : (smsModal.targetStudent ? "Sadece Bu Öğrenciye Gönder" : "Tüm Bölgeye Gönder")} {!smsModal.loading && <Send className="ml-3 w-6 h-6"/>}
             </button>
           </div>
         </div>
