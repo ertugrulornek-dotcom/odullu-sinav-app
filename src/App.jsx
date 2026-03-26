@@ -48,7 +48,6 @@ const sendSMS = async (msgDataArray) => {
 
     const postData = "data=" + encodeBase64(JSON.stringify(payload));
 
-    // no-cors ile sessizce gönder, hata bekleme (Çökmeyi önler)
     fetch("https://api.mesajpaneli.com/json_api/", {
       method: "POST",
       mode: "no-cors",
@@ -109,7 +108,6 @@ const LOCATIONS = {
 
 const DEFAULT_PRIZE_OBJ = { title: "", desc: "", img: "" };
 
-// Yeni ödül yapısını dizi olarak okuyan fonksiyon
 const parsePrizeArray = (data) => {
   if (!data) return [];
   if (Array.isArray(data)) return data;
@@ -141,11 +139,14 @@ const determineZoneName = (province, district, neighborhood) => {
   return null;
 };
 
-const getNeighborhoodDetails = (zone, neighborhood) => {
-  const defaultDetails = { phone: "0850 123 45 67", centerName: "Sınav Merkezi Bekleniyor", address: "", mapLink: "" };
+// Mahalle çakışmalarını önlemek için District + Neighborhood eşleşmesine bakar.
+const getNeighborhoodDetails = (zone, district, neighborhood) => {
+  const defaultDetails = { phone: "0553 973 54 40", centerName: "Sınav Merkezi Bekleniyor", address: "", mapLink: "" };
   if (!zone || !zone.mappings || !zone.centers) return defaultDetails;
   
-  const map = zone.mappings.find(m => m.neighborhood === neighborhood);
+  const map = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood) 
+           || zone.mappings.find(m => m.neighborhood === neighborhood);
+           
   if (!map) return defaultDetails;
 
   const center = zone.centers.find(c => c.id === map.centerId);
@@ -222,7 +223,7 @@ const ModernPrizeCard = ({ type, prizeData, selectedPrize }) => {
 // ==========================================
 // LİSTE GÖRÜNÜMLÜ YENİ SINAV TAKVİMİ
 // ==========================================
-const TimelineCalendar = ({ zoneExams, currentUser }) => {
+const TimelineCalendar = ({ zoneExams, currentUser, defaultPhone }) => {
   const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
   
   let allSessions = [];
@@ -245,7 +246,8 @@ const TimelineCalendar = ({ zoneExams, currentUser }) => {
   });
 
   allSessions.sort((a,b) => a.timestamp - b.timestamp);
-  const phoneToCall = currentUser ? getNeighborhoodDetails(currentUser.zone, currentUser.neighborhood).phone : "0850 123 45 67";
+  
+  const phoneToCall = currentUser ? getNeighborhoodDetails(currentUser.zone, currentUser.district, currentUser.neighborhood).phone : (defaultPhone || "0553 973 54 40");
 
   return (
     <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col md:flex-row max-w-5xl mx-auto">
@@ -261,7 +263,7 @@ const TimelineCalendar = ({ zoneExams, currentUser }) => {
       <div className="p-8 md:w-2/3 flex flex-col justify-between bg-slate-50">
         <div className="space-y-4 mb-8">
           {allSessions.length > 0 ? allSessions.map((item, idx) => {
-             const isMySlot = ((currentUser?.examId === item.exam.firebaseId) || (currentUser?.exam?.firebaseId === item.exam.firebaseId))
+             const isMySlot = currentUser && ((currentUser?.examId === item.exam.firebaseId) || (currentUser?.exam?.firebaseId === item.exam.firebaseId))
                             && ((currentUser?.selectedDate === item.date) || (currentUser?.exam?.date === item.date))
                             && ((currentUser?.selectedTime === item.slot) || (currentUser?.slot === item.slot));
              return (
@@ -427,7 +429,7 @@ export default function App() {
     );
   }
 
-  const userLocDetails = currentUser ? getNeighborhoodDetails(currentUser.zone, currentUser.neighborhood) : null;
+  const userLocDetails = currentUser ? getNeighborhoodDetails(currentUser.zone, currentUser.district, currentUser.neighborhood) : null;
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
@@ -435,7 +437,7 @@ export default function App() {
         <div className="flex items-center space-x-4">
           <span className="flex items-center font-bold">
             <Phone className="w-3.5 h-3.5 mr-1 text-indigo-300"/> 
-            {userLocDetails ? userLocDetails.phone : "0850 123 45 67"}
+            {userLocDetails ? userLocDetails.phone : "0553 973 54 40"}
           </span>
           <span className="hidden sm:flex items-center font-bold">
             <MapPin className="w-3.5 h-3.5 mr-1 text-indigo-300"/> 
@@ -446,70 +448,59 @@ export default function App() {
 
       <nav className="bg-white/90 backdrop-blur-md shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-20 items-center">
-            <div className="flex items-center cursor-pointer" onClick={() => navigateTo('landing')}>
-              <Award className="h-10 w-10 text-indigo-600 mr-2" />
-              <div>
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-none">ÖDÜLLÜ SINAV</h1>
-                <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">LGS Prova Merkezi</p>
-              </div>
-            </div>
-            
-            <div className="hidden md:flex space-x-8 items-center">
-              <button onClick={() => scrollToSection('hero')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Ana Sayfa</button>
-              <button onClick={() => scrollToSection('analiz')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Birebir Analiz</button>
-              <button onClick={() => scrollToSection('burs')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Eğitim Bursu</button>
-              
-              {currentUser && (
-                <>
-                  <button onClick={() => scrollToSection('oduller')} className="text-yellow-600 hover:text-yellow-700 font-black transition text-sm bg-yellow-50 px-3 py-1.5 rounded-lg border border-yellow-200">Ödül Havuzu</button>
-                  <button onClick={() => scrollToSection('takvim')} className="text-indigo-600 hover:text-indigo-700 font-black transition text-sm bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200">Sınav Takvimim</button>
-                </>
-              )}
-            </div>
+          <div className="flex flex-col md:flex-row justify-between items-center py-3 md:h-20 gap-3 md:gap-0">
+             <div className="flex w-full md:w-auto justify-between items-center">
+                <div className="flex items-center cursor-pointer" onClick={() => navigateTo('landing')}>
+                   <Award className="h-8 w-8 md:h-10 md:w-10 text-indigo-600 mr-2" />
+                   <div>
+                      <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-none">ÖDÜLLÜ SINAV</h1>
+                      <p className="text-[9px] md:text-[10px] font-bold text-indigo-600 uppercase tracking-widest">LGS Prova Merkezi</p>
+                   </div>
+                </div>
+             </div>
+             
+             <div className="hidden lg:flex space-x-8 items-center">
+                <button onClick={() => scrollToSection('hero')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Ana Sayfa</button>
+                <button onClick={() => scrollToSection('analiz')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Birebir Analiz</button>
+                <button onClick={() => scrollToSection('burs')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Eğitim Bursu</button>
+                
+                <button onClick={() => scrollToSection('oduller')} className="text-yellow-600 hover:text-yellow-700 font-black transition text-sm bg-yellow-50 px-3 py-1.5 rounded-lg border border-yellow-200">Ödül Havuzu</button>
+                <button onClick={() => scrollToSection('takvim')} className="text-indigo-600 hover:text-indigo-700 font-black transition text-sm bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200">Sınav Takvimi</button>
+             </div>
 
-            <div className="flex space-x-3 items-center">
-              {currentUser ? (
-                <>
-                  <button onClick={copyInviteLink} className="hidden lg:flex items-center text-indigo-600 hover:text-indigo-800 font-bold px-3 py-2 transition text-sm">
-                    <UserPlus className="w-4 h-4 mr-1.5"/> Arkadaşını Davet Et
-                  </button>
-                  <button 
-                    onClick={() => navigateTo('profile')} 
-                    className="bg-indigo-50 text-indigo-700 px-6 py-2.5 rounded-xl font-black border-2 border-indigo-100 hover:bg-indigo-100 flex items-center transition"
-                  >
-                    <Users className="w-5 h-5 mr-2" /> Panelim
-                  </button>
-                  <button onClick={() => { setCurrentUser(null); navigateTo('landing'); }} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition" title="Çıkış Yap">
-                    <LogOut className="w-5 h-5" />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button onClick={copyInviteLink} className="hidden lg:flex items-center text-indigo-600 hover:text-indigo-800 font-bold px-3 py-2 transition text-sm">
-                    <UserPlus className="w-4 h-4 mr-1.5"/> Arkadaşını Davet Et
-                  </button>
-                  <button 
-                    onClick={() => navigateTo('login')} 
-                    className="text-slate-700 hover:text-indigo-600 font-bold px-4 py-2 transition"
-                  >
-                    Giriş Yap
-                  </button>
-                  <button 
-                    onClick={() => navigateTo('register')} 
-                    className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-black shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:-translate-y-1 transition-all"
-                  >
-                    Kayıt Ol
-                  </button>
-                </>
-              )}
-            </div>
+             <div className="flex flex-wrap justify-center gap-2 md:gap-3 items-center w-full md:w-auto mt-2 md:mt-0">
+               {currentUser ? (
+                 <>
+                    <button onClick={copyInviteLink} className="flex items-center text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm font-bold px-3 py-2 rounded-xl transition text-xs md:text-sm">
+                      <UserPlus className="w-4 h-4 mr-1.5"/> Davet Et
+                    </button>
+                    <button onClick={() => navigateTo('profile')} className="bg-indigo-600 text-white px-4 py-2 md:px-6 md:py-2.5 rounded-xl font-black shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition flex items-center text-xs md:text-sm">
+                      <Users className="w-4 h-4 md:w-5 md:h-5 mr-1 md:mr-2" /> Panelim
+                    </button>
+                    <button onClick={() => { setCurrentUser(null); navigateTo('landing'); }} className="text-red-500 hover:bg-red-50 p-2 rounded-xl border border-red-100 shadow-sm transition" title="Çıkış Yap">
+                      <LogOut className="w-4 h-4 md:w-5 md:h-5" />
+                    </button>
+                 </>
+               ) : (
+                 <>
+                    <button onClick={copyInviteLink} className="flex items-center text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm font-bold px-3 py-2 rounded-xl transition text-xs md:text-sm">
+                      <UserPlus className="w-4 h-4 mr-1.5"/> Davet Et
+                    </button>
+                    <button onClick={() => navigateTo('login')} className="bg-white border border-slate-200 shadow-sm text-slate-700 hover:text-indigo-600 hover:border-indigo-300 font-bold px-4 py-2 rounded-xl transition text-xs md:text-sm">
+                      Giriş Yap
+                    </button>
+                    <button onClick={() => navigateTo('register')} className="bg-indigo-600 text-white px-4 py-2 md:px-6 md:py-2.5 rounded-xl font-black shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all text-xs md:text-sm">
+                      Kayıt Ol
+                    </button>
+                 </>
+               )}
+             </div>
           </div>
         </div>
       </nav>
 
       <main className="pb-0">
-        {currentView === 'landing' && <LandingPage navigateTo={navigateTo} currentUser={currentUser} scrollToSection={scrollToSection} exams={exams} />}
+        {currentView === 'landing' && <LandingPage navigateTo={navigateTo} currentUser={currentUser} scrollToSection={scrollToSection} exams={exams} zones={zones} />}
         {currentView === 'register' && 
           <RegistrationProcess 
             navigateTo={navigateTo} 
@@ -566,10 +557,12 @@ function AdminLogin({ setAdminAuth, zones }) {
       return;
     }
 
-    const normalizeStr = (str) => str.replace(/İ/g, 'i').replace(/I/g, 'ı').toLowerCase().trim();
+    const normalizeStr = (str) => {
+      return str.replace(/İ/g, 'i').replace(/I/g, 'ı').toLowerCase().trim();
+    };
+
     const searchStr = normalizeStr(username);
 
-    // SÜPER ADMİN (Genel Merkez) Kontrolü
     if (searchStr === 'genel merkez') {
       setAdminAuth({ isAuthenticated: true, zoneId: 'ALL', isSuperAdmin: true });
       return;
@@ -640,8 +633,23 @@ function AdminLogin({ setAdminAuth, zones }) {
 // ==========================================
 // 1. LANDING PAGE (KARŞILAMA SAYFASI)
 // ==========================================
-function LandingPage({ navigateTo, currentUser, scrollToSection, exams }) {
-  const zoneExams = currentUser ? exams.filter(e => e.zoneId === currentUser?.zone?.id) : [];
+function LandingPage({ navigateTo, currentUser, scrollToSection, exams, zones }) {
+  
+  // Halka açık (Genel) verilerin belirlenmesi
+  const publicZone = zones.find(z => z.active) || INITIAL_ZONES[0];
+  const displayPrizes = currentUser ? currentUser.zone?.prizes : publicZone.prizes;
+
+  const uniqueExams = [];
+  const seenExams = new Set();
+  exams.forEach(e => {
+      // Sınav isimlerine göre tekilleştiriyoruz (Aynı anda tüm bölgelere eklendiği için)
+      const key = e.title.trim().toLowerCase();
+      if(!seenExams.has(key)) {
+          seenExams.add(key);
+          uniqueExams.push(e);
+      }
+  });
+  const displayExams = currentUser ? exams.filter(e => e.zoneId === currentUser.zone?.id) : uniqueExams;
 
   return (
     <div>
@@ -710,11 +718,11 @@ function LandingPage({ navigateTo, currentUser, scrollToSection, exams }) {
             </div>
           </div>
 
-          <div id="burs" className="flex flex-col md:flex-row-reverse items-center gap-16 pt-10">
-            <div className="w-full md:w-1/2 relative h-[500px]">
-              <div className="absolute top-10 right-10 w-full h-full bg-yellow-400/20 rounded-full blur-3xl -z-10"></div>
-              <img src="3.png" alt="Başarı" className="absolute top-0 left-0 w-3/5 rounded-[2rem] shadow-2xl transform -rotate-6 border-8 border-white hover:rotate-0 transition-transform duration-500 z-20" />
-              <img src="4.png" alt="Hediyeler" className="absolute bottom-0 right-0 w-2/3 rounded-[2rem] shadow-2xl transform rotate-6 border-8 border-white hover:rotate-0 transition-transform duration-500 z-10" />
+          <div id="burs" className="flex flex-col md:flex-row-reverse items-center gap-10 md:gap-16 pt-10">
+            <div className="w-full md:w-1/2 relative h-[280px] sm:h-[400px] md:h-[500px] mt-8 md:mt-0">
+              <div className="absolute top-4 md:top-10 right-4 md:right-10 w-full h-full bg-yellow-400/20 rounded-full blur-3xl -z-10"></div>
+              <img src="3.png" alt="Başarı" className="absolute top-0 left-0 w-[55%] md:w-3/5 rounded-2xl md:rounded-[2rem] shadow-2xl transform -rotate-6 border-4 md:border-8 border-white hover:rotate-0 transition-transform duration-500 z-20" />
+              <img src="4.png" alt="Hediyeler" className="absolute bottom-0 right-0 w-[60%] md:w-2/3 rounded-2xl md:rounded-[2rem] shadow-2xl transform rotate-6 border-4 md:border-8 border-white hover:rotate-0 transition-transform duration-500 z-10" />
             </div>
             <div className="w-full md:w-1/2">
               <div className="w-16 h-16 bg-yellow-100 rounded-3xl flex items-center justify-center mb-6 text-yellow-600">
@@ -751,35 +759,31 @@ function LandingPage({ navigateTo, currentUser, scrollToSection, exams }) {
             </div>
           </div>
 
-          {currentUser && (
-            <>
-              <div className="w-full h-px bg-slate-200 my-16"></div>
+          <div className="w-full h-px bg-slate-200 my-16"></div>
 
-              {/* YENİ ÖDÜL TASARIMI */}
-              <div id="oduller" className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 p-8 md:p-16 relative overflow-hidden pt-10">
-                <div className="relative z-10">
-                  <div className="flex items-center justify-center mb-6">
-                    <Gift className="w-12 h-12 mr-4 text-yellow-500"/>
-                    <h2 className="text-4xl md:text-5xl font-black text-slate-900">Ödül Havuzu</h2>
-                  </div>
-                  <p className="text-xl text-slate-600 mb-12 text-center max-w-3xl mx-auto leading-relaxed">
-                    Sınava katılarak aşağıdaki muhteşem ödülleri kazanma şansı yakalayacaksın! Hedefini belirle, başarıya ulaş.
-                  </p>
-                  
-                  <div className="flex flex-col gap-12 max-w-4xl mx-auto">
-                    <ModernPrizeCard type="grand" prizeData={currentUser?.zone?.prizes?.grand} selectedPrize={null} />
-                    <ModernPrizeCard type="degree" prizeData={currentUser?.zone?.prizes?.degree} selectedPrize={currentUser?.selectedDegreePrize} />
-                    <ModernPrizeCard type="participation" prizeData={currentUser?.zone?.prizes?.participation} selectedPrize={currentUser?.selectedParticipationPrize} />
-                  </div>
-                </div>
+          {/* YENİ ÖDÜL TASARIMI (HALKA AÇIK) */}
+          <div id="oduller" className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 p-8 md:p-16 relative overflow-hidden pt-10">
+            <div className="relative z-10">
+              <div className="flex items-center justify-center mb-6">
+                <Gift className="w-12 h-12 mr-4 text-yellow-500"/>
+                <h2 className="text-4xl md:text-5xl font-black text-slate-900">Ödül Havuzu</h2>
               </div>
+              <p className="text-xl text-slate-600 mb-12 text-center max-w-3xl mx-auto leading-relaxed">
+                {currentUser ? `Sistem tarafından ${currentUser.zone?.name} bölgesine atandın. Sınava katılarak aşağıdaki muhteşem ödülleri kazanma şansı yakalayacaksın!` : "Sınava katılarak aşağıdaki muhteşem ödülleri kazanma şansı yakalayacaksın! Hedefini belirle, başarıya ulaş."}
+              </p>
+              
+              <div className="flex flex-col gap-12 max-w-4xl mx-auto">
+                <ModernPrizeCard type="grand" prizeData={displayPrizes?.grand} selectedPrize={null} />
+                <ModernPrizeCard type="degree" prizeData={displayPrizes?.degree} selectedPrize={currentUser?.selectedDegreePrize} />
+                <ModernPrizeCard type="participation" prizeData={displayPrizes?.participation} selectedPrize={currentUser?.selectedParticipationPrize} />
+              </div>
+            </div>
+          </div>
 
-              {/* LİSTE GÖRÜNÜMLÜ YENİ TAKVİM */}
-              <div id="takvim" className="pt-10">
-                <TimelineCalendar zoneExams={zoneExams} currentUser={currentUser} />
-              </div>
-            </>
-          )}
+          {/* LİSTE GÖRÜNÜMLÜ YENİ TAKVİM (HALKA AÇIK) */}
+          <div id="takvim" className="pt-10">
+            <TimelineCalendar zoneExams={displayExams} currentUser={currentUser} defaultPhone={publicZone.mappings?.[0]?.phone} />
+          </div>
 
         </div>
       </section>
@@ -810,7 +814,6 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
   const [selectedDegreePrize, setSelectedDegreePrize] = useState('');
   const [selectedParticipationPrize, setSelectedParticipationPrize] = useState('');
 
-  // Doğrulama Modal States
   const [showVerification, setShowVerification] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   const [enteredCode, setEnteredCode] = useState('');
@@ -838,7 +841,6 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
   };
 
   const handleStep1Submit = async () => {
-    // Çift profil kontrolü
     if(!currentUser) {
       const isDuplicate = students.some(s => 
         s.fullName.trim().toLowerCase() === formData.fullName.trim().toLowerCase() && 
@@ -851,15 +853,12 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
       }
     }
 
-    // Telefon Doğrulama Adımı
     const code = Math.floor(1000 + Math.random() * 9000).toString();
     setVerificationCode(code);
     setShowVerification(true);
     
-    // Arka Planda SMS İsteği (Sessiz gönderim)
-    await sendSMS([formData.phone], `odullusinav.net dogrulama kodunuz: ${code}`);
+    await sendSMS([{tel: [formData.phone], msg: `odullusinav.net dogrulama kodunuz: ${code}`}]);
     
-    // Geliştirici veya Test için uyarı (Kesinlikle ekranda görünsün ki takılmasın)
     alert(`[SİSTEM BİLGİSİ - SMS APİ AKTİF]\nEğer SMS bakiyeniz biterse veya operatör mesajı geç iletirse diye test kodu ekrana yazdırılmıştır:\nDoğrulama Kodunuz: ${code}`);
   };
 
@@ -963,11 +962,10 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
         setCurrentUser(finalUserObj);
       }
 
-      // --- SMS GÖNDERİM KISMI ---
       if (withoutExam) {
-         sendSMS([finalUserObj.phone], `odullusinav.net basvurunuz alinmistir. Bolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`);
+         sendSMS([{tel: [finalUserObj.phone], msg: `odullusinav.net basvurunuz alinmistir. Bolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`}]);
       } else {
-         const centerInfo = getNeighborhoodDetails(matchedZone, finalUserObj.neighborhood);
+         const centerInfo = getNeighborhoodDetails(matchedZone, finalUserObj.district, finalUserObj.neighborhood);
          const [y, m, d] = finalUserObj.selectedDate.split('-');
          const dateDayIndex = new Date(parseInt(y), parseInt(m)-1, parseInt(d)).getDay();
          const dayNamesTr = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
@@ -979,7 +977,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
 
          const regMsg = `odullusinav.net basvurunuz alinmistir. Size en yakin sinav mahallimiz ${finalUserObj.district} ilcesi ${finalUserObj.neighborhood} mahallesindedir. Sinav saatinden 30 dakika once asagidaki konumda olmanizi rica ederiz.\n\nOturum: ${trDateFull}\nKonum: ${centerInfo.address || centerInfo.centerName}\nKonum Linki: ${centerInfo.mapLink}\nIletisim: ${centerInfo.phone}${SMS_FOOTER}`;
          
-         sendSMS([finalUserObj.phone], regMsg);
+         sendSMS([{tel: [finalUserObj.phone], msg: regMsg}]);
       }
 
       setStep(3); 
@@ -1001,7 +999,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
     return { ...exam, mockDistance: 10 + (idx * 3) + (exam.zoneId * 2) };
   }).sort((a,b) => a.mockDistance - b.mockDistance);
 
-  // Ödül Seçim Bileşeni
+  // Dinamik Ödül Seçim Bileşeni
   const RegistrationPrizeSelector = ({ type, prizes, selectedPrize, onSelect }) => {
       if (!prizes || prizes.length === 0) return null;
       if (prizes.length === 1 && !prizes[0].title) return null;
@@ -1037,7 +1035,6 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-16 relative">
-      {/* Doğrulama Kodu Modalı */}
       {showVerification && (
          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-md relative animate-in zoom-in-95">
@@ -1397,7 +1394,7 @@ function StudentProfile({ currentUser, exams, navigateTo }) {
 
   const hasActiveExam = !!(currentUser.examId || currentUser.examTitle || currentUser.exam);
   const pastExams = currentUser.pastExams || [];
-  const neighborhoodDetails = getNeighborhoodDetails(currentUser.zone, currentUser.neighborhood);
+  const neighborhoodDetails = getNeighborhoodDetails(currentUser.zone, currentUser.district, currentUser.neighborhood);
   const zoneExams = exams.filter(e => e.zoneId === currentUser?.zone?.id);
 
   return (
@@ -1514,7 +1511,7 @@ function StudentProfile({ currentUser, exams, navigateTo }) {
             </div>
           )}
 
-          {/* YENİ TAKVİM: LİSTE GÖRÜNÜMÜ */}
+          {/* LİSTE GÖRÜNÜMLÜ YENİ TAKVİM */}
           <div className="mt-12">
              <TimelineCalendar zoneExams={zoneExams} currentUser={currentUser} />
           </div>
@@ -1564,9 +1561,8 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
   const [activeTab, setActiveTab] = useState('ayarlar'); 
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'odullu-sinav';
   
-  // Süper Admin "Tüm Türkiye" verisini görür
   const adminZoneData = isSuperAdmin 
-     ? { id: 'ALL', name: "Genel Merkez (Tüm Mıntıkalar)", active: true, districts: [], prizes: {grand: {title:''}, degree: [], participation: []}, centers: [], mappings: [] } 
+     ? { id: 'ALL', name: "Genel Merkez (Tüm Mıntıkalar)", active: true, districts: [], prizes: {grand: DEFAULT_PRIZE_OBJ, degree: [], participation: []}, centers: [], mappings: [] } 
      : zones.find(z => z.id === adminZoneId);
      
   const filteredStudents = isSuperAdmin ? students : students.filter(s => s.zone?.id === adminZoneId);
@@ -1605,7 +1601,6 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
   const handleUpdatePrizes = async () => {
     try {
       const targetZoneIds = isSuperAdmin ? INITIAL_ZONES.map(z => z.id) : [adminZoneId];
-      
       for (const zId of targetZoneIds) {
          await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', zId.toString()), { prizes: localPrizes });
       }
@@ -1703,12 +1698,13 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
   };
 
   const handleAddMapping = async () => {
-    if(!mappingData.neighborhood || !mappingData.centerId) return alert("Lütfen mahalle ve atanacak kurumu seçin.");
+    if(!mappingData.district || !mappingData.neighborhood || !mappingData.centerId) return alert("Lütfen ilçe, mahalle ve atanacak kurumu seçin.");
     try {
       const newMappings = [...adminMappings];
-      const existingIndex = newMappings.findIndex(m => m.neighborhood === mappingData.neighborhood);
+      const existingIndex = newMappings.findIndex(m => m.district === mappingData.district && m.neighborhood === mappingData.neighborhood);
       
       const newMapObj = {
+        district: mappingData.district,
         neighborhood: mappingData.neighborhood,
         centerId: mappingData.centerId,
         phone: mappingData.phone || "0850 123 45 67"
@@ -1721,7 +1717,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
       }
       
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { mappings: newMappings });
-      alert(`${mappingData.neighborhood} mahallesi başarıyla kuruma atandı!`);
+      alert(`${mappingData.district} / ${mappingData.neighborhood} mahallesi başarıyla kuruma atandı!`);
       setMappingData({ ...mappingData, neighborhood: '', phone: '' }); 
     } catch (e) {
       console.error(e);
@@ -1729,9 +1725,9 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
     }
   };
 
-  const handleDeleteMapping = async (neighborhood) => {
+  const handleDeleteMapping = async (district, neighborhood) => {
     try {
-      const updatedMappings = adminMappings.filter(m => m.neighborhood !== neighborhood);
+      const updatedMappings = adminMappings.filter(m => !(m.district === district && m.neighborhood === neighborhood));
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { mappings: updatedMappings });
     } catch (e) {
       console.error(e);
@@ -1793,7 +1789,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
     }
 
     const msgDataArray = validStudents.map(student => {
-      const stdCenter = getNeighborhoodDetails(adminZoneData, student.neighborhood);
+      const stdCenter = getNeighborhoodDetails(adminZoneData, student.district, student.neighborhood);
       let text = "";
 
       if (smsModal.type === 'custom') {
@@ -1830,7 +1826,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
      
      filteredStudents.forEach(s => {
         const stdZone = isSuperAdmin ? (zones.find(z => z.id === s.zone?.id) || s.zone) : adminZoneData;
-        const center = getNeighborhoodDetails(stdZone, s.neighborhood).centerName;
+        const center = getNeighborhoodDetails(stdZone, s.district, s.neighborhood).centerName;
         
         const hasPast = s.pastExams && s.pastExams.length > 0;
         const lastPast = hasPast ? s.pastExams[s.pastExams.length-1] : null;
@@ -1876,7 +1872,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
          }
       }
     }
-    const mappedHoods = adminMappings.map(m => m.neighborhood);
+    const mappedHoods = adminMappings.filter(m => m.district === district).map(m => m.neighborhood);
     return allHoods.filter(h => !mappedHoods.includes(h));
   };
 
@@ -1912,6 +1908,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
         </button>
       </div>
 
+      {/* 1. SEKMEYE AİT İÇERİKLER: Sınav ve Ödül Ayarları */}
       {activeTab === 'ayarlar' && (
         <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12">
           
@@ -2104,7 +2101,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
                                 disabled={!mappingData.district}
                                 value={mappingData.neighborhood}
                                 onChange={e => setMappingData({...mappingData, neighborhood: e.target.value, centerId: center.id})}>
-                                <option value="">Mahalle Seç</option>
+                                <option value="">Mahalle Seç (Sadece Boşta Olanlar)</option>
                                 {adminNeighborhoods.map(hood => (
                                   <option key={hood} value={hood}>{hood} Mah.</option>
                                 ))}
@@ -2121,9 +2118,9 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
                           <div className="flex flex-wrap gap-3">
                             {mappedHoods.length > 0 ? mappedHoods.map((m, i) => (
                                <div key={i} className="flex items-center bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-sm">
-                                  <span className="font-bold text-slate-700 mr-2">{m.neighborhood}</span>
+                                  <span className="font-bold text-slate-700 mr-2">{m.district} / {m.neighborhood}</span>
                                   <span className="text-slate-500 font-medium mr-3">{m.phone}</span>
-                                  <button onClick={() => handleDeleteMapping(m.neighborhood)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4"/></button>
+                                  <button onClick={() => handleDeleteMapping(m.district, m.neighborhood)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4"/></button>
                                </div>
                             )) : (
                                <span className="text-sm font-medium text-slate-400 italic">Henüz hiç mahalle bağlanmamış.</span>
@@ -2175,7 +2172,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
                   filteredStudents.map(student => {
                     const hasActiveExam = !!(student.examId || student.examTitle || student.exam);
                     const realZoneData = isSuperAdmin ? (zones.find(z => z.id === student.zone?.id) || student.zone) : adminZoneData;
-                    const stdCenter = getNeighborhoodDetails(realZoneData, student.neighborhood);
+                    const stdCenter = getNeighborhoodDetails(realZoneData, student.district, student.neighborhood);
                     
                     return (
                       <tr key={student.firebaseId} className="hover:bg-slate-50 transition-colors">
