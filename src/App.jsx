@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   MapPin, Calendar as CalendarIcon, Clock, Award, Users, Search, 
   Settings, ChevronRight, ChevronLeft, AlertCircle, CheckCircle2, 
-  Map, Phone, FileText, Lock, MessageSquare, Gift, Check, Plus, LogOut, KeyRound, Trash2, UserPlus, Trophy, Building2, Send, Image as ImageIcon, Download, Edit3, Save, X, Copy
+  Map, Phone, FileText, Lock, MessageSquare, Gift, Check, Plus, LogOut, KeyRound, Trash2, UserPlus, Trophy, Building2, Send, Image as ImageIcon, Download, Edit3, Save, X, Copy, Mail
 } from 'lucide-react';
 
 // ==========================================
@@ -28,7 +28,7 @@ const auth = getAuth(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'odullu-sinav';
 
 // ==========================================
-// MESAJPANELİ SMS API ENTEGRASYONU (Backend Destekli)
+// MESAJPANELİ SMS API ENTEGRASYONU (Çift Gönderim Engellendi)
 // ==========================================
 const MESAJ_PANELI_API_KEY = "af68961362160d37c19bae0463b082f58539d936";
 const MESAJ_PANELI_BASLIK = "EMRGUNDOGDU"; 
@@ -40,41 +40,55 @@ const encodeBase64 = (str) => {
 
 const sendSMS = async (msgDataArray) => {
   try {
-    // 1. Önce Vercel Backend API'sini deniyoruz (CORS Hatasını kalıcı çözer)
-    const response = await fetch("/api/sms", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ msgData: msgDataArray })
-    }).catch(() => null);
+    let useFallback = false;
 
-    if (response && response.ok) {
-      console.log("Vercel API üzerinden SMS başarıyla gönderildi.");
-      return true;
+    // 1. Önce Vercel API deneriz
+    try {
+      const response = await fetch("/api/sms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ msgData: msgDataArray })
+      });
+      if (response.ok) {
+        console.log("Vercel API üzerinden SMS başarıyla gönderildi.");
+        return true;
+      } else {
+        useFallback = true;
+      }
+    } catch(err) {
+      useFallback = true; // Sunucu bulunamadı (Lokalde çalışılıyor)
     }
 
-    // 2. Eğer Vercel Backend henüz kurulmadıysa (Lokal test) eski no-cors moduna geç
-    console.warn("Backend API bulunamadı, lokal no-cors modu deneniyor...");
-    const payload = {
-      user: { hash: MESAJ_PANELI_API_KEY },
-      msgBaslik: MESAJ_PANELI_BASLIK, 
-      msgData: msgDataArray 
-    };
+    // 2. Vercel API yoksa veya başarısızsa Lokal no-cors moduyla TԵK sefer gönderir
+    if (useFallback) {
+      console.warn("Backend API bulunamadı, lokal no-cors modu deneniyor...");
+      const payload = {
+        user: { hash: MESAJ_PANELI_API_KEY },
+        msgBaslik: MESAJ_PANELI_BASLIK, 
+        msgData: msgDataArray 
+      };
 
-    const postData = new URLSearchParams();
-    postData.append('data', encodeBase64(JSON.stringify(payload)));
+      const postData = new URLSearchParams();
+      postData.append('data', encodeBase64(JSON.stringify(payload)));
 
-    await fetch("https://api.mesajpaneli.com/json_api/", {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: postData.toString()
-    }).catch(e => console.log("SMS İsteği arka planda iletildi.")); 
-    
+      await fetch("https://api.mesajpaneli.com/json_api/", {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: postData.toString()
+      }).catch(e => console.log("SMS İsteği arka planda iletildi.")); 
+    }
     return true;
   } catch (error) {
-    console.error("SMS Arka Plan Hatası:", error);
+    console.error("SMS Hatası:", error);
     return false;
   }
+};
+
+// Excel Eşleştirmeleri İçin Türkçe Karakter Duyarlı Dönüştürücü
+const normalizeForSearch = (str) => {
+  if (!str) return '';
+  return str.toLocaleLowerCase('tr-TR').trim().replace(/\s+/g, ' ');
 };
 
 // --- GELİŞMİŞ EXCEL ODAKLI BÖLGE VERİTABANI ---
@@ -242,31 +256,38 @@ const ModernPrizeCard = ({ type, prizeData, selectedPrize }) => {
 const TimelineCalendar = ({ zoneExams, currentUser, defaultPhone }) => {
   const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
   
-  let allSessions = [];
+  let groupedSessions = {};
+
   zoneExams.forEach(exam => {
     if(exam.sessions) {
       exam.sessions.forEach(session => {
          const [y, m, d] = session.date.split('-');
-         if(!y || !m || !d) return; // Eksik veri kontrolü
+         if(!y || !m || !d) return; 
+         
+         const dateKey = `${d}-${m}-${y}`;
+         const groupKey = `${exam.firebaseId}_${dateKey}`;
+
+         if (!groupedSessions[groupKey]) {
+            groupedSessions[groupKey] = {
+               exam,
+               dateStr: session.date,
+               formattedDate: `${parseInt(d)} ${monthNames[parseInt(m)-1]}`,
+               slots: [],
+               timestamp: new Date(y, parseInt(m)-1, d).getTime()
+            };
+         }
+
          session.slots.forEach(slot => {
-            const timeParts = slot.split(/[.:]/);
-            const hour = timeParts[0] ? parseInt(timeParts[0]) : 0;
-            const min = timeParts[1] ? parseInt(timeParts[1]) : 0;
-            const timestamp = new Date(y, parseInt(m)-1, d, hour, min).getTime();
-            allSessions.push({ 
-               ...session, 
-               exam, 
-               slot, 
-               timestamp, 
-               formattedText: `${parseInt(d)} ${monthNames[parseInt(m)-1]} ${slot.replace(':', '.')} - ${exam.title}` 
-            });
+            if(!groupedSessions[groupKey].slots.includes(slot)) {
+               groupedSessions[groupKey].slots.push(slot);
+            }
          });
+         groupedSessions[groupKey].slots.sort();
       });
     }
   });
 
-  allSessions.sort((a,b) => a.timestamp - b.timestamp);
-  
+  const sortedGroups = Object.values(groupedSessions).sort((a,b) => a.timestamp - b.timestamp);
   const phoneToCall = currentUser ? getNeighborhoodDetails(currentUser.zone, currentUser.district, currentUser.neighborhood).phone : (defaultPhone || "0553 973 54 40");
 
   return (
@@ -282,17 +303,26 @@ const TimelineCalendar = ({ zoneExams, currentUser, defaultPhone }) => {
       {/* Sağ Taraf: Liste ve İletişim */}
       <div className="p-8 md:w-2/3 flex flex-col justify-between bg-slate-50/80 backdrop-blur-md">
         <div className="space-y-4 mb-8">
-          {allSessions.length > 0 ? allSessions.map((item, idx) => {
-             const isMySlot = currentUser && ((currentUser?.examId === item.exam.firebaseId) || (currentUser?.exam?.firebaseId === item.exam.firebaseId))
-                            && ((currentUser?.selectedDate === item.date) || (currentUser?.exam?.date === item.date))
-                            && ((currentUser?.selectedTime === item.slot) || (currentUser?.slot === item.slot));
+          {sortedGroups.length > 0 ? sortedGroups.map((group, idx) => {
+             const isMyExam = currentUser && ((currentUser?.examId === group.exam.firebaseId) || (currentUser?.exam?.firebaseId === group.exam.firebaseId));
+             const isMyDate = currentUser && ((currentUser?.selectedDate === group.dateStr) || (currentUser?.exam?.date === group.dateStr));
+             
              return (
-               <div key={idx} className={`flex items-center justify-between bg-white border-2 p-5 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 ${isMySlot ? 'border-green-400 bg-green-50 ring-2 ring-green-100' : 'border-slate-200 hover:border-indigo-300'}`}>
-                  <div className={`text-lg md:text-xl font-bold flex items-center ${isMySlot ? 'text-green-800' : 'text-slate-800'}`}>
-                     <Clock className={`w-6 h-6 mr-3 flex-shrink-0 ${isMySlot ? 'text-green-500' : 'text-indigo-400'}`}/>
-                     {item.formattedText}
+               <div key={idx} className="bg-white border-2 border-indigo-100 p-5 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
+                  <div className="text-xl font-black text-indigo-900 mb-3 flex items-center">
+                     <Clock className="w-5 h-5 mr-2 text-indigo-500"/>
+                     {group.formattedDate} - {group.exam.title}
                   </div>
-                  {isMySlot && <CheckCircle2 className="w-8 h-8 text-green-500 flex-shrink-0 animate-in zoom-in" />}
+                  <div className="flex flex-wrap gap-2">
+                     {group.slots.map(s => {
+                        const isMySlot = isMyExam && isMyDate && ((currentUser?.selectedTime === s) || (currentUser?.slot === s));
+                        return (
+                           <span key={s} className={`px-4 py-2 rounded-xl text-sm font-black border-2 ${isMySlot ? 'bg-green-500 text-white border-green-500 shadow-sm' : 'bg-indigo-50 text-indigo-700 border-indigo-100'}`}>
+                             {s.replace(':', '.')} {isMySlot && <CheckCircle2 className="w-4 h-4 inline ml-1"/>}
+                           </span>
+                        )
+                     })}
+                  </div>
                </div>
              )
           }) : (
@@ -432,11 +462,8 @@ export default function App() {
   };
 
   const copyInviteLink = () => {
-    try {
-      alert("Davet linki kopyalandı! (odullusinav.net) Arkadaşlarına gönderebilirsin.");
-    } catch(e) {
-      console.log(e);
-    }
+    const text = encodeURIComponent("Merhaba arkadaşım ben odullusinav.net'e katılıyorum gel beraber katılıp ödülleri kazanalım. Site linki: https://odullusinav.net");
+    window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 
   if (loading) {
@@ -490,7 +517,7 @@ export default function App() {
              <div className="flex flex-wrap justify-center gap-2 md:gap-3 items-center w-full md:w-auto mt-2 md:mt-0">
                {currentUser ? (
                  <>
-                    <button onClick={copyInviteLink} className="flex items-center text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:shadow-md border border-indigo-200 shadow-sm font-bold px-3 py-2 rounded-xl transition-all text-xs md:text-sm">
+                    <button onClick={copyInviteLink} className="flex items-center text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm font-bold px-3 py-2 rounded-xl transition-all text-xs md:text-sm">
                       <UserPlus className="w-4 h-4 mr-1.5"/> Davet Et
                     </button>
                     <button onClick={() => navigateTo('profile')} className="bg-indigo-600 text-white px-4 py-2 md:px-6 md:py-2.5 rounded-xl font-black shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-indigo-300 hover:-translate-y-0.5 transition-all flex items-center text-xs md:text-sm">
@@ -530,7 +557,7 @@ export default function App() {
             students={registeredStudents}
           />}
         {currentView === 'login' && <LoginPage students={registeredStudents} setCurrentUser={setCurrentUser} navigateTo={navigateTo} />}
-        {currentView === 'profile' && <StudentProfile currentUser={currentUser} exams={exams} navigateTo={navigateTo} setCurrentUser={setCurrentUser} />}
+        {currentView === 'profile' && <StudentProfile currentUser={currentUser} exams={exams} navigateTo={navigateTo} setCurrentUser={setCurrentUser} zones={zones} />}
         
         {currentView === 'admin' && !adminAuth.isAuthenticated && (
            <AdminLogin setAdminAuth={setAdminAuth} zones={zones} />
@@ -577,7 +604,7 @@ function AdminLogin({ setAdminAuth, zones }) {
     }
 
     const normalizeStr = (str) => {
-      return str.replace(/İ/g, 'i').replace(/I/g, 'ı').toLowerCase().trim();
+      return str.toLocaleLowerCase('tr-TR').trim();
     };
 
     const searchStr = normalizeStr(username);
@@ -660,8 +687,8 @@ function LandingPage({ navigateTo, currentUser, scrollToSection, exams, zones })
   const uniqueExams = [];
   const seenExams = new Set();
   exams.forEach(e => {
-      const key = e.title.trim().toLowerCase();
-      if(!seenExams.has(key)) {
+      const key = e.title?.trim().toLowerCase();
+      if(key && !seenExams.has(key)) {
           seenExams.add(key);
           uniqueExams.push(e);
       }
@@ -779,7 +806,7 @@ function LandingPage({ navigateTo, currentUser, scrollToSection, exams, zones })
           <div className="w-full h-px bg-slate-200 my-16"></div>
 
           {/* YENİ ÖDÜL TASARIMI (HALKA AÇIK) */}
-          <div id="oduller" className="bg-white rounded-[3rem] shadow-xl border border-slate-100 p-6 md:p-16 relative overflow-hidden pt-10">
+          <div id="oduller" className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 p-6 md:p-16 relative overflow-hidden pt-10">
             <div className="relative z-10">
               <div className="flex flex-col md:flex-row items-center justify-center mb-6 gap-4">
                 <div className="bg-yellow-100 p-4 rounded-full shadow-inner"><Gift className="w-10 h-10 text-yellow-600"/></div>
@@ -817,7 +844,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'odullu-sinav';
   
   const [formData, setFormData] = useState({
-    fullName: '', phone: '', grade: '8', parentName: '',
+    fullName: '', phone: '', grade: '8', parentName: '', email: '',
     province: '', district: '', neighborhood: ''
   });
 
@@ -827,8 +854,6 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
   const [selectedSlot, setSelectedSlot] = useState(null); 
   
   const [showAlternativeExams, setShowAlternativeExams] = useState(false);
-  
-  const [selectedDegreePrize, setSelectedDegreePrize] = useState('');
   const [selectedParticipationPrize, setSelectedParticipationPrize] = useState('');
 
   const [showVerification, setShowVerification] = useState(false);
@@ -842,6 +867,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
       setFormData({
         fullName: currentUser.fullName || '',
         phone: currentUser.phone || '',
+        email: currentUser.email || '',
         grade: currentUser.grade || '8',
         parentName: currentUser.parentName || '',
         province: currentUser.province || '',
@@ -877,8 +903,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
     setShowVerification(true);
     
     await sendSMS([{tel: [formData.phone], msg: `odullusinav.net dogrulama kodunuz: ${code}`}]);
-    
-    alert(`[SİSTEM BİLGİSİ - SMS APİ AKTİF]\nEğer SMS bakiyeniz biterse veya operatör mesajı geç iletirse diye test kodu ekrana yazdırılmıştır:\nDoğrulama Kodunuz: ${code}`);
+    alert(`[SİSTEM BİLGİSİ - TEST KODU]\nDoğrulama Kodunuz: ${code}`);
   };
 
   const verifyCodeAndProceed = () => {
@@ -896,7 +921,6 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
       const zone = findZoneByName(zones, zoneName);
       
       setMatchedZone(zone);
-      setSelectedDegreePrize('');
       setSelectedParticipationPrize('');
 
       if (zone && zone.active) {
@@ -911,22 +935,15 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
     }
   }, [formData.district, formData.neighborhood, zones, exams]);
 
-  const degreePrizesList = parsePrizeArray(matchedZone?.prizes?.degree);
   const partPrizesList = parsePrizeArray(matchedZone?.prizes?.participation);
-  
-  const needsDegreeSelection = degreePrizesList.length > 1;
   const needsPartSelection = partPrizesList.length > 1;
 
-  const isFormValid = selectedSlot 
-    && (!needsDegreeSelection || selectedDegreePrize !== '') 
-    && (!needsPartSelection || selectedParticipationPrize !== '');
+  const isFormValid = selectedSlot && (!needsPartSelection || selectedParticipationPrize !== '');
 
   const handleComplete = async (withoutExam = false) => {
     setIsSubmitting(true);
     
-    const finalDegreePrize = withoutExam ? '' : (selectedDegreePrize || (degreePrizesList.length === 1 ? degreePrizesList[0].title : ''));
     const finalPartPrize = withoutExam ? '' : (selectedParticipationPrize || (partPrizesList.length === 1 ? partPrizesList[0].title : ''));
-
     const newPassword = Math.floor(100000 + Math.random() * 900000).toString();
     setGeneratedPassword(newPassword);
 
@@ -946,7 +963,6 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
           selectedDate: selectedSlot.date,
           selectedTime: selectedSlot.time,
           zone: matchedZone || null,
-          selectedDegreePrize: finalDegreePrize,
           selectedParticipationPrize: finalPartPrize,
           isWaitingPool: false
         };
@@ -974,7 +990,6 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
           selectedDate: selectedSlot.date,
           selectedTime: selectedSlot.time,
           zone: matchedZone || null,
-          selectedDegreePrize: finalDegreePrize,
           selectedParticipationPrize: finalPartPrize,
           isWaitingPool: false,
           pastExams: [], 
@@ -1027,8 +1042,8 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
       if (!prizes || prizes.length === 0) return null;
       if (prizes.length === 1 && !prizes[0].title) return null;
   
-      let badgeClass = type === 'degree' ? "text-indigo-600" : "text-emerald-600";
-      let title = type === 'degree' ? "Hedeflediğiniz Derece Ödülü" : "İstediğiniz Katılım Ödülü";
+      let badgeClass = "text-emerald-600";
+      let title = "İstediğiniz Katılım Ödülü";
   
       return (
           <div className="mb-8 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
@@ -1132,10 +1147,18 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
                   <p className="text-red-500 text-sm font-bold mt-2">Lütfen telefon numarasını 10 haneli giriniz.</p>
                 )}
               </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">E-Posta Adresi</label>
+                <div className="relative">
+                  <Mail className="absolute inset-y-0 left-5 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input type="email" className="w-full border-2 border-slate-200 rounded-2xl pl-14 pr-5 py-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition text-xl font-bold text-slate-800" 
+                    value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="Örn: ali@gmail.com"/>
+                </div>
+              </div>
             </div>
             <button 
               onClick={handleStep1Submit}
-              disabled={!formData.fullName || formData.phone.length !== 10 || !formData.parentName}
+              disabled={!formData.fullName || formData.phone.length !== 10 || !formData.parentName || !formData.email}
               className="w-full bg-indigo-600 text-white font-black text-2xl py-6 rounded-2xl mt-8 hover:bg-indigo-700 hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100 disabled:hover:bg-indigo-600 transition-all shadow-2xl shadow-indigo-500/30 flex justify-center items-center"
             >
               Devam Et: Konum Seçimi <ChevronRight className="ml-3 w-8 h-8"/>
@@ -1266,12 +1289,10 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
                       })}
                     </div>
 
-                    {selectedSlot && (needsDegreeSelection || needsPartSelection) && (
+                    {selectedSlot && needsPartSelection && (
                        <div className="mt-10 pt-10 border-t-4 border-slate-100 animate-in fade-in slide-in-from-bottom-4">
                          <h4 className="text-2xl font-black text-slate-800 mb-6 flex items-center"><Gift className="w-8 h-8 mr-3 text-indigo-600"/> Hedef ve Ödül Tercihlerinizi Belirleyin</h4>
-                         
-                         {needsDegreeSelection && <RegistrationPrizeSelector type="degree" prizes={degreePrizesList} selectedPrize={selectedDegreePrize} onSelect={setSelectedDegreePrize} />}
-                         {needsPartSelection && <RegistrationPrizeSelector type="part" prizes={partPrizesList} selectedPrize={selectedParticipationPrize} onSelect={setSelectedParticipationPrize} />}
+                         <RegistrationPrizeSelector type="part" prizes={partPrizesList} selectedPrize={selectedParticipationPrize} onSelect={setSelectedParticipationPrize} />
                        </div>
                     )}
                     
@@ -1421,9 +1442,11 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
 // ==========================================
 // 3. ÖĞRENCİ PANELİ
 // ==========================================
-function StudentProfile({ currentUser, exams, navigateTo, setCurrentUser }) {
+function StudentProfile({ currentUser, exams, navigateTo, setCurrentUser, zones }) {
   const [showSettings, setShowSettings] = useState(false);
   const [newPassword, setNewPassword] = useState('');
+  const [newEmail, setNewEmail] = useState(currentUser?.email || '');
+  const [newPrize, setNewPrize] = useState(currentUser?.selectedParticipationPrize || '');
 
   if (!currentUser) return <div className="text-center py-32 text-2xl font-black text-slate-500">Lütfen önce giriş yapın veya kayıt oluşturun.</div>;
 
@@ -1432,12 +1455,23 @@ function StudentProfile({ currentUser, exams, navigateTo, setCurrentUser }) {
   const neighborhoodDetails = getNeighborhoodDetails(currentUser.zone, currentUser.district, currentUser.neighborhood);
   const zoneExams = exams.filter(e => e.zoneId === currentUser?.zone?.id);
 
-  const handlePasswordChange = async () => {
-    if(newPassword.length < 4) return alert("Şifre en az 4 haneli olmalıdır.");
+  const matchedZone = findZoneByName(zones, currentUser?.zone?.name || '');
+  const partPrizesList = parsePrizeArray(matchedZone?.prizes?.participation);
+
+  const handleSaveSettings = async () => {
+    if(newPassword && newPassword.length > 0 && newPassword.length < 4) return alert("Şifre en az 4 haneli olmalıdır.");
     try {
-      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', currentUser.firebaseId), { password: newPassword });
-      setCurrentUser({ ...currentUser, password: newPassword });
-      alert("Şifreniz başarıyla güncellendi!");
+      const updates = {};
+      if (newPassword) updates.password = newPassword;
+      if (newEmail !== currentUser.email) updates.email = newEmail;
+      if (newPrize !== currentUser.selectedParticipationPrize) updates.selectedParticipationPrize = newPrize;
+
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', currentUser.firebaseId), updates);
+      
+      setCurrentUser({ ...currentUser, ...updates });
+      if (updates.email) alert("E-Posta adresinize bir doğrulama kodu gönderildi (Simülasyon). Güncelleme başarılı!");
+      else alert("Ayarlar başarıyla güncellendi!");
+      
       setShowSettings(false);
       setNewPassword('');
     } catch(e) {
@@ -1454,20 +1488,32 @@ function StudentProfile({ currentUser, exams, navigateTo, setCurrentUser }) {
             <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-md relative animate-in zoom-in-95">
                <button onClick={() => setShowSettings(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"><Plus className="w-8 h-8 transform rotate-45"/></button>
                <Settings className="w-16 h-16 text-indigo-500 mx-auto mb-6" />
-               <h3 className="text-3xl font-black text-center text-slate-900 mb-2">Profil Ayarları</h3>
-               <p className="text-center text-slate-500 font-bold mb-8">Sisteme giriş şifrenizi buradan değiştirebilirsiniz.</p>
+               <h3 className="text-3xl font-black text-center text-slate-900 mb-6">Profil Ayarları</h3>
                
-               <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">Yeni Şifre Belirle</label>
-               <input 
-                 type="text" 
-                 value={newPassword} 
-                 onChange={e => setNewPassword(e.target.value.replace(/\D/g, ''))} 
-                 className="w-full text-center tracking-widest border-4 border-slate-100 rounded-2xl px-6 py-4 text-2xl font-black focus:border-indigo-500 outline-none mb-6" 
-                 placeholder="Yeni Şifre" 
-               />
+               <div className="space-y-4 mb-8">
+                 <div>
+                   <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">E-Posta Adresi</label>
+                   <input type="email" value={newEmail} onChange={e=>setNewEmail(e.target.value)} className="w-full text-lg border-4 border-slate-100 rounded-2xl px-5 py-4 font-bold focus:border-indigo-500 outline-none" />
+                 </div>
+                 
+                 {partPrizesList.length > 0 && (
+                   <div>
+                     <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">Katılım Ödülü Tercihi</label>
+                     <select value={newPrize} onChange={e=>setNewPrize(e.target.value)} className="w-full text-lg border-4 border-slate-100 rounded-2xl px-5 py-4 font-bold focus:border-indigo-500 outline-none">
+                        <option value="">Seçilmedi</option>
+                        {partPrizesList.map(p => <option key={p.title} value={p.title}>{p.title}</option>)}
+                     </select>
+                   </div>
+                 )}
+
+                 <div>
+                   <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">Yeni Şifre Belirle (Boş Bırakılabilir)</label>
+                   <input type="text" value={newPassword} onChange={e => setNewPassword(e.target.value.replace(/\D/g, ''))} className="w-full text-center tracking-widest border-4 border-slate-100 rounded-2xl px-6 py-4 text-2xl font-black focus:border-indigo-500 outline-none" placeholder="••••" />
+                 </div>
+               </div>
                
-               <button onClick={handlePasswordChange} disabled={newPassword.length < 4} className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 disabled:opacity-50 transition shadow-xl shadow-indigo-500/30">
-                 Şifreyi Kaydet
+               <button onClick={handleSaveSettings} className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 transition shadow-xl shadow-indigo-500/30">
+                 Ayarları Kaydet
                </button>
             </div>
          </div>
@@ -1825,33 +1871,78 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
     let updatedCenters = [...adminCenters];
     let updatedMappings = [...adminMappings];
     let successCount = 0;
+    let errors = [];
 
-    rows.forEach(row => {
+    rows.forEach((row, rowIndex) => {
        if(!row.trim()) return;
        const cols = row.split('\t');
        if(cols.length < 3) return; 
        
-       const district = cols[0].trim();
-       const neighborhood = cols[1].trim();
-       const centerName = cols[2].trim();
+       let rawDistrict = cols[0]?.trim();
+       let rawNeighborhood = cols[1]?.trim();
+       
+       // Eğer İlçe ve Mahalle tek sütuna (Derince / Çınarlı) girilmişse ayır
+       if (rawDistrict.includes('/') && !rawNeighborhood) {
+           const parts = rawDistrict.split('/');
+           rawDistrict = parts[0].trim();
+           rawNeighborhood = parts[1].trim();
+       }
+
+       const centerName = cols[2]?.trim();
        const contactName = cols[3] ? cols[3].trim() : "";
-       const phone = cols[4] ? cols[4].trim() : "";
+       let phone = cols[4] ? cols[4].trim() : "";
        const address = cols[5] ? cols[5].trim() : "";
        const mapLink = cols[6] ? cols[6].trim() : "";
+
+       if (!rawDistrict || !rawNeighborhood || !centerName) {
+           errors.push(`Satır ${rowIndex+1}: Eksik sütun verisi.`);
+           return;
+       }
+
+       phone = phone.replace(/\D/g, '');
+       if (phone.length > 0 && phone[0] !== '5') { phone = '5' + phone; }
+       if (phone.length > 10) phone = phone.substring(0, 10);
+
+       // Türkçe karakterlere ve boşluklara tam duyarlı arama
+       const normDistrict = normalizeForSearch(rawDistrict);
+       const normNeighborhood = normalizeForSearch(rawNeighborhood);
+
+       const matchedDistrict = adminDistricts.find(d => normalizeForSearch(d) === normDistrict);
+       let matchedNeighborhood = null;
+
+       if (matchedDistrict) {
+           let allHoodsForDistrict = [];
+           if(adminZoneData.partialDistricts && adminZoneData.partialDistricts[matchedDistrict]) {
+               allHoodsForDistrict = adminZoneData.partialDistricts[matchedDistrict];
+           } else {
+               for(let prov in LOCATIONS) {
+                   if(LOCATIONS[prov][matchedDistrict]) {
+                       allHoodsForDistrict = LOCATIONS[prov][matchedDistrict];
+                       break;
+                   }
+               }
+           }
+           matchedNeighborhood = allHoodsForDistrict.find(h => normalizeForSearch(h) === normNeighborhood);
+       }
+
+       if (!matchedDistrict || !matchedNeighborhood) {
+           errors.push(`Satır ${rowIndex+1}: "${rawDistrict} / ${rawNeighborhood}" veritabanındaki kayıtlı bölgelerle eşleşmedi.`);
+           return; 
+       }
        
-       let center = updatedCenters.find(c => c.name.toLowerCase() === centerName.toLowerCase());
+       let center = updatedCenters.find(c => normalizeForSearch(c.name) === normalizeForSearch(centerName));
        if(!center) {
           center = {
              id: "c_" + new Date().getTime() + Math.random().toString(36).substr(2, 9),
              name: centerName,
-             address: address || `${district} ${neighborhood}`,
+             address: address || `${matchedDistrict} / ${matchedNeighborhood}`, 
              mapLink: mapLink
           };
           updatedCenters.push(center);
        }
        
-       const existingMapIndex = updatedMappings.findIndex(m => m.district === district && m.neighborhood === neighborhood);
-       const newMapObj = { district, neighborhood, centerId: center.id, contactName, phone };
+       const existingMapIndex = updatedMappings.findIndex(m => m.district === matchedDistrict && m.neighborhood === matchedNeighborhood);
+       const newMapObj = { district: matchedDistrict, neighborhood: matchedNeighborhood, centerId: center.id, contactName, phone };
        
        if(existingMapIndex >= 0) {
           updatedMappings[existingIndex] = newMapObj;
@@ -1861,16 +1952,22 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
        successCount++;
     });
 
-    try {
-      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { 
-        centers: updatedCenters,
-        mappings: updatedMappings
-      });
-      alert(`Toplu yükleme başarılı! ${successCount} mahalle eşleştirildi.`);
-      setBulkExcelData("");
-    } catch(err) {
-      console.error(err);
-      alert("Toplu yükleme sırasında hata oluştu.");
+    if (errors.length > 0) {
+        alert("Aşağıdaki satırlar veritabanında bulunamadığı için İPTAL EDİLDİ:\n\n" + errors.join('\n'));
+    }
+
+    if (successCount > 0) {
+      try {
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { 
+          centers: updatedCenters,
+          mappings: updatedMappings
+        });
+        alert(`İşlem Tamamlandı! ${successCount} mahalle başarıyla eşleştirildi ve eklendi.`);
+        setBulkExcelData("");
+      } catch(err) {
+        console.error(err);
+        alert("Toplu yükleme sırasında hata oluştu.");
+      }
     }
   };
 
@@ -2032,7 +2129,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
 
   return (
     <div className="max-w-[1400px] mx-auto px-4 py-16 relative">
-      <div className="mb-10 border-b-2 border-slate-100 pb-6 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
+      <div className="mb-10 border-b-2 border-slate-100 pb-6 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 animate-in fade-in duration-500">
         <div>
           <div className="inline-flex items-center px-4 py-1.5 rounded-lg bg-indigo-100 text-indigo-800 text-sm font-black mb-3 uppercase tracking-wider">
             {adminZoneData.name} Yönetimi
@@ -2514,6 +2611,18 @@ function LoginPage({ students, setCurrentUser, navigateTo }) {
     }
   };
 
+  const handleForgotPassword = () => {
+    const emailInput = window.prompt("Lütfen sisteme kayıtlı E-Posta adresinizi girin:");
+    if (!emailInput) return;
+    
+    const student = students.find(s => s.email?.toLowerCase() === emailInput.trim().toLowerCase());
+    if (student) {
+       alert(`Şifre sıfırlama bağlantısı ve yeni şifreniz ${student.email} adresine gönderildi.\n\n[SİMÜLASYON] Şifreniz: ${student.password || 'Şifreniz belirlenmemiş'}`);
+    } else {
+       alert("Sistemde bu e-posta adresiyle eşleşen bir kayıt bulunamadı.");
+    }
+  }
+
   return (
     <div className="max-w-xl mx-auto px-4 py-32 text-center animate-in fade-in zoom-in-95 duration-500">
       <div className="bg-white p-12 rounded-[3rem] shadow-2xl shadow-indigo-100/50 border border-slate-100">
@@ -2545,12 +2654,15 @@ function LoginPage({ students, setCurrentUser, navigateTo }) {
             </div>
         </div>
 
-        <button onClick={handleSearch} disabled={phoneQuery.length < 10} className="w-full bg-indigo-600 text-white font-black text-xl py-6 rounded-[2rem] hover:bg-indigo-700 transition hover:scale-[1.02] shadow-2xl shadow-indigo-500/40 mb-6 disabled:opacity-50">
+        <button onClick={handleSearch} disabled={phoneQuery.length < 10} className="w-full bg-indigo-600 text-white font-black text-xl py-6 rounded-[2rem] hover:bg-indigo-700 transition hover:scale-[1.02] shadow-2xl shadow-indigo-500/40 mb-4 disabled:opacity-50">
           Giriş Yap
         </button>
-        <button onClick={() => navigateTo('register')} className="text-slate-500 hover:text-indigo-600 font-bold transition">
-          Hesabın yok mu? Hemen Kayıt Ol
-        </button>
+        <div className="flex flex-col gap-3 mt-4">
+           <button onClick={handleForgotPassword} className="text-indigo-500 hover:text-indigo-700 font-bold transition">Şifremi Unuttum</button>
+           <button onClick={() => navigateTo('register')} className="text-slate-500 hover:text-indigo-600 font-bold transition">
+             Hesabın yok mu? Hemen Kayıt Ol
+           </button>
+        </div>
       </div>
     </div>
   );
