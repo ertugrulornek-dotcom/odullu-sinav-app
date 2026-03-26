@@ -6,7 +6,29 @@ import {
 } from 'lucide-react';
 
 // ==========================================
-// MESAJPANELİ SMS API ENTEGRASYONU (Sessiz Mod / Backend Destekli)
+// FIREBASE BAĞLANTISI VE GÜVENLİK
+// ==========================================
+import { initializeApp } from "firebase/app";
+import { getFirestore, collection, onSnapshot, setDoc, doc, addDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "firebase/auth";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCVXOTNeICNfGvLULngqkF-8fRV-W9JdPg",
+  authDomain: "odulludeneme-ae8da.firebaseapp.com",
+  projectId: "odulludeneme-ae8da",
+  storageBucket: "odulludeneme-ae8da.firebasestorage.app",
+  messagingSenderId: "749281964969",
+  appId: "1:749281964969:web:cc66285c567487fbd3cab8",
+  measurementId: "G-3E6EP90TN2"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'odullu-sinav';
+
+// ==========================================
+// MESAJPANELİ SMS API ENTEGRASYONU (Backend Destekli)
 // ==========================================
 const MESAJ_PANELI_API_KEY = "af68961362160d37c19bae0463b082f58539d936";
 const MESAJ_PANELI_BASLIK = "EMRGUNDOGDU"; 
@@ -18,14 +40,14 @@ const encodeBase64 = (str) => {
 
 const sendSMS = async (msgDataArray) => {
   try {
-    // 1. Önce Vercel Backend API'sini deniyoruz (CORS Hatasını kalıcı çözer)dsdsdsdsdsdsdsd
+    // 1. Önce Vercel Backend API'sini deniyoruz (CORS Hatasını kalıcı çözer)
     const response = await fetch("/api/sms", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ msgData: msgDataArray })
-    });
+    }).catch(() => null);
 
-    if (response.ok) {
+    if (response && response.ok) {
       console.log("Vercel API üzerinden SMS başarıyla gönderildi.");
       return true;
     }
@@ -41,7 +63,7 @@ const sendSMS = async (msgDataArray) => {
     const postData = new URLSearchParams();
     postData.append('data', encodeBase64(JSON.stringify(payload)));
 
-    fetch("https://api.mesajpaneli.com/json_api/", {
+    await fetch("https://api.mesajpaneli.com/json_api/", {
       method: "POST",
       mode: "no-cors",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -132,6 +154,7 @@ const determineZoneName = (province, district, neighborhood) => {
   return null;
 };
 
+// Mahalle çakışmalarını önlemek için District + Neighborhood eşleşmesine bakar.
 const getNeighborhoodDetails = (zone, district, neighborhood) => {
   const defaultDetails = { phone: "0553 973 54 40", centerName: "Sınav Merkezi Bekleniyor", address: "", mapLink: "", contactName: "" };
   if (!zone || !zone.mappings || !zone.centers) return defaultDetails;
@@ -224,8 +247,12 @@ const TimelineCalendar = ({ zoneExams, currentUser, defaultPhone }) => {
     if(exam.sessions) {
       exam.sessions.forEach(session => {
          const [y, m, d] = session.date.split('-');
+         if(!y || !m || !d) return; // Eksik veri kontrolü
          session.slots.forEach(slot => {
-            const timestamp = new Date(y, m-1, d, slot.split('.')[0] || slot.split(':')[0], slot.split('.')[1] || slot.split(':')[1]).getTime();
+            const timeParts = slot.split(/[.:]/);
+            const hour = timeParts[0] ? parseInt(timeParts[0]) : 0;
+            const min = timeParts[1] ? parseInt(timeParts[1]) : 0;
+            const timestamp = new Date(y, parseInt(m)-1, d, hour, min).getTime();
             allSessions.push({ 
                ...session, 
                exam, 
@@ -533,6 +560,96 @@ export default function App() {
 }
 
 // ==========================================
+// 0. ADMIN LOGIN EKRANI
+// ==========================================
+function AdminLogin({ setAdminAuth, zones }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (password !== '18881959') {
+      setError('Hatalı şifre girdiniz.');
+      return;
+    }
+
+    const normalizeStr = (str) => {
+      return str.replace(/İ/g, 'i').replace(/I/g, 'ı').toLowerCase().trim();
+    };
+
+    const searchStr = normalizeStr(username);
+
+    if (searchStr === 'genel merkez') {
+      setAdminAuth({ isAuthenticated: true, zoneId: 'ALL', isSuperAdmin: true });
+      return;
+    }
+
+    const activeZones = zones && zones.length > 0 ? zones : INITIAL_ZONES;
+
+    const matchedZone = activeZones.find(z => 
+      normalizeStr(z.name) === searchStr || 
+      (z.districts && z.districts.some(d => normalizeStr(d) === searchStr)) ||
+      (z.partialDistricts && Object.keys(z.partialDistricts).some(d => normalizeStr(d) === searchStr))
+    );
+
+    if (matchedZone) {
+      setAdminAuth({ isAuthenticated: true, zoneId: matchedZone.id, isSuperAdmin: false });
+    } else {
+      setError(`Tanımsız Bölge. Lütfen "Genel Merkez" veya sorumlu olduğunuz ilçe/bölge adını girin.`);
+    }
+  };
+
+  return (
+    <div className="min-h-[80vh] flex items-center justify-center px-4 py-20">
+      <div className="bg-white p-10 md:p-14 rounded-[3rem] shadow-2xl shadow-indigo-100/50 border border-slate-100 w-full max-w-md">
+        <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner">
+          <KeyRound className="w-10 h-10 text-indigo-600" />
+        </div>
+        <h2 className="text-3xl font-black text-center text-slate-900 mb-2">Yönetici Girişi</h2>
+        <p className="text-center text-slate-500 font-bold mb-8">Sorumlu olduğunuz mıntıkayı yönetmek için giriş yapın.</p>
+        
+        {error && (
+          <div className="bg-red-50 text-red-600 font-bold p-4 rounded-2xl mb-6 text-sm text-center border border-red-100">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleLogin} className="space-y-6">
+          <div>
+            <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">İlçe / Mıntıka Adı</label>
+            <input 
+              type="text" 
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Örn: Gebze, Serdivan..." 
+              className="w-full border-4 border-slate-100 rounded-2xl px-6 py-4 text-lg font-bold focus:border-indigo-500 outline-none transition"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">Şifre</label>
+            <input 
+              type="password" 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••" 
+              className="w-full border-4 border-slate-100 rounded-2xl px-6 py-4 text-lg font-bold focus:border-indigo-500 outline-none transition"
+              required
+            />
+          </div>
+          <button type="submit" className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 transition shadow-xl shadow-indigo-500/30 mt-4">
+            Sisteme Giriş Yap
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
 // 1. LANDING PAGE (KARŞILAMA SAYFASI)
 // ==========================================
 function LandingPage({ navigateTo, currentUser, scrollToSection, exams, zones }) {
@@ -718,7 +835,6 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
   const [verificationCode, setVerificationCode] = useState('');
   const [enteredCode, setEnteredCode] = useState('');
   
-  // Yeni Şifre Ekranda Göstermek İçin State
   const [generatedPassword, setGeneratedPassword] = useState('');
 
   useEffect(() => {
@@ -746,7 +862,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
   const handleStep1Submit = async () => {
     if(!currentUser) {
       const isDuplicate = students.some(s => 
-        s.fullName.trim().toLowerCase() === formData.fullName.trim().toLowerCase() && 
+        s.fullName?.trim().toLowerCase() === formData.fullName.trim().toLowerCase() && 
         s.phone === formData.phone
       );
       
@@ -762,8 +878,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
     
     await sendSMS([{tel: [formData.phone], msg: `odullusinav.net dogrulama kodunuz: ${code}`}]);
     
-    // Geliştirici veya Test için uyarı (Ekranda gösteriyoruz ki API bakiye vs sebebiyle gitmezse takılı kalmasın)
-    alert(`[SİSTEM BİLGİSİ - TEST KODU]\nDoğrulama Kodunuz: ${code}`);
+    alert(`[SİSTEM BİLGİSİ - SMS APİ AKTİF]\nEğer SMS bakiyeniz biterse veya operatör mesajı geç iletirse diye test kodu ekrana yazdırılmıştır:\nDoğrulama Kodunuz: ${code}`);
   };
 
   const verifyCodeAndProceed = () => {
@@ -812,7 +927,6 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
     const finalDegreePrize = withoutExam ? '' : (selectedDegreePrize || (degreePrizesList.length === 1 ? degreePrizesList[0].title : ''));
     const finalPartPrize = withoutExam ? '' : (selectedParticipationPrize || (partPrizesList.length === 1 ? partPrizesList[0].title : ''));
 
-    // Benzersiz 6 Haneli Şifre Üretimi
     const newPassword = Math.floor(100000 + Math.random() * 900000).toString();
     setGeneratedPassword(newPassword);
 
@@ -842,7 +956,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
       } else {
         const newStudent = withoutExam ? {
           ...formData,
-          password: newPassword, // Yeni şifre kaydediliyor
+          password: newPassword, 
           examId: null,
           examTitle: null,
           selectedDate: null,
@@ -854,7 +968,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
           createdAt: new Date().getTime()
         } : {
           ...formData,
-          password: newPassword, // Yeni şifre kaydediliyor
+          password: newPassword, 
           examId: selectedExam.firebaseId || selectedExam.id,
           examTitle: selectedExam.title,
           selectedDate: selectedSlot.date,
@@ -872,7 +986,6 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
         setCurrentUser(finalUserObj);
       }
 
-      // --- SMS GÖNDERİM KISMI ---
       if (withoutExam) {
          sendSMS([{tel: [finalUserObj.phone], msg: `odullusinav.net basvurunuz alinmistir. Sisteme giris sifreniz: ${newPassword}. Bolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`}]);
       } else if (finalUserObj.selectedDate) {
@@ -1183,7 +1296,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
                         {sortedAlternativeExams.map((exam) => {
                           const examSessions = exam.sessions || (exam.date && exam.slots ? [{ date: exam.date, slots: exam.slots }] : []);
                           return (
-                            <div key={exam.firebaseId || exam.id} className={`border-4 rounded-3xl p-6 md:p-8 transition-all hover:-translate-y-1 ${selectedExam?.firebaseId === exam.firebaseId ? 'border-indigo-600 bg-indigo-50 ring-4 ring-indigo-500/20 shadow-xl' : 'border-slate-100 bg-white hover:border-indigo-300 hover:shadow-lg cursor-pointer'}`}
+                            <div key={exam.firebaseId || exam.id} className={`border-4 rounded-3xl p-6 md:p-8 transition-all hover:-translate-y-1 ${selectedExam?.firebaseId === exam.firebaseId ? 'border-indigo-600 bg-indigo-50 ring-4 ring-indigo-500/20 shadow-xl' : 'border-slate-100 bg-white hover:border-indigo-300 hover:shadow-md cursor-pointer'}`}
                                 onClick={() => { setSelectedExam(exam); setSelectedSlot(null); }}>
                               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
                                 <div>
@@ -1213,7 +1326,7 @@ function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, e
                                               setSelectedSlot({ date: session.date, time: slot }); 
                                             }}
                                             className={`px-8 py-4 rounded-2xl text-xl font-black border-4 transition-all hover:scale-105 flex items-center ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-xl' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-indigo-400'}`}>
-                                              {isSelected ? <CheckCircle2 className="w-5 h-5 mr-2" /> : <Clock className="w-5 h-5 mr-2 opacity-70" />} {slot.replace(':', '.')}
+                                              <Clock className="w-5 h-5 inline mr-2 opacity-70" /> {slot.replace(':', '.')}
                                             </button>
                                           )
                                         })}
@@ -1408,7 +1521,7 @@ function StudentProfile({ currentUser, exams, navigateTo, setCurrentUser }) {
         <div className="w-full lg:w-2/3 space-y-10 animate-in slide-in-from-right-8 duration-500">
           
           {hasActiveExam ? (
-            <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[3rem] p-10 md:p-12 text-white relative overflow-hidden shadow-2xl shadow-indigo-500/30">
+            <div className="bg-gradient-to-r from-indigo-600 to-blue-700 rounded-[3rem] p-10 md:p-12 text-white relative overflow-hidden shadow-2xl shadow-indigo-500/30">
               <div className="absolute top-0 right-0 w-96 h-96 bg-white opacity-5 rounded-full -mr-20 -mt-20 z-0 pointer-events-none"></div>
               
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 relative z-10">
@@ -1519,7 +1632,7 @@ function StudentProfile({ currentUser, exams, navigateTo, setCurrentUser }) {
 }
 
 // ==========================================
-// 4. ADMIN PANELİ
+// 4. ADMIN PANELİ (GENEL MERKEZ DESTEKLİ VE EXCEL EKLENTİLİ)
 // ==========================================
 function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exams }) {
   const [activeTab, setActiveTab] = useState('ayarlar'); 
@@ -1859,12 +1972,11 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
   };
 
   const handleExportExcel = () => {
-     let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-     csvContent += "Ogrenci Isim Soyisim;Veli Isim Soyisim;Telefon;Sinif;Ilce / Mahalle;Atanan Sinav Merkezi;Kayitli Sinav ve Seans;Aciklanan Puan;Derece\n";
+     let csvContent = "Ogrenci Isim Soyisim;Veli Isim Soyisim;Telefon;Sinif;Ilce;Mahalle;Atanan Sinav Merkezi;Kayitli Sinav ve Seans;Aciklanan Puan;Derece\n";
      
      filteredStudents.forEach(s => {
         const stdZone = isSuperAdmin ? (zones.find(z => z.id === s.zone?.id) || s.zone) : adminZoneData;
-        const center = getNeighborhoodDetails(stdZone, s.district, s.neighborhood).centerName;
+        const center = getNeighborhoodDetails(stdZone, s.district, s.neighborhood)?.centerName || 'Bekleniyor';
         
         const hasPast = s.pastExams && s.pastExams.length > 0;
         const lastPast = hasPast ? s.pastExams[s.pastExams.length-1] : null;
@@ -1874,13 +1986,14 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
 
         const clean = str => String(str || '').replace(/;/g, ' ').replace(/\n/g, ' ');
 
-        const row = `${clean(s.fullName)};${clean(s.parentName)};${clean(s.phone)};${clean(s.grade)};${clean(s.district)} / ${clean(s.neighborhood)};${clean(center)};${clean(activeExam)};${clean(score)};${clean(rank)}`;
+        const row = `${clean(s.fullName)};${clean(s.parentName)};${clean(s.phone)};${clean(s.grade)};${clean(s.district)};${clean(s.neighborhood)};${clean(center)};${clean(activeExam)};${clean(score)};${clean(rank)}`;
         csvContent += row + "\n";
      });
 
-     const encodedUri = encodeURI(csvContent);
+     const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+     const url = URL.createObjectURL(blob);
      const link = document.createElement("a");
-     link.setAttribute("href", encodedUri);
+     link.setAttribute("href", url);
      link.setAttribute("download", "Ogrenci_Listesi.csv");
      document.body.appendChild(link);
      link.click();
@@ -1948,7 +2061,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
 
       {/* 1. SEKMEYE AİT İÇERİKLER: Sınav ve Ödül Ayarları */}
       {activeTab === 'ayarlar' && (
-        <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12">
+        <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12 animate-in fade-in zoom-in-95 duration-300">
           
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b-2 border-slate-100 pb-8 gap-4">
             <div>
@@ -1958,19 +2071,21 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            {/* ÖDÜL YÖNETİMİ */}
+            {/* ÖDÜL YÖNETİMİ (YENİ TASARIM GİRİŞİ) */}
             <div>
               <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider flex items-center"><Gift className="w-6 h-6 mr-2"/> {isSuperAdmin ? 'Tüm Türkiye' : 'Bölge'} Ödüllerini Yönet</div>
               <div className="space-y-6 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
                 
-                <div className="bg-white p-4 rounded-2xl border border-slate-200">
+                {/* Büyük Ödül */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="text-sm font-black text-slate-800 mb-3 flex items-center"><Trophy className="w-5 h-5 text-yellow-500 mr-2"/> Büyük Ödül</div>
                   <input type="text" value={localPrizes.grand.title} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, title: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2" placeholder="Ödül Başlığı (Örn: PlayStation 5)"/>
                   <textarea rows="2" value={localPrizes.grand.desc} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, desc: e.target.value}})} className="w-full text-sm font-medium p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2 resize-none" placeholder="Açıklama (İsteğe bağlı)"/>
                   <input type="text" value={localPrizes.grand.img} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, img: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Resim Linki veya Dosya Adı (Örn: ps5.png)"/>
                 </div>
 
-                <div className="bg-white p-4 rounded-2xl border border-slate-200">
+                {/* Derece Ödülleri */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="text-sm font-black text-slate-800 mb-3 flex justify-between items-center">
                      <span className="flex items-center"><Award className="w-5 h-5 text-indigo-500 mr-2"/> Derece Ödülleri</span>
                      <button onClick={() => setLocalPrizes({...localPrizes, degree: [...localPrizes.degree, {title:'', desc:'', img:''}]})} className="text-indigo-600 bg-indigo-50 p-1.5 rounded-lg hover:bg-indigo-100"><Plus className="w-4 h-4"/></button>
@@ -1987,7 +2102,8 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
                   ))}
                 </div>
 
-                <div className="bg-white p-4 rounded-2xl border border-slate-200">
+                {/* Katılım Ödülleri */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="text-sm font-black text-slate-800 mb-3 flex justify-between items-center">
                      <span className="flex items-center"><Gift className="w-5 h-5 text-emerald-500 mr-2"/> Katılım Ödülleri</span>
                      <button onClick={() => setLocalPrizes({...localPrizes, participation: [...localPrizes.participation, {title:'', desc:'', img:''}]})} className="text-emerald-600 bg-emerald-50 p-1.5 rounded-lg hover:bg-emerald-100"><Plus className="w-4 h-4"/></button>
@@ -2072,9 +2188,9 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
         </div>
       )}
 
-      {/* 2. YENİ SEKMEYE AİT İÇERİKLER: Sınav Merkezleri ve Atamalar */}
+      {/* 2. YENİ SEKMEYE AİT İÇERİKLER: Sınav Merkezleri ve Atamalar (Sadece Normal Adminler Görür) */}
       {activeTab === 'merkezler' && !isSuperAdmin && (
-         <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12">
+         <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12 animate-in fade-in zoom-in-95 duration-300">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b-2 border-slate-100 pb-8 gap-4">
               <div>
                 <h3 className="font-black text-3xl text-slate-900 mb-2">Sınav Yerleri ve Atamalar</h3>
@@ -2215,7 +2331,7 @@ function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exam
 
       {/* 3. SEKMEYE AİT İÇERİKLER: Öğrenci Listesi */}
       {activeTab === 'ogrenci' && (
-        <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 p-10 overflow-hidden relative">
+        <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 p-10 overflow-hidden relative animate-in fade-in zoom-in-95 duration-300">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
             <h2 className="text-3xl font-black text-slate-800">{isSuperAdmin ? "Tüm Türkiye Kayıtları" : "Bölge Kayıtları"} ({filteredStudents.length})</h2>
             <div className="flex flex-wrap gap-3">
