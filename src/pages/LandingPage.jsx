@@ -22,8 +22,10 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
         <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col items-center text-center animate-in zoom-in-95 duration-500">
           
-          {/* Logo Yüzeyle Birleşti, Kutucuk Kaldırıldı */}
-          <img src="/Sembol.png" alt="Ödüllü Sınav Logo" className="w-48 h-48 md:w-56 md:h-56 mb-8 rounded-full bg-white object-contain" />
+          {/* Logo yüzeyle uyumlu ve arka planı beyaz */}
+          <div className="bg-white rounded-full p-3 mb-8 drop-shadow-[0_0_25px_rgba(255,255,255,0.2)]">
+             <img src="/Sembol.png" alt="Ödüllü Sınav Logo" className="w-40 h-40 md:w-48 md:h-48 object-contain" />
+          </div>
           
           <div className="inline-flex items-center px-6 py-2.5 rounded-full bg-yellow-500/20 border border-yellow-400/50 text-yellow-300 text-sm font-black mb-10 backdrop-blur-sm uppercase tracking-wider hover:bg-yellow-500/30 transition-colors">
             <Award className="w-5 h-5 mr-2" /> 3, 4, 5, 6, 7 ve 8. Sınıflar İçin Kayıtlar Başladı!
@@ -33,7 +35,7 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-yellow-400 to-amber-500">LGS Provası!</span>
           </h1>
           <p className="text-xl md:text-3xl text-indigo-100 mb-16 font-medium leading-relaxed max-w-4xl drop-shadow-md">
-            Sınav stresini gerçekçi bir deneyimle yenin. Bölgenize en yakın merkezde sınava girin, başarı sıranızı görün ve dev eğitim bursları kazanın.
+            Sınav stresini gerçekçi bir deneyimle yenin. Adresinize en yakın merkezde sınava girin, başarı sıranızı görün ve dev eğitim bursları kazanın.
           </p>
           {!currentUser ? (
             <div className="flex flex-col sm:flex-row gap-6 w-full sm:w-auto">
@@ -102,7 +104,7 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
               </p>
               <ul className="space-y-4">
                 <li className="flex items-center text-lg font-bold text-slate-700 bg-white p-4 rounded-2xl shadow-sm border border-slate-100"><CheckCircle2 className="w-6 h-6 text-yellow-500 mr-3"/> İlk 3'e Girenlere %100 Burs</li>
-                <li className="flex items-center text-lg font-bold text-slate-700 bg-white p-4 rounded-2xl shadow-sm border border-slate-100"><CheckCircle2 className="w-6 h-6 text-yellow-500 mr-3"/> !Sürpriz Hediyeler!</li>
+                <li className="flex items-center text-lg font-bold text-slate-700 bg-white p-4 rounded-2xl shadow-sm border border-slate-100"><CheckCircle2 className="w-6 h-6 text-yellow-500 mr-3"/> Teknolojik Sürpriz Hediyeler</li>
               </ul>
             </div>
           </div>
@@ -126,9 +128,9 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
             <div className="w-full md:w-1/2 relative group">
               <div className="absolute inset-0 bg-indigo-200 rounded-[3rem] transform rotate-3 scale-105 opacity-50 group-hover:rotate-0 transition-transform duration-500"></div>
               
-              {/* Video Dikdörtgen ve Sığdırılmış */}
+              {/* Video Dikdörtgen ve Sığdırılmış (aspect-video eklendi) */}
               <div className="relative bg-slate-900 rounded-[3rem] p-2 shadow-2xl z-10 transition-transform duration-500 group-hover:scale-[1.02]">
-                 <video controls playsInline className="w-full aspect-video rounded-[2.5rem] object-cover bg-slate-900" poster="/Sembol.png">
+                 <video controls playsInline className="w-full aspect-video rounded-[2.5rem] object-cover bg-black" poster="/Sembol.png">
                     <source src="/Ödüllü Deneme Sınavı Tanıtım Videosu.mp4" type="video/mp4" />
                     Tarayıcınız video oynatmayı desteklemiyor.
                  </video>

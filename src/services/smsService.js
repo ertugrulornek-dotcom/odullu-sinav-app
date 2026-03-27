@@ -9,7 +9,6 @@ export const sendSMS = async (msgDataArray) => {
     });
     
     if (response.ok) {
-      console.log("Vercel API üzerinden SMS başarıyla gönderildi.");
       return true;
     } else {
       console.error("SMS API hata döndürdü:", response.statusText);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Building2, Users, Download, MessageSquare, Plus, Trophy, Trash2, Edit3, Save, X, KeyRound, LogOut, CalendarIcon, Send, Gift, Award, FileText, MapPin, CheckCircle2 } from 'lucide-react';
+import { Settings, Building2, Users, Download, MessageSquare, Plus, Trophy, Trash2, Edit3, Save, X, KeyRound, LogOut, CalendarIcon, Send, Gift, Award, FileText, MapPin, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { db, appId } from '../services/firebase';
-import { updateDoc, doc, addDoc, collection, deleteDoc } from "firebase/firestore";
+import { updateDoc, doc, addDoc, collection, deleteDoc, onSnapshot } from "firebase/firestore";
 import { sendSMS, SMS_FOOTER } from '../services/smsService';
 import { DEFAULT_PRIZE_OBJ, INITIAL_ZONES, LOCATIONS } from '../data/constants';
 import { parsePrizeArray, normalizeForSearch, getNeighborhoodDetails } from '../utils/helpers';
@@ -77,23 +77,19 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
   const filteredStudents = isSuperAdmin ? students : students.filter(s => s.zone?.id === adminZoneId);
   const filteredExams = isSuperAdmin ? exams : exams.filter(e => e.zoneId === adminZoneId);
 
-  const [localPrizes, setLocalPrizes] = useState({
-    grand: { title: '', desc: '', img: '' },
-    degree: [{ title: '', desc: '', img: '' }],
-    participation: [{ title: '', desc: '', img: '' }]
-  });
-
+  const [localPrizes, setLocalPrizes] = useState({ grand: { title: '', desc: '', img: '' }, degree: [{ title: '', desc: '', img: '' }], participation: [{ title: '', desc: '', img: '' }] });
   const [examData, setExamData] = useState({ title: '' });
   const [examSessions, setExamSessions] = useState([{ date: '', times: '' }]);
-  
   const [newCenter, setNewCenter] = useState({ name: '', address: '', mapLink: '' });
   const [mappingData, setMappingData] = useState({ district: '', neighborhood: '', centerId: '', contactName: '', phone: '' });
-
   const [resultModal, setResultModal] = useState({ isOpen: false, student: null, score: '', rank: '' });
   const [smsModal, setSmsModal] = useState({ isOpen: false, type: 'custom', customMsg: '', loading: false, targetStudent: null });
-
   const [bulkExcelData, setBulkExcelData] = useState("");
   const [editingCenter, setEditingCenter] = useState(null);
+
+  // Kara liste
+  const [blacklistPhones, setBlacklistPhones] = useState([]);
+  const [newBlacklistPhone, setNewBlacklistPhone] = useState('');
 
   useEffect(() => {
     if(adminZoneData && !isSuperAdmin) {
@@ -105,10 +101,47 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
     }
   }, [adminZoneData, isSuperAdmin]);
 
+  useEffect(() => {
+    if (isSuperAdmin) {
+      const unsub = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'blacklist'), snap => {
+         setBlacklistPhones(snap.docs.map(d => ({ id: d.id, phone: d.data().phone })));
+      });
+      return () => unsub();
+    }
+  }, [isSuperAdmin]);
+
   if (!adminZoneData) return <div>Erişim Hatası.</div>;
 
   const adminCenters = adminZoneData.centers || [];
   const adminMappings = adminZoneData.mappings || [];
+
+  const handleUpdateStudentStatus = async (studentId, field, value) => {
+    try {
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', studentId), {
+         [field]: value
+      });
+    } catch(err) {
+      console.error(err);
+      alert("Durum güncellenemedi.");
+    }
+  };
+
+  const handleAddBlacklist = async () => {
+    let p = newBlacklistPhone.replace(/\D/g, '');
+    if(p.length > 0 && p[0] !== '5') p = '5' + p;
+    if(p.length !== 10) return alert("Lütfen 10 haneli geçerli bir telefon numarası giriniz.");
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'blacklist'), { phone: p });
+      setNewBlacklistPhone('');
+      alert("Numara kara listeye eklendi.");
+    } catch(e) { console.error(e); }
+  };
+
+  const handleRemoveBlacklist = async (id) => {
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'blacklist', id));
+    } catch(e) { console.error(e); }
+  };
 
   const handleUpdatePrizes = async () => {
     try {
@@ -427,11 +460,11 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
       if (smsModal.type === 'custom') {
         text = smsModal.customMsg;
       } else if (smsModal.type === 'announcement') {
-        text = `Yaklasan sinavimiz icin kayitlar devam ediyor! odullusinav.net uzerinden profilinize girerek detaylari ogrenebilirsiniz.\nSinav Merkeziniz: ${stdCenter.centerName}\nAdres: ${stdCenter.address}\nLink: ${stdCenter.mapLink}\nIletisim: ${stdCenter.phone}`;
+        text = `🎯 Büyük fırsat yeniden kapında!\n\nDaha önce katıldığın ödüllü denemeyi hatırlıyor musun? Şimdi çok daha heyecanlısı geliyor! 🚀\n\nYeni ödüllü denememizde yine katılan HERKES kendi seçtiği ödülü kazanma şansı yakalıyor 🎁\nÜstelik dereceye girenleri çok daha büyük sürprizler bekliyor! 🏆🔥\n\nBu fırsatı kaçırma, yerini hemen ayırt!\n👉 Kayıt olmak ve detayları öğrenmek için: odullusinav.net\n\nHadi, bir adım öne geçme zamanı! 💥`;
       } else if (smsModal.type === 'reminder') {
-        text = `Hatirlatma! ${student.fullName || 'Ogrencimiz'}, sinaviniza cok az kaldi. Sinavdan 30dk once merkezimizde hazir bulunun. Arkadaslarinizi da davet etmeyi unutmayin!\nOturum: ${student.selectedDate || 'Belirtilmedi'} - ${student.selectedTime || ''}\nSinav Yeri: ${stdCenter.centerName}\nAdres: ${stdCenter.address}\nLink: ${stdCenter.mapLink}\nIletisim: ${stdCenter.phone}`;
+        text = `🚀 Sınav heyecanı başlıyor!\n\nYaklaşan sınavımız için kayıtlar tüm hızıyla devam ediyor! 🎉\nSen de yerini almayı unutma — başarıya giden yol burada başlıyor!\n\nÜstelik bu heyecanı tek başına yaşamak zorunda değilsin…\nArkadaşlarını da sınava davet et, birlikte kazanmanın keyfini çıkar! 💪🔥\n\nDetayları öğrenmek ve sınav oturumunla ilgili düzenlemeleri yapmak için hemen\n👉 odullusinav.net üzerinden profiline giriş yap!\n\nHadi, şimdi harekete geçme zamanı! ⏳✨`;
       } else if (smsModal.type === 'results') {
-        text = `Tebrikler! ${student.fullName || 'Ogrencimiz'}, sinav sonuclariniz aciklanmistir. Puan ve derecenizi odullusinav.net uzerinden ogrenebilir, birebir analiz icin sinav merkezimizden randevu alabilirsiniz.\nSinav Merkezi: ${stdCenter.centerName}\nIletisim: ${stdCenter.phone}\nAdres: ${stdCenter.address}`;
+        text = `Tebrikler! ${student.fullName || 'Öğrencimiz'}, sınav sonuçlarınız açıklanmıştır.\nPuan ve derecenizi odullusinav.net üzerinden öğrenebilirsiniz.\nBirebir analiz ve ödülleriniz için sınav merkezimizden randevu alabilirsiniz.\nSınav Merkezi: ${stdCenter.centerName}\nİletişim: ${stdCenter.phone}\nAdres: ${stdCenter.address}\nKonum: ${stdCenter.mapLink}`;
       }
 
       text += SMS_FOOTER;
@@ -446,14 +479,14 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
     if(result !== false) {
       alert(`${msgDataArray.length} öğrenciye mesajlar başarıyla iletildi!`);
     } else {
-      alert("Mesajlar arka planda kuyruğa alındı. (CORS veya Bakiye/Başlık hatası varsa MesajPaneli üzerinden kontrol ediniz).");
+      alert("SMS gönderimi başarısız oldu. API bağlantınızı veya bakiyenizi kontrol ediniz.");
     }
     
     setSmsModal({ isOpen: false, type: 'custom', customMsg: '', loading: false, targetStudent: null });
   };
 
   const handleExportExcel = () => {
-     let csvContent = "Ogrenci Isim Soyisim;Veli Isim Soyisim;Telefon;Sinif;Ilce;Mahalle;Atanan Sinav Merkezi;Kayitli Sinav ve Seans;Aciklanan Puan;Derece\n";
+     let csvContent = "Ogrenci Isim Soyisim;Veli Isim Soyisim;Telefon;Sinif;Cinsiyet;Okul Bilgisi;Ilce;Mahalle;Atanan Sinav Merkezi;Kayitli Sinav ve Seans;Aciklanan Puan;Derece;Katilim Durumu;Gorusme Durumu;Gorusme Sonucu\n";
      
      filteredStudents.forEach(s => {
         const stdZone = isSuperAdmin ? (zones.find(z => z.id === s.zone?.id) || s.zone) : adminZoneData;
@@ -467,7 +500,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
 
         const clean = str => String(str || '').replace(/;/g, ' ').replace(/\n/g, ' ');
 
-        const row = `${clean(s.fullName)};${clean(s.parentName)};${clean(s.phone)};${clean(s.grade)};${clean(s.district)};${clean(s.neighborhood)};${clean(center)};${clean(activeExam)};${clean(score)};${clean(rank)}`;
+        const row = `${clean(s.fullName)};${clean(s.parentName)};${clean(s.phone)};${clean(s.grade)};${clean(s.gender)};${clean(s.schoolName)};${clean(s.district)};${clean(s.neighborhood)};${clean(center)};${clean(activeExam)};${clean(score)};${clean(rank)};${clean(s.attendance)};${clean(s.interview)};${clean(s.interviewResult)}`;
         csvContent += row + "\n";
      });
 
@@ -538,7 +571,34 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
         <button onClick={() => setActiveTab('ogrenci')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'ogrenci' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
           <Users className="w-5 h-5 inline mr-2"/> Öğrenci Listesi ({filteredStudents.length})
         </button>
+        {isSuperAdmin && (
+           <button onClick={() => setActiveTab('karaliste')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'karaliste' ? 'bg-red-600 text-white shadow-lg' : 'bg-white text-red-600 border border-red-100 hover:bg-red-50'}`}>
+             <ShieldAlert className="w-5 h-5 inline mr-2"/> Kara Liste Yönetimi
+           </button>
+        )}
       </div>
+
+      {activeTab === 'karaliste' && isSuperAdmin && (
+         <div className="bg-white rounded-[3rem] shadow-xl border-4 border-red-100 p-8 md:p-12 animate-in fade-in zoom-in-95 duration-300">
+           <h3 className="font-black text-3xl text-red-900 mb-2 flex items-center"><ShieldAlert className="mr-3 w-8 h-8"/> Kara Liste (Yasaklı Numaralar)</h3>
+           <p className="text-base font-bold text-slate-500 mb-8">Bu listeye eklenen personel numaraları sisteme kayıt oluşturamazlar.</p>
+           
+           <div className="bg-red-50 p-6 rounded-2xl border border-red-100 flex gap-4 mb-8">
+             <input type="text" value={newBlacklistPhone} onChange={e=>setNewBlacklistPhone(e.target.value.replace(/\D/g, ''))} className="flex-1 p-4 rounded-xl border border-red-200 outline-none focus:border-red-500 font-bold" placeholder="5XX XXX XX XX" />
+             <button onClick={handleAddBlacklist} className="bg-red-600 text-white px-8 py-4 rounded-xl font-black shadow-lg hover:bg-red-700 transition">Numarayı Yasakla</button>
+           </div>
+
+           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+             {blacklistPhones.map(bl => (
+                <div key={bl.id} className="bg-white border-2 border-red-100 p-4 rounded-xl flex justify-between items-center shadow-sm">
+                   <span className="font-black tracking-widest text-slate-800">0{bl.phone}</span>
+                   <button onClick={() => handleRemoveBlacklist(bl.id)} className="text-red-400 hover:text-red-600 bg-red-50 p-2 rounded-lg transition"><Trash2 className="w-5 h-5"/></button>
+                </div>
+             ))}
+             {blacklistPhones.length === 0 && <div className="col-span-full text-center text-slate-400 font-bold py-10">Listede numara bulunmuyor.</div>}
+           </div>
+         </div>
+      )}
 
       {/* 1. SEKMEYE AİT İÇERİKLER: Sınav ve Ödül Ayarları */}
       {activeTab === 'ayarlar' && (
@@ -834,12 +894,13 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
                   <th className="p-6 font-black">Öğrenci Adı</th>
                   <th className="p-6 font-black">Konum (İlçe/Mah)</th>
                   <th className="p-6 font-black">Aktif Sınav & Merkez</th>
+                  <th className="p-6 font-black">Durum & Notlar</th>
                   <th className="p-6 font-black text-right">İşlem</th>
                 </tr>
               </thead>
               <tbody className="divide-y-2 divide-slate-50">
                 {filteredStudents.length === 0 ? (
-                  <tr><td colSpan="4" className="p-16 text-center text-slate-400 font-bold text-lg">Bu alana ait henüz kayıtlı öğrenci bulunmuyor.</td></tr>
+                  <tr><td colSpan="5" className="p-16 text-center text-slate-400 font-bold text-lg">Bu alana ait henüz kayıtlı öğrenci bulunmuyor.</td></tr>
                 ) : (
                   filteredStudents.map(student => {
                     const hasActiveExam = !!(student.examId || student.examTitle || student.exam);
@@ -863,7 +924,29 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
                             <span className="text-sm font-bold text-slate-400">Bekleme Havuzunda</span>
                           )}
                         </td>
-                        <td className="p-6 flex items-center justify-end space-x-2">
+                        
+                        {/* Yeni Durum Dropdownları */}
+                        <td className="p-4 flex flex-col gap-1">
+                          <select value={student.attendance || ''} onChange={e => handleUpdateStudentStatus(student.firebaseId, 'attendance', e.target.value)} className="text-xs border border-slate-200 rounded p-1 outline-none text-slate-700 font-bold">
+                             <option value="">Katılım Durumu</option>
+                             <option value="Katıldı">Katıldı</option>
+                             <option value="Katılmadı">Katılmadı</option>
+                          </select>
+                          <select value={student.interview || ''} onChange={e => handleUpdateStudentStatus(student.firebaseId, 'interview', e.target.value)} className="text-xs border border-slate-200 rounded p-1 outline-none text-slate-700 font-bold">
+                             <option value="">Görüşme</option>
+                             <option value="Görüşüldü">Görüşüldü</option>
+                             <option value="Görüşülmedi">Görüşülmedi</option>
+                          </select>
+                          <select value={student.interviewResult || ''} onChange={e => handleUpdateStudentStatus(student.firebaseId, 'interviewResult', e.target.value)} className="text-xs border border-slate-200 rounded p-1 outline-none text-slate-700 font-bold">
+                             <option value="">Netice</option>
+                             <option value="Sıbyan">Sıbyan</option>
+                             <option value="Nehari">Nehari</option>
+                             <option value="Yatılı">Yatılı</option>
+                             <option value="Olumsuz">Olumsuz</option>
+                          </select>
+                        </td>
+
+                        <td className="p-6 text-right space-x-2 whitespace-nowrap">
                           {hasActiveExam && (
                             <button 
                               onClick={() => setResultModal({ isOpen: true, student, score: '', rank: '' })}
@@ -897,7 +980,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
         </div>
       )}
 
-      {/* AKILLI SMS GÖNDERME MODALI (Tekli ve Toplu Uyumlu) */}
+      {/* AKILLI SMS GÖNDERME MODALI */}
       {smsModal.isOpen && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-2xl relative animate-in zoom-in-95">
@@ -929,7 +1012,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
               <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200">
                 <span className="text-xs font-black text-amber-600 uppercase tracking-widest mb-1 block">Önemli Not</span>
                 <p className="text-sm font-bold text-amber-900 leading-relaxed">
-                  Seçilen şablonlar, her öğrencinin kendi adını, saatini, sınav merkezini ve o merkezin telefon numarasını otomatik olarak mesaja ekleyerek iletilecektir. Tüm mesajların sonuna yasal zorunluluk olan iptal metni otomatik eklenir.
+                  Tüm mesajların sonuna yasal zorunluluk olan iptal metni otomatik eklenecektir. Adres, telefon gibi bilgiler şablona göre otomatik doldurulacaktır.
                 </p>
               </div>
             </div>

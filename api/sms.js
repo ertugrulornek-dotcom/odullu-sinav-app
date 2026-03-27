@@ -21,7 +21,7 @@ export default async function handler(req, res) {
   try {
     const { msgData } = req.body;
     
-    // MesajPaneli API Ayarlarınız (Tırnak işaretlerine dikkat edilmiştir)
+    // MesajPaneli API Ayarlarınız
     const MESAJ_PANELI_API_KEY = "af68961362160d37c19bae0463b082f58539d936";
     const MESAJ_PANELI_BASLIK = "EMRGUNDOGDU"; 
 
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
 
     const result = await response.json();
     
-    // İşlem sonucunu React (App.jsx) tarafına gönder
+    // İşlem sonucunu React tarafına gönder
     return res.status(200).json(result);
   } catch (error) {
     console.error("Vercel SMS API Hatası:", error);
