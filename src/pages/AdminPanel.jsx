@@ -69,7 +69,8 @@ export function AdminLogin({ setAdminAuth, zones }) {
 
 export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exams }) {
   const [activeTab, setActiveTab] = useState('ayarlar'); 
-  const [isSyncing, setIsSyncing] = useState(false); // Çıkış sırasında senkronizasyon kontrolü
+  const [isSyncing, setIsSyncing] = useState(false); 
+  const [hasMadeChanges, setHasMadeChanges] = useState(false); // DEĞİŞİKLİK KONTROLÜ
   
   const adminZoneData = isSuperAdmin 
      ? { id: 'ALL', name: "Genel Merkez (Tüm Mıntıkalar)", active: true, districts: [], prizes: {grand: DEFAULT_PRIZE_OBJ, degree: [], participation: []}, centers: [], mappings: [] } 
@@ -117,33 +118,39 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
 
   // ==========================================
   // AKILLI VERİ SENKRONİZASYONU (ÇIKIŞ YAPARKEN)
+  // SADECE "hasMadeChanges" TRUE İSE ÇALIŞIR
   // ==========================================
   const handleLogoutWithSync = async () => {
+    if (!hasMadeChanges) {
+       onLogout();
+       return;
+    }
+
     setIsSyncing(true);
     try {
       let dbUpdates = [];
       let smsQueue = [];
 
       for (let student of students) {
-        const zone = zones.find(z => z.id === student.zone?.id);
+        const zone = zones.find(z => z.id === student.zone?.id) || student.zone;
         if (!zone) continue;
 
         let updates = {};
         let needsSms = false;
         let smsText = "";
 
-        // 1. Sınav Yeri Atanması Durumu Kontrolü
+        // 1. Sınav Yeri Atanması Durumu
         const centerInfo = getNeighborhoodDetails(zone, student.district, student.neighborhood, student.gender);
         const hasValidCenter = centerInfo.centerName !== "Sınav Merkezi Bekleniyor";
         
-        if (student.isWaitingPool && hasValidCenter) {
+        if (student.isWaitingPool === true && hasValidCenter) {
            updates.isWaitingPool = false;
            needsSms = true;
            smsText = `Müjde! Sınav merkeziniz tanımlandı. Lütfen odullusinav.net üzerinden profilinize giriş yaparak oturumunuzu seçiniz.${SMS_FOOTER}`;
         }
 
-        // 2. Sınav Oturumu (Tarih/Saat) Geçerliliği Kontrolü
-        if (!student.isWaitingPool && student.examId) {
+        // 2. Sınav Oturumu Geçerliliği
+        if (student.examId) {
            const exam = exams.find(e => e.firebaseId === student.examId || e.id === student.examId);
            let validSlot = false;
            if (exam && exam.sessions) {
@@ -152,7 +159,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
                  validSlot = true;
               }
            }
-           // Eğer seçilen slot veya sınav silinmişse/değişmişse verisini sıfırla
+
            if (!validSlot && student.selectedDate && student.selectedTime) {
               updates.selectedDate = null;
               updates.selectedTime = null;
@@ -165,7 +172,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
            }
         }
 
-        // 3. Ödül Geçerliliği Kontrolü
+        // 3. Ödül Geçerliliği
         if (student.selectedParticipationPrize) {
            const partPrizesList = parsePrizeArray(zone.prizes?.participation);
            const prizeExists = partPrizesList.some(p => p.title === student.selectedParticipationPrize);
@@ -178,7 +185,6 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
            }
         }
 
-        // Değişiklikleri veritabanı kuyruğuna al
         if (Object.keys(updates).length > 0) {
            dbUpdates.push({
               ref: doc(db, 'artifacts', appId, 'public', 'data', 'students', student.firebaseId),
@@ -190,23 +196,20 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
         }
       }
 
-      // Veritabanını güncelle
       if (dbUpdates.length > 0) {
          const updatePromises = dbUpdates.map(u => updateDoc(u.ref, u.data));
          await Promise.all(updatePromises);
       }
 
-      // Değişiklikten etkilenen öğrencilere SMS at
       if (smsQueue.length > 0) {
          await sendSMS(smsQueue);
-         alert(`${smsQueue.length} öğrenciye yapılan değişiklikler nedeniyle otomatik bilgilendirme SMS'i gönderildi.`);
       }
 
     } catch(err) {
       console.error("Çıkış senkronizasyon hatası:", err);
     } finally {
       setIsSyncing(false);
-      onLogout(); // İşlemler bitince güvenle çıkış yaptırılır
+      onLogout(); 
     }
   };
 
@@ -240,8 +243,8 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
            const hasErkek = hoodMappings.some(m => m.gender === 'Erkek');
            const hasKiz = hoodMappings.some(m => m.gender === 'Kız');
 
-           if (hasTumu) return; // Sorun yok, karma atama yapılmış
-           if (hasErkek && hasKiz) return; // Sorun yok, ikisine de ayrı atanmış
+           if (hasTumu) return; // Karma atama var
+           if (hasErkek && hasKiz) return; // İkisine ayrı ayrı atanmış
            
            if (hoodMappings.length === 0) {
               missing.push({ zone: z.name, district: dist, neighborhood: hood, status: 'Hiç Tanımlanmamış' });
@@ -270,13 +273,11 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
 
   const handleUpdateStudentStatus = async (studentId, field, value) => {
     try {
+      setHasMadeChanges(true);
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', studentId), {
          [field]: value
       });
-    } catch(err) {
-      console.error(err);
-      alert("Durum güncellenemedi.");
-    }
+    } catch(err) { console.error(err); alert("Durum güncellenemedi."); }
   };
 
   const handleAddBlacklist = async () => {
@@ -284,6 +285,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
     if(p.length > 0 && p[0] !== '5') p = '5' + p;
     if(p.length !== 10) return alert("Lütfen 10 haneli geçerli bir telefon numarası giriniz.");
     try {
+      setHasMadeChanges(true);
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'blacklist'), { phone: p });
       setNewBlacklistPhone('');
       alert("Numara kara listeye eklendi.");
@@ -292,21 +294,20 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
 
   const handleRemoveBlacklist = async (id) => {
     try {
+      setHasMadeChanges(true);
       await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'blacklist', id));
     } catch(e) { console.error(e); }
   };
 
   const handleUpdatePrizes = async () => {
     try {
+      setHasMadeChanges(true);
       const targetZoneIds = isSuperAdmin ? INITIAL_ZONES.map(z => z.id) : [adminZoneId];
       for (const zId of targetZoneIds) {
          await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', zId.toString()), { prizes: localPrizes });
       }
-      alert(`Ödüller başarıyla ${isSuperAdmin ? 'tüm mıntıkalar için ' : ''}güncellendi!`);
-    } catch (e) {
-      console.error(e);
-      alert("Hata oluştu!");
-    }
+      alert(`Ödüller başarıyla güncellendi!`);
+    } catch (e) { console.error(e); }
   };
 
   const handleAddSessionRow = () => setExamSessions([...examSessions, { date: '', times: '' }]);
@@ -332,114 +333,80 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
     if(formattedSessions.length === 0) return alert("Lütfen en az bir geçerli tarih ve saat girin.");
 
     try {
+      setHasMadeChanges(true);
       const targetZoneIds = isSuperAdmin ? INITIAL_ZONES.map(z => z.id) : [adminZoneId];
-      
       for (const zId of targetZoneIds) {
          await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'exams'), {
-           zoneId: zId,
-           title: examData.title,
-           sessions: formattedSessions,
-           createdAt: new Date().getTime()
+           zoneId: zId, title: examData.title, sessions: formattedSessions, createdAt: new Date().getTime()
          });
       }
-      alert(`Sınav oturumları ${isSuperAdmin ? 'tüm mıntıkalara ' : ''}başarıyla eklendi!`);
-      setExamData({ title: '' });
-      setExamSessions([{ date: '', times: '' }]);
-    } catch (e) {
-      console.error(e);
-      alert("Bir hata oluştu");
-    }
+      alert(`Sınav oturumları başarıyla eklendi!`);
+      setExamData({ title: '' }); setExamSessions([{ date: '', times: '' }]);
+    } catch (e) { console.error(e); }
   };
 
   const handleDeleteExam = async (examId) => {
-      if(!window.confirm("Bu sınav oturumunu tamamen iptal etmek ve silmek istediğinize emin misiniz?")) return;
+      if(!window.confirm("Bu sınav oturumunu tamamen iptal etmek istediğinize emin misiniz?")) return;
       try {
+          setHasMadeChanges(true);
           await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'exams', examId));
-          alert("Sınav oturumu başarıyla silindi.");
-      } catch(e) {
-          console.error(e);
-          alert("Sınav silinirken bir hata oluştu.");
-      }
+      } catch(e) { console.error(e); }
   };
 
   const handleAddCenter = async () => {
     if(!newCenter.name || !newCenter.address) return alert("Kurum adı ve açık adres zorunludur.");
     try {
-      const centerObj = {
-        id: "c_" + new Date().getTime() + Math.random().toString(36).substr(2, 9),
-        name: newCenter.name,
-        address: newCenter.address,
-        mapLink: newCenter.mapLink || ""
-      };
+      setHasMadeChanges(true);
+      const centerObj = { id: "c_" + new Date().getTime() + Math.random().toString(36).substr(2, 9), name: newCenter.name, address: newCenter.address, mapLink: newCenter.mapLink || "" };
       const updatedCenters = [...adminCenters, centerObj];
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters });
-      alert("Sınav Merkezi eklendi!");
       setNewCenter({ name: '', address: '', mapLink: '' });
-    } catch (e) {
-      console.error(e);
-      alert("Hata oluştu.");
-    }
+    } catch (e) { console.error(e); }
   };
 
   const handleUpdateCenter = async (e) => {
     e.preventDefault();
     if(!editingCenter.name || !editingCenter.address) return alert("Adres ve isim zorunludur.");
     try {
+      setHasMadeChanges(true);
       const updatedCenters = adminCenters.map(c => c.id === editingCenter.id ? editingCenter : c);
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters });
       setEditingCenter(null);
-    } catch(err) {
-      console.error(err);
-    }
+    } catch(err) { console.error(err); }
   };
 
   const handleDeleteCenter = async (centerId) => {
-    if(!window.confirm("Bu kurumu silmek istediğinize emin misiniz? (Bağlı mahalleler etkilenebilir)")) return;
+    if(!window.confirm("Bu kurumu silmek istediğinize emin misiniz?")) return;
     try {
+      setHasMadeChanges(true);
       const updatedCenters = adminCenters.filter(c => c.id !== centerId);
       const updatedMappings = adminMappings.filter(m => m.centerId !== centerId); 
-      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { 
-        centers: updatedCenters,
-        mappings: updatedMappings
-      });
-    } catch (e) {
-      console.error(e);
-    }
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters, mappings: updatedMappings });
+    } catch (e) { console.error(e); }
   };
 
   const handleAddMapping = async () => {
     if(!mappingData.district || !mappingData.neighborhood || !mappingData.centerId) return alert("Lütfen ilçe, mahalle ve atanacak kurumu seçin.");
     try {
+      setHasMadeChanges(true);
       const newMappings = [...adminMappings];
       const existingIndex = newMappings.findIndex(m => m.district === mappingData.district && m.neighborhood === mappingData.neighborhood && m.gender === mappingData.gender);
       
-      const newMapObj = {
-        district: mappingData.district,
-        neighborhood: mappingData.neighborhood,
-        gender: mappingData.gender,
-        centerId: mappingData.centerId,
-        contactName: mappingData.contactName || "",
-        phone: mappingData.phone || "0850 123 45 67"
-      };
+      const newMapObj = { district: mappingData.district, neighborhood: mappingData.neighborhood, gender: mappingData.gender, centerId: mappingData.centerId, contactName: mappingData.contactName || "", phone: mappingData.phone || "0531 333 32 32" };
 
-      if (existingIndex >= 0) {
-        newMappings[existingIndex] = newMapObj;
-      } else {
-        newMappings.push(newMapObj);
-      }
+      if (existingIndex >= 0) newMappings[existingIndex] = newMapObj;
+      else newMappings.push(newMapObj);
       
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { mappings: newMappings });
-      alert(`${mappingData.district} / ${mappingData.neighborhood} (${mappingData.gender}) başarıyla kuruma atandı!`);
+      alert(`${mappingData.district} / ${mappingData.neighborhood} (${mappingData.gender}) atandı!`);
       setMappingData({ ...mappingData, neighborhood: '', contactName: '', phone: '' }); 
-    } catch (e) {
-      console.error(e);
-      alert("Bir hata oluştu");
-    }
+    } catch (e) { console.error(e); }
   };
 
   const handleBulkUploadExcel = async () => {
-    if(!bulkExcelData.trim()) return alert("Lütfen kopyaladığınız veriyi alana yapıştırın.");
+    if(!bulkExcelData.trim()) return alert("Lütfen veriyi yapıştırın.");
     
+    setHasMadeChanges(true);
     const rows = bulkExcelData.split('\n');
     let updatedCenters = [...adminCenters];
     let updatedMappings = [...adminMappings];
@@ -466,10 +433,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
            rawNeighborhood = parts[1].trim();
        }
 
-       if (!rawDistrict || !rawNeighborhood || !centerName) {
-           errors.push(`Satır ${rowIndex+1}: Eksik sütun verisi.`);
-           return;
-       }
+       if (!rawDistrict || !rawNeighborhood || !centerName) { errors.push(`Satır ${rowIndex+1}: Eksik.`); return; }
 
        phone = phone.replace(/\D/g, '');
        if (phone.length > 0 && phone[0] !== '5') { phone = '5' + phone; }
@@ -483,115 +447,66 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
 
        if (matchedDistrict) {
            let allHoodsForDistrict = [];
-           if(adminZoneData.partialDistricts && adminZoneData.partialDistricts[matchedDistrict]) {
-               allHoodsForDistrict = adminZoneData.partialDistricts[matchedDistrict];
-           } else {
-               for(let prov in LOCATIONS) {
-                   if(LOCATIONS[prov][matchedDistrict]) {
-                       allHoodsForDistrict = LOCATIONS[prov][matchedDistrict];
-                       break;
-                   }
-               }
-           }
+           if(adminZoneData.partialDistricts && adminZoneData.partialDistricts[matchedDistrict]) allHoodsForDistrict = adminZoneData.partialDistricts[matchedDistrict];
+           else for(let prov in LOCATIONS) if(LOCATIONS[prov][matchedDistrict]) { allHoodsForDistrict = LOCATIONS[prov][matchedDistrict]; break; }
            matchedNeighborhood = allHoodsForDistrict.find(h => normalizeForSearch(h) === normNeighborhood);
        }
 
-       if (!matchedDistrict || !matchedNeighborhood) {
-           errors.push(`Satır ${rowIndex+1}: "${rawDistrict} / ${rawNeighborhood}" veritabanındaki kayıtlı bölgelerle eşleşmedi.`);
-           return; 
-       }
+       if (!matchedDistrict || !matchedNeighborhood) { errors.push(`Satır ${rowIndex+1}: Eşleşmedi.`); return; }
        
        let center = updatedCenters.find(c => normalizeForSearch(c.name) === normalizeForSearch(centerName));
        if(!center) {
-          center = {
-             id: "c_" + new Date().getTime() + Math.random().toString(36).substr(2, 9),
-             name: centerName,
-             address: address || `${matchedDistrict} / ${matchedNeighborhood}`, 
-             mapLink: mapLink
-          };
+          center = { id: "c_" + new Date().getTime() + Math.random().toString(36).substr(2, 9), name: centerName, address: address || `${matchedDistrict} / ${matchedNeighborhood}`, mapLink: mapLink };
           updatedCenters.push(center);
        }
        
        const existingMapIndex = updatedMappings.findIndex(m => m.district === matchedDistrict && m.neighborhood === matchedNeighborhood && m.gender === rawGender);
        const newMapObj = { district: matchedDistrict, neighborhood: matchedNeighborhood, gender: rawGender, centerId: center.id, contactName, phone };
        
-       if(existingMapIndex >= 0) {
-          updatedMappings[existingIndex] = newMapObj;
-       } else {
-          updatedMappings.push(newMapObj);
-       }
+       if(existingMapIndex >= 0) updatedMappings[existingIndex] = newMapObj;
+       else updatedMappings.push(newMapObj);
        successCount++;
     });
 
-    if (errors.length > 0) {
-        alert("Aşağıdaki satırlar veritabanında bulunamadığı için İPTAL EDİLDİ:\n\n" + errors.join('\n'));
-    }
-
+    if (errors.length > 0) alert("Eksik/Hatalı satırlar atlandı:\n" + errors.join('\n'));
     if (successCount > 0) {
       try {
-        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { 
-          centers: updatedCenters,
-          mappings: updatedMappings
-        });
-        alert(`İşlem Tamamlandı! ${successCount} mahalle başarıyla eşleştirildi ve eklendi.`);
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters, mappings: updatedMappings });
+        alert(`${successCount} kayıt eklendi.`);
         setBulkExcelData("");
-      } catch(err) {
-        console.error(err);
-        alert("Toplu yükleme sırasında hata oluştu.");
-      }
+      } catch(err) { console.error(err); }
     }
   };
 
   const handleDeleteMapping = async (district, neighborhood, gender) => {
     try {
+      setHasMadeChanges(true);
       const updatedMappings = adminMappings.filter(m => !(m.district === district && m.neighborhood === neighborhood && m.gender === gender));
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { mappings: updatedMappings });
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
   };
 
   const handleSaveResult = async () => {
     const student = resultModal.student;
-    const pastExam = {
-        id: student.examId || student.exam?.firebaseId,
-        title: student.examTitle || student.exam?.title,
-        date: student.selectedDate || student.exam?.date,
-        time: student.selectedTime || student.slot,
-        score: resultModal.score,
-        rank: resultModal.rank
-    };
+    const pastExam = { id: student.examId || student.exam?.firebaseId, title: student.examTitle || student.exam?.title, date: student.selectedDate || student.exam?.date, time: student.selectedTime || student.slot, score: resultModal.score, rank: resultModal.rank };
     const pastExams = [...(student.pastExams || []), pastExam];
 
     try {
+      setHasMadeChanges(true);
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', student.firebaseId), {
-          pastExams: pastExams,
-          examId: null,
-          examTitle: null,
-          selectedDate: null,
-          selectedTime: null,
-          exam: null, 
-          slot: null,
-          selectedDegreePrize: null,
-          selectedParticipationPrize: null
+          pastExams: pastExams, examId: null, examTitle: null, selectedDate: null, selectedTime: null, exam: null, slot: null, selectedDegreePrize: null, selectedParticipationPrize: null
       });
       setResultModal({ isOpen: false, student: null, score: '', rank: '' });
-      alert("Sonuç başarıyla kaydedildi! Sınav öğrencinin geçmiş sonuçlarına taşındı.");
-    } catch (err) {
-      console.error("Sonuç girerken hata:", err);
-      alert("Sonuç kaydedilemedi.");
-    }
+      alert("Sonuç kaydedildi.");
+    } catch (err) { console.error(err); }
   };
 
   const handleDeleteStudent = async (studentId, studentName) => {
-    if(window.confirm(`${studentName} isimli öğrencinin kaydını sistemden KALICI olarak silmek istediğinize emin misiniz?`)) {
+    if(window.confirm(`${studentName} silinsin mi?`)) {
       try {
+        setHasMadeChanges(true);
         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', studentId));
-        alert("Öğrenci kaydı başarıyla silindi.");
-      } catch (e) {
-        console.error(e);
-        alert("Öğrenci silinirken bir hata oluştu.");
-      }
+      } catch (e) { console.error(e); }
     }
   };
 
@@ -602,39 +517,28 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
     const validStudents = targetStudents.filter(s => s.phone && s.phone.length >= 10);
     
     if (validStudents.length === 0) {
-      alert("Gönderilecek geçerli bir numara bulunamadı.");
+      alert("Gönderilecek numara yok.");
       setSmsModal({ ...smsModal, loading: false, isOpen: false, targetStudent: null });
       return;
     }
 
     const msgDataArray = validStudents.map(student => {
-      const stdCenter = getNeighborhoodDetails(adminZoneData, student.district, student.neighborhood, student.gender);
+      const zone = isSuperAdmin ? (zones.find(z => z.id === student.zone?.id) || student.zone) : adminZoneData;
+      const stdCenter = getNeighborhoodDetails(zone, student.district, student.neighborhood, student.gender);
       let text = "";
 
-      if (smsModal.type === 'custom') {
-        text = smsModal.customMsg;
-      } else if (smsModal.type === 'announcement') {
-        text = `🎯 Büyük fırsat yeniden kapında!\n\nDaha önce katıldığın ödüllü denemeyi hatırlıyor musun? Şimdi çok daha heyecanlısı geliyor! 🚀\n\nYeni ödüllü denememizde yine katılan HERKES kendi seçtiği ödülü kazanma şansı yakalıyor 🎁\nÜstelik dereceye girenleri çok daha büyük sürprizler bekliyor! 🏆🔥\n\nBu fırsatı kaçırma, yerini hemen ayırt!\n👉 Kayıt olmak ve detayları öğrenmek için: odullusinav.net\n\nHadi, bir adım öne geçme zamanı! 💥`;
-      } else if (smsModal.type === 'reminder') {
-        text = `🚀 Sınav heyecanı başlıyor!\n\nYaklaşan sınavımız için kayıtlar tüm hızıyla devam ediyor! 🎉\nSen de yerini almayı unutma — başarıya giden yol burada başlıyor!\n\nÜstelik bu heyecanı tek başına yaşamak zorunda değilsin…\nArkadaşlarını da sınava davet et, birlikte kazanmanın keyfini çıkar! 💪🔥\n\nDetayları öğrenmek ve sınav oturumunla ilgili düzenlemeleri yapmak için hemen\n👉 odullusinav.net üzerinden profiline giriş yap!\n\nHadi, şimdi harekete geçme zamanı! ⏳✨`;
-      } else if (smsModal.type === 'results') {
-        text = `Tebrikler! ${student.fullName || 'Öğrencimiz'}, sınav sonuçlarınız açıklanmıştır.\nPuan ve derecenizi odullusinav.net üzerinden öğrenebilirsiniz.\nBirebir analiz ve ödülleriniz için sınav merkezimizden randevu alabilirsiniz.\nSınav Merkezi: ${stdCenter.centerName}\nİletişim: ${stdCenter.phone}\nAdres: ${stdCenter.address}\nKonum: ${stdCenter.mapLink}`;
-      }
+      if (smsModal.type === 'custom') text = smsModal.customMsg;
+      else if (smsModal.type === 'announcement') text = `🎯 Büyük fırsat yeniden kapında!\n\nDaha önce katıldığın ödüllü denemeyi hatırlıyor musun? Şimdi çok daha heyecanlısı geliyor! 🚀\n\nYeni ödüllü denememizde yine katılan HERKES kendi seçtiği ödülü kazanma şansı yakalıyor 🎁\nÜstelik dereceye girenleri çok daha büyük sürprizler bekliyor! 🏆🔥\n\nBu fırsatı kaçırma, yerini hemen ayırt!\n👉 Kayıt olmak ve detayları öğrenmek için: odullusinav.net\n\nHadi, bir adım öne geçme zamanı! 💥`;
+      else if (smsModal.type === 'reminder') text = `🚀 Sınav heyecanı başlıyor!\n\nYaklaşan sınavımız için kayıtlar tüm hızıyla devam ediyor! 🎉\nSen de yerini almayı unutma — başarıya giden yol burada başlıyor!\n\nÜstelik bu heyecanı tek başına yaşamak zorunda değilsin…\nArkadaşlarını da sınava davet et, birlikte kazanmanın keyfini çıkar! 💪🔥\n\nDetayları öğrenmek ve sınav oturumunla ilgili düzenlemeleri yapmak için hemen\n👉 odullusinav.net üzerinden profiline giriş yap!\n\nHadi, şimdi harekete geçme zamanı! ⏳✨`;
+      else if (smsModal.type === 'results') text = `Tebrikler! ${student.fullName || 'Öğrencimiz'}, sınav sonuçlarınız açıklanmıştır.\nPuan ve derecenizi odullusinav.net üzerinden öğrenebilirsiniz.\nBirebir analiz ve ödülleriniz için sınav merkezimizden randevu alabilirsiniz.\nSınav Merkezi: ${stdCenter.centerName}\nİletişim: ${stdCenter.phone}\nAdres: ${stdCenter.address}\nKonum: ${stdCenter.mapLink}`;
 
       text += SMS_FOOTER;
-
-      return {
-        tel: [student.phone],
-        msg: text
-      };
+      return { tel: [student.phone], msg: text };
     });
 
     const result = await sendSMS(msgDataArray);
-    if(result !== false) {
-      alert(`${msgDataArray.length} öğrenciye mesajlar başarıyla iletildi!`);
-    } else {
-      alert("SMS gönderimi başarısız oldu. Lütfen bağlantınızı kontrol ediniz.");
-    }
+    if(result !== false) alert(`${msgDataArray.length} öğrenciye SMS iletildi!`);
+    else alert("SMS gönderimi başarısız.");
     
     setSmsModal({ isOpen: false, type: 'custom', customMsg: '', loading: false, targetStudent: null });
   };
@@ -651,7 +555,6 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
         const activeExam = (s.examTitle || s.exam?.title) ? `${s.examTitle || s.exam?.title} (${s.selectedDate || s.exam?.date} ${s.selectedTime || s.slot})` : 'Yok / Beklemede';
         const score = lastPast ? lastPast.score : '-';
         const rank = lastPast ? lastPast.rank : '-';
-
         const clean = str => String(str || '').replace(/;/g, ' ').replace(/\n/g, ' ');
 
         const row = `${clean(s.fullName)};${clean(s.parentName)};${clean(s.phone)};${clean(s.grade)};${clean(s.gender)};${clean(s.schoolName)};${clean(s.district)};${clean(s.neighborhood)};${clean(center)};${clean(activeExam)};${clean(score)};${clean(rank)};${clean(s.attendance)};${clean(s.interview)};${clean(s.interviewResult)}`;
@@ -685,10 +588,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
       allHoods = adminZoneData.partialDistricts[district].sort();
     } else {
       for(let prov in LOCATIONS) {
-         if(LOCATIONS[prov][district]) {
-             allHoods = LOCATIONS[prov][district].sort();
-             break;
-         }
+         if(LOCATIONS[prov][district]) { allHoods = LOCATIONS[prov][district].sort(); break; }
       }
     }
     return allHoods;

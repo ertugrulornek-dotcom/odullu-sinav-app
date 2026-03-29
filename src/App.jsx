@@ -4,7 +4,7 @@ import { db, auth, appId } from './services/firebase';
 import { collection, onSnapshot, setDoc, doc } from "firebase/firestore";
 import { signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "firebase/auth";
 import { INITIAL_ZONES } from './data/constants';
-import { getNeighborhoodDetails } from './utils/helpers';
+import { getNeighborhoodDetails, findZoneByName } from './utils/helpers';
 
 // Sayfalar
 import LandingPage from './pages/LandingPage';
@@ -130,7 +130,9 @@ export default function App() {
     );
   }
 
-  const userLocDetails = currentUser ? getNeighborhoodDetails(currentUser.zone, currentUser.district, currentUser.neighborhood) : null;
+  // CANLI (LIVE) ZONE BİLGİSİNİ ALIR
+  const liveZone = currentUser ? (findZoneByName(zones, currentUser.zone?.name) || currentUser.zone) : null;
+  const userLocDetails = currentUser ? getNeighborhoodDetails(liveZone, currentUser.district, currentUser.neighborhood, currentUser.gender) : null;
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
@@ -138,7 +140,7 @@ export default function App() {
         <div className="flex items-center space-x-4">
           <span className="flex items-center font-bold">
             <Phone className="w-3.5 h-3.5 mr-1 text-indigo-300"/> 
-            {userLocDetails ? userLocDetails.phone : "0553 973 54 40"}
+            {userLocDetails ? userLocDetails.phone : "0531 333 32 32"}
           </span>
           <span className="hidden sm:flex items-center font-bold">
             <MapPin className="w-3.5 h-3.5 mr-1 text-indigo-300"/> 
@@ -166,7 +168,7 @@ export default function App() {
                 <button onClick={() => scrollToSection('sinav-provasi')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Sınav Provası</button>
                 <button onClick={() => scrollToSection('analiz')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Birebir Analiz</button>
                 <button onClick={() => scrollToSection('burs')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Eğitim Bursları</button>
-                <button onClick={() => scrollToSection('tanitim')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Tanıtım</button>
+                <button onClick={() => scrollToSection('tanitim')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Deneme Tanıtımı</button>
                 <button onClick={() => scrollToSection('oduller')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Ödül</button>
                 <button onClick={() => scrollToSection('takvim')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Sınav Takvimi</button>
              </div>

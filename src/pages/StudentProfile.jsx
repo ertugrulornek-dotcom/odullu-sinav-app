@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Settings, Lock, CalendarIcon, Clock, MapPin, Map, Phone, FileText, Award, Trophy } from 'lucide-react';
+import { Plus, Settings, Lock, CalendarIcon, Clock, MapPin, Map, Phone, FileText, Award, Trophy, ChevronRight } from 'lucide-react';
 import { db, appId } from '../services/firebase';
 import { doc, updateDoc } from "firebase/firestore";
 import { getNeighborhoodDetails, findZoneByName, parsePrizeArray } from '../utils/helpers';
@@ -15,10 +15,12 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
 
   const hasActiveExam = !!(currentUser.examId || currentUser.examTitle || currentUser.exam);
   const pastExams = currentUser.pastExams || [];
-  const neighborhoodDetails = getNeighborhoodDetails(currentUser.zone, currentUser.district, currentUser.neighborhood);
-  const zoneExams = exams.filter(e => e.zoneId === currentUser?.zone?.id);
-
-  const matchedZone = findZoneByName(zones, currentUser?.zone?.name || '');
+  
+  // CANLI VERİDEN ÇEKİLİR, BÖYLECE EĞER ADMİN YENİ KURUM EKLERSE ÖĞRENCİ ANINDA GÖRÜR
+  const matchedZone = findZoneByName(zones, currentUser?.zone?.name || '') || currentUser?.zone;
+  const neighborhoodDetails = getNeighborhoodDetails(matchedZone, currentUser.district, currentUser.neighborhood, currentUser.gender);
+  
+  const zoneExams = exams.filter(e => e.zoneId === matchedZone?.id);
   const partPrizesList = parsePrizeArray(matchedZone?.prizes?.participation);
 
   let isExamTimePassed = false;
@@ -112,7 +114,7 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
             </div>
             <div className="pt-24 pb-10 px-10">
               <h2 className="text-3xl font-black text-slate-900 mb-2">{currentUser?.fullName}</h2>
-              <p className="text-indigo-600 font-black text-lg mb-8">{currentUser?.grade}. Sınıf Öğrencisi</p>
+              <p className="text-indigo-600 font-black text-lg mb-8">{currentUser?.grade}. Sınıf - {currentUser?.gender}</p>
               
               <div className="space-y-5 bg-slate-50 p-6 rounded-2xl border border-slate-100">
                 <div className="flex justify-between items-center text-base border-b border-slate-200 pb-4">

@@ -27,14 +27,17 @@ export const determineZoneName = (province, district, neighborhood) => {
 };
 
 export const getNeighborhoodDetails = (zone, district, neighborhood, gender = null) => {
-  // Varsayılan telefon numarası isteğinize göre değiştirildi
   const defaultDetails = { phone: "0531 333 32 32", centerName: "Sınav Merkezi Bekleniyor", address: "", mapLink: "", contactName: "" };
   if (!zone || !zone.mappings || !zone.centers) return defaultDetails;
   
-  let map;
+  let map = null;
+
+  // 1. Önce öğrencinin cinsiyetine (Erkek/Kız) özel atama yapılmış mı kontrol et
   if (gender) {
     map = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood && m.gender === gender);
   }
+
+  // 2. Eğer cinsiyete özel atama yoksa "Tümü" veya cinsiyetsiz bırakılmış genel atamayı bul
   if (!map) {
     map = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood && (!m.gender || m.gender === 'Tümü'));
   }
@@ -51,4 +54,4 @@ export const getNeighborhoodDetails = (zone, district, neighborhood, gender = nu
     address: center.address,
     mapLink: center.mapLink
   };
-};
+  };
