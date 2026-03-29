@@ -393,6 +393,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
     } catch (e) { console.error(e); }
   };
 
+  // AKILLI EXCEL TOPLU EKLEME ALGORİTMASI
   const handleBulkUploadExcel = async () => {
     if(!bulkExcelData.trim()) return alert("Lütfen veriyi yapıştırın.");
     
@@ -414,26 +415,30 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
        
        let rawDistrict = cols[0]?.trim();
        let rawNeighborhood = cols[1]?.trim();
-       let rawGender = cols[2]?.trim(); 
-       
-       let gender = 'Tümü';
-       if(rawGender) {
-           const gLow = rawGender.toLowerCase();
-           if(gLow === 'erkek') gender = 'Erkek';
-           else if(gLow === 'kız' || gLow === 'kiz') gender = 'Kız';
-       }
-
-       let centerName = cols[3]?.trim();
-       let contactName = cols[4] ? cols[4].trim() : "";
-       let phone = cols[5] ? cols[5].trim() : "";
-       let address = cols[6] ? cols[6].trim() : "";
-       let mapLink = cols[7] ? cols[7].trim() : "";
 
        if (rawDistrict.includes('/') && !rawNeighborhood) {
            const parts = rawDistrict.split('/');
            rawDistrict = parts[0].trim();
            rawNeighborhood = parts[1].trim();
        }
+
+       // Sütun Kaymasını Önleyen Akıllı Cinsiyet Tespiti
+       let rawGender = "Tümü";
+       let colOffset = 2; // Eğer 3. sütun cinsiyet değilse, 3. sütun direkt Kurum Adıdır.
+       
+       const potentialGender = cols[2]?.trim().toLowerCase();
+       if (['erkek', 'kız', 'kiz', 'tümü', 'tumu', 'karma'].includes(potentialGender)) {
+           if (potentialGender === 'erkek') rawGender = 'Erkek';
+           else if (potentialGender === 'kız' || potentialGender === 'kiz') rawGender = 'Kız';
+           else rawGender = 'Tümü';
+           colOffset = 3; // Cinsiyet bulunduysa, kurum adı 4. sütundadır.
+       }
+
+       let centerName = cols[colOffset]?.trim();
+       let contactName = cols[colOffset+1] ? cols[colOffset+1].trim() : "";
+       let phone = cols[colOffset+2] ? cols[colOffset+2].trim() : "";
+       let address = cols[colOffset+3] ? cols[colOffset+3].trim() : "";
+       let mapLink = cols[colOffset+4] ? cols[colOffset+4].trim() : "";
 
        if (!rawDistrict || !rawNeighborhood || !centerName) { 
            errors.push(`Satır ${i+1}: İlçe, Mahalle veya Kurum Adı boş olamaz.`); 
@@ -479,8 +484,8 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
           updatedCenters.push(center);
        }
        
-       const existingMapIndex = updatedMappings.findIndex(m => m.district === matchedDistrict && m.neighborhood === matchedNeighborhood && m.gender === gender);
-       const newMapObj = { district: matchedDistrict, neighborhood: matchedNeighborhood, gender: gender, centerId: center.id, contactName, phone };
+       const existingMapIndex = updatedMappings.findIndex(m => m.district === matchedDistrict && m.neighborhood === matchedNeighborhood && m.gender === rawGender);
+       const newMapObj = { district: matchedDistrict, neighborhood: matchedNeighborhood, gender: rawGender, centerId: center.id, contactName, phone };
        
        if(existingMapIndex >= 0) updatedMappings[existingIndex] = newMapObj;
        else updatedMappings.push(newMapObj);
@@ -624,11 +629,9 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
        const hasErkek = hoodMappings.some(m => m.gender === 'Erkek');
        const hasKiz = hoodMappings.some(m => m.gender === 'Kız');
 
-       // Eğer Tümü atanmışsa artık o mahalle hiçbir listeye çıkmaz (doldu).
        if (hasTumu) return false; 
        
        if (gender === 'Tümü') {
-          // Eğer Tümü seçecekse, Erkek veya Kız ataması bile olmamalı
           return !(hasErkek || hasKiz);
        }
        if (gender === 'Erkek') return !hasErkek;
@@ -883,7 +886,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
         </div>
       )}
 
-      {/* 2. YENİ SEKMEYE AİT İÇERİKLER: Sınav Merkezleri ve Atamalar (Sadece Normal Adminler Görür) */}
+      {/* 2. YENİ SEKMEYE AİT İÇERİKLER: Sınav Merkezleri ve Atamalar */}
       {activeTab === 'merkezler' && !isSuperAdmin && (
          <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12 animate-in fade-in zoom-in-95 duration-300">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b-2 border-slate-100 pb-8 gap-4">
@@ -919,7 +922,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
                  <div>
                     <div className="text-sm font-black text-emerald-600 uppercase mb-4 tracking-wider flex items-center"><FileText className="w-6 h-6 mr-2"/> Toplu Ekle (Excel'den Yapıştır)</div>
                     <div className="space-y-4 bg-emerald-50/50 p-6 rounded-3xl border-2 border-emerald-100">
-                       <p className="text-xs font-bold text-emerald-800 mb-2">Excel tablonuzdaki şu sütunları seçip kopyalayın ve aşağıdaki alana yapıştırın:<br/><br/><b>İlçe | Mahalle | Cinsiyet (Erkek/Kız/Tümü) | Kurum Adı | Sorumlu Hoca | Telefon | Açık Adres | Harita Linki</b></p>
+                       <p className="text-xs font-bold text-emerald-800 mb-2">Excel tablonuzdaki şu sütunları seçip kopyalayın ve aşağıdaki alana yapıştırın:<br/><br/><b>İlçe | Mahalle | Cinsiyet (İsteğe Bağlı) | Kurum Adı | Sorumlu Hoca | Telefon | Açık Adres | Harita Linki</b></p>
                        <textarea 
                          rows="5" 
                          value={bulkExcelData}
@@ -973,6 +976,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
                            <h5 className="text-xs font-black text-indigo-500 uppercase tracking-widest mb-3">Mahalle Bağla (Önce Cinsiyet Seçin)</h5>
                            <div className="flex flex-col sm:flex-row gap-3">
                               
+                              {/* 1. ÖNCE CİNSİYET SEÇİMİ */}
                               <select 
                                 className="w-full sm:w-1/6 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white"
                                 value={mappingData.gender}
@@ -983,6 +987,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
                                 <option value="Kız">Kız</option>
                               </select>
 
+                              {/* 2. İLÇE SEÇİMİ */}
                               <select 
                                 className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white disabled:opacity-50"
                                 disabled={!mappingData.gender}
@@ -992,9 +997,10 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
                                 {adminDistricts.map(d => <option key={d} value={d}>{d}</option>)}
                               </select>
 
+                              {/* 3. MAHALLE SEÇİMİ (CİNSİYETE GÖRE FİLTRELENİR) */}
                               <select 
                                 className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white disabled:opacity-50"
-                                disabled={!mappingData.district}
+                                disabled={!mappingData.district || !mappingData.gender}
                                 value={mappingData.neighborhood}
                                 onChange={e => setMappingData({...mappingData, neighborhood: e.target.value, centerId: center.id})}>
                                 <option value="">Atanmamış Mahalle Seç</option>
