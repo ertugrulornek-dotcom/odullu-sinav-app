@@ -70,7 +70,7 @@ export function AdminLogin({ setAdminAuth, zones }) {
 export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exams }) {
   const [activeTab, setActiveTab] = useState('ayarlar'); 
   const [isSyncing, setIsSyncing] = useState(false); 
-  const [hasMadeChanges, setHasMadeChanges] = useState(false); // DEĞİŞİKLİK KONTROLÜ
+  const [hasMadeChanges, setHasMadeChanges] = useState(false);
   
   const adminZoneData = isSuperAdmin 
      ? { id: 'ALL', name: "Genel Merkez (Tüm Mıntıkalar)", active: true, districts: [], prizes: {grand: DEFAULT_PRIZE_OBJ, degree: [], participation: []}, centers: [], mappings: [] } 
@@ -83,7 +83,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
   const [examData, setExamData] = useState({ title: '' });
   const [examSessions, setExamSessions] = useState([{ date: '', times: '' }]);
   const [newCenter, setNewCenter] = useState({ name: '', address: '', mapLink: '' });
-  const [mappingData, setMappingData] = useState({ district: '', neighborhood: '', centerId: '', gender: 'Tümü', contactName: '', phone: '' });
+  const [mappingData, setMappingData] = useState({ district: '', neighborhood: '', centerId: '', gender: '', contactName: '', phone: '' });
   const [resultModal, setResultModal] = useState({ isOpen: false, student: null, score: '', rank: '' });
   const [smsModal, setSmsModal] = useState({ isOpen: false, type: 'custom', customMsg: '', loading: false, targetStudent: null });
   const [bulkExcelData, setBulkExcelData] = useState("");
@@ -116,10 +116,6 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
   const adminCenters = adminZoneData.centers || [];
   const adminMappings = adminZoneData.mappings || [];
 
-  // ==========================================
-  // AKILLI VERİ SENKRONİZASYONU (ÇIKIŞ YAPARKEN)
-  // SADECE "hasMadeChanges" TRUE İSE ÇALIŞIR
-  // ==========================================
   const handleLogoutWithSync = async () => {
     if (!hasMadeChanges) {
        onLogout();
@@ -139,7 +135,6 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
         let needsSms = false;
         let smsText = "";
 
-        // 1. Sınav Yeri Atanması Durumu
         const centerInfo = getNeighborhoodDetails(zone, student.district, student.neighborhood, student.gender);
         const hasValidCenter = centerInfo.centerName !== "Sınav Merkezi Bekleniyor";
         
@@ -149,7 +144,6 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
            smsText = `Müjde! Sınav merkeziniz tanımlandı. Lütfen odullusinav.net üzerinden profilinize giriş yaparak oturumunuzu seçiniz.${SMS_FOOTER}`;
         }
 
-        // 2. Sınav Oturumu Geçerliliği
         if (student.examId) {
            const exam = exams.find(e => e.firebaseId === student.examId || e.id === student.examId);
            let validSlot = false;
@@ -172,7 +166,6 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
            }
         }
 
-        // 3. Ödül Geçerliliği
         if (student.selectedParticipationPrize) {
            const partPrizesList = parsePrizeArray(zone.prizes?.participation);
            const prizeExists = partPrizesList.some(p => p.title === student.selectedParticipationPrize);
@@ -213,9 +206,6 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
     }
   };
 
-  // ==========================================
-  // MAHALLE İSTATİSTİKLERİ HESAPLAMALARI
-  // ==========================================
   const getZoneTotalHoods = (zone) => {
     let count = 0;
     if (zone.districts) {
@@ -243,8 +233,8 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
            const hasErkek = hoodMappings.some(m => m.gender === 'Erkek');
            const hasKiz = hoodMappings.some(m => m.gender === 'Kız');
 
-           if (hasTumu) return; // Karma atama var
-           if (hasErkek && hasKiz) return; // İkisine ayrı ayrı atanmış
+           if (hasTumu) return; 
+           if (hasErkek && hasKiz) return; 
            
            if (hoodMappings.length === 0) {
               missing.push({ zone: z.name, district: dist, neighborhood: hood, status: 'Hiç Tanımlanmamış' });
@@ -357,7 +347,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
     if(!newCenter.name || !newCenter.address) return alert("Kurum adı ve açık adres zorunludur.");
     try {
       setHasMadeChanges(true);
-      const centerObj = { id: "c_" + new Date().getTime() + Math.random().toString(36).substr(2, 9), name: newCenter.name, address: newCenter.address, mapLink: newCenter.mapLink || "" };
+      const centerObj = { id: "c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9), name: newCenter.name, address: newCenter.address, mapLink: newCenter.mapLink || "" };
       const updatedCenters = [...adminCenters, centerObj];
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters });
       setNewCenter({ name: '', address: '', mapLink: '' });
@@ -386,7 +376,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
   };
 
   const handleAddMapping = async () => {
-    if(!mappingData.district || !mappingData.neighborhood || !mappingData.centerId) return alert("Lütfen ilçe, mahalle ve atanacak kurumu seçin.");
+    if(!mappingData.gender || !mappingData.district || !mappingData.neighborhood || !mappingData.centerId) return alert("Lütfen Cinsiyet, İlçe, Mahalle ve atanacak kurumu seçin.");
     try {
       setHasMadeChanges(true);
       const newMappings = [...adminMappings];
@@ -406,21 +396,33 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
   const handleBulkUploadExcel = async () => {
     if(!bulkExcelData.trim()) return alert("Lütfen veriyi yapıştırın.");
     
-    setHasMadeChanges(true);
     const rows = bulkExcelData.split('\n');
     let updatedCenters = [...adminCenters];
     let updatedMappings = [...adminMappings];
     let successCount = 0;
     let errors = [];
 
-    rows.forEach((row, rowIndex) => {
-       if(!row.trim()) return;
+    for (let i = 0; i < rows.length; i++) {
+       let row = rows[i];
+       if(!row.trim()) continue;
+       
        const cols = row.split('\t');
-       if(cols.length < 3) return; 
+       if(cols.length < 3) {
+           errors.push(`Satır ${i+1}: Sütunlar eksik.`);
+           continue;
+       }
        
        let rawDistrict = cols[0]?.trim();
        let rawNeighborhood = cols[1]?.trim();
-       let rawGender = cols[2]?.trim() || "Tümü"; 
+       let rawGender = cols[2]?.trim(); 
+       
+       let gender = 'Tümü';
+       if(rawGender) {
+           const gLow = rawGender.toLowerCase();
+           if(gLow === 'erkek') gender = 'Erkek';
+           else if(gLow === 'kız' || gLow === 'kiz') gender = 'Kız';
+       }
+
        let centerName = cols[3]?.trim();
        let contactName = cols[4] ? cols[4].trim() : "";
        let phone = cols[5] ? cols[5].trim() : "";
@@ -433,11 +435,15 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
            rawNeighborhood = parts[1].trim();
        }
 
-       if (!rawDistrict || !rawNeighborhood || !centerName) { errors.push(`Satır ${rowIndex+1}: Eksik.`); return; }
+       if (!rawDistrict || !rawNeighborhood || !centerName) { 
+           errors.push(`Satır ${i+1}: İlçe, Mahalle veya Kurum Adı boş olamaz.`); 
+           continue; 
+       }
 
        phone = phone.replace(/\D/g, '');
        if (phone.length > 0 && phone[0] !== '5') { phone = '5' + phone; }
        if (phone.length > 10) phone = phone.substring(0, 10);
+       if (!phone) phone = "0531 333 32 32";
 
        const normDistrict = normalizeForSearch(rawDistrict);
        const normNeighborhood = normalizeForSearch(rawNeighborhood);
@@ -447,34 +453,54 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
 
        if (matchedDistrict) {
            let allHoodsForDistrict = [];
-           if(adminZoneData.partialDistricts && adminZoneData.partialDistricts[matchedDistrict]) allHoodsForDistrict = adminZoneData.partialDistricts[matchedDistrict];
-           else for(let prov in LOCATIONS) if(LOCATIONS[prov][matchedDistrict]) { allHoodsForDistrict = LOCATIONS[prov][matchedDistrict]; break; }
+           if(adminZoneData.partialDistricts && adminZoneData.partialDistricts[matchedDistrict]) {
+               allHoodsForDistrict = adminZoneData.partialDistricts[matchedDistrict];
+           } else {
+               for(let prov in LOCATIONS) {
+                   if(LOCATIONS[prov][matchedDistrict]) { allHoodsForDistrict = LOCATIONS[prov][matchedDistrict]; break; }
+               }
+           }
            matchedNeighborhood = allHoodsForDistrict.find(h => normalizeForSearch(h) === normNeighborhood);
        }
 
-       if (!matchedDistrict || !matchedNeighborhood) { errors.push(`Satır ${rowIndex+1}: Eşleşmedi.`); return; }
+       if (!matchedDistrict || !matchedNeighborhood) { 
+           errors.push(`Satır ${i+1}: Veritabanında "${rawDistrict}" ilçesinde "${rawNeighborhood}" bulunamadı.`); 
+           continue; 
+       }
        
        let center = updatedCenters.find(c => normalizeForSearch(c.name) === normalizeForSearch(centerName));
        if(!center) {
-          center = { id: "c_" + new Date().getTime() + Math.random().toString(36).substr(2, 9), name: centerName, address: address || `${matchedDistrict} / ${matchedNeighborhood}`, mapLink: mapLink };
+          center = { 
+             id: "c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9), 
+             name: centerName, 
+             address: address || `${matchedDistrict} / ${matchedNeighborhood}`, 
+             mapLink: mapLink 
+          };
           updatedCenters.push(center);
        }
        
-       const existingMapIndex = updatedMappings.findIndex(m => m.district === matchedDistrict && m.neighborhood === matchedNeighborhood && m.gender === rawGender);
-       const newMapObj = { district: matchedDistrict, neighborhood: matchedNeighborhood, gender: rawGender, centerId: center.id, contactName, phone };
+       const existingMapIndex = updatedMappings.findIndex(m => m.district === matchedDistrict && m.neighborhood === matchedNeighborhood && m.gender === gender);
+       const newMapObj = { district: matchedDistrict, neighborhood: matchedNeighborhood, gender: gender, centerId: center.id, contactName, phone };
        
        if(existingMapIndex >= 0) updatedMappings[existingIndex] = newMapObj;
        else updatedMappings.push(newMapObj);
+       
        successCount++;
-    });
+    }
 
     if (errors.length > 0) alert("Eksik/Hatalı satırlar atlandı:\n" + errors.join('\n'));
     if (successCount > 0) {
       try {
+        setHasMadeChanges(true);
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters, mappings: updatedMappings });
-        alert(`${successCount} kayıt eklendi.`);
+        alert(`${successCount} adet mahalle ataması başarıyla kaydedildi.`);
         setBulkExcelData("");
-      } catch(err) { console.error(err); }
+      } catch(err) { 
+        console.error(err); 
+        alert("Veritabanına kaydedilirken hata oluştu.");
+      }
+    } else {
+        alert("Hiç geçerli veri bulunamadı. Kopyaladığınız Excel formatını kontrol edin.");
     }
   };
 
@@ -581,21 +607,38 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
     return dists.sort();
   };
 
-  const getAdminNeighborhoods = (district) => {
+  const getAdminUnmappedNeighborhoods = (district, gender) => {
+    if(!district || !gender) return [];
     let allHoods = [];
-    if(!district) return [];
     if(adminZoneData.partialDistricts && adminZoneData.partialDistricts[district]) {
-      allHoods = adminZoneData.partialDistricts[district].sort();
+      allHoods = adminZoneData.partialDistricts[district];
     } else {
       for(let prov in LOCATIONS) {
-         if(LOCATIONS[prov][district]) { allHoods = LOCATIONS[prov][district].sort(); break; }
+         if(LOCATIONS[prov][district]) { allHoods = LOCATIONS[prov][district]; break; }
       }
     }
-    return allHoods;
+    
+    return allHoods.filter(hood => {
+       const hoodMappings = adminMappings.filter(m => m.district === district && m.neighborhood === hood);
+       const hasTumu = hoodMappings.some(m => m.gender === 'Tümü' || !m.gender);
+       const hasErkek = hoodMappings.some(m => m.gender === 'Erkek');
+       const hasKiz = hoodMappings.some(m => m.gender === 'Kız');
+
+       // Eğer Tümü atanmışsa artık o mahalle hiçbir listeye çıkmaz (doldu).
+       if (hasTumu) return false; 
+       
+       if (gender === 'Tümü') {
+          // Eğer Tümü seçecekse, Erkek veya Kız ataması bile olmamalı
+          return !(hasErkek || hasKiz);
+       }
+       if (gender === 'Erkek') return !hasErkek;
+       if (gender === 'Kız') return !hasKiz;
+       
+       return true;
+    }).sort();
   };
 
   const adminDistricts = getAdminDistricts();
-  const adminNeighborhoods = getAdminNeighborhoods(mappingData.district);
 
   return (
     <div className="max-w-[1400px] mx-auto px-4 py-16 relative">
@@ -673,7 +716,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
              </table>
            </div>
 
-           <h3 className="text-2xl font-black text-slate-800 mb-4">Sınav Yeri Tanımlanmamış Mahalleler</h3>
+           <h3 className="text-2xl font-black text-slate-800 mb-4">Sınav Yeri Tanımlanmamış / Eksik Mahalleler</h3>
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
              {getMissingMappings().map((m, idx) => (
                <div key={idx} className="bg-red-50 border border-red-100 p-4 rounded-2xl flex flex-col">
@@ -683,7 +726,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
                </div>
              ))}
              {getMissingMappings().length === 0 && (
-               <div className="col-span-full text-center py-10 font-bold text-emerald-500 bg-emerald-50 rounded-2xl border border-emerald-100">Tüm mahalle atamaları eksiksiz yapılmış!</div>
+               <div className="col-span-full text-center py-10 font-bold text-emerald-500 bg-emerald-50 rounded-2xl border border-emerald-100">Tüm mahalle atamaları cinsiyet gözetilerek eksiksiz yapılmış!</div>
              )}
            </div>
          </div>
@@ -846,7 +889,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b-2 border-slate-100 pb-8 gap-4">
               <div>
                 <h3 className="font-black text-3xl text-slate-900 mb-2">Sınav Yerleri ve Atamalar</h3>
-                <p className="text-base font-bold text-slate-500">Mıntıkaya yeni kurumlar ekleyin ve mahalleleri bu kurumlara (farklı numaralarla) bağlayın.</p>
+                <p className="text-base font-bold text-slate-500">Mıntıkaya yeni kurumlar ekleyin ve mahalleleri bu kurumlara bağlarken ÖNCE CİNSİYET (Erkek/Kız/Tümü) seçin.</p>
               </div>
             </div>
 
@@ -927,10 +970,22 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
                         </div>
 
                         <div className="bg-indigo-50/50 p-5 rounded-2xl border-2 border-indigo-100 mb-6">
-                           <h5 className="text-xs font-black text-indigo-500 uppercase tracking-widest mb-3">Cinsiyete Göre Mahalle Bağla</h5>
+                           <h5 className="text-xs font-black text-indigo-500 uppercase tracking-widest mb-3">Mahalle Bağla (Önce Cinsiyet Seçin)</h5>
                            <div className="flex flex-col sm:flex-row gap-3">
+                              
                               <select 
-                                className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white"
+                                className="w-full sm:w-1/6 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white"
+                                value={mappingData.gender}
+                                onChange={e => setMappingData({...mappingData, gender: e.target.value, district: '', neighborhood: '', centerId: center.id})}>
+                                <option value="">Cinsiyet Seç</option>
+                                <option value="Tümü">Tümü (Karma)</option>
+                                <option value="Erkek">Erkek</option>
+                                <option value="Kız">Kız</option>
+                              </select>
+
+                              <select 
+                                className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white disabled:opacity-50"
+                                disabled={!mappingData.gender}
                                 value={mappingData.district}
                                 onChange={e => setMappingData({...mappingData, district: e.target.value, neighborhood: '', centerId: center.id})}>
                                 <option value="">İlçe Seç</option>
@@ -942,26 +997,17 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
                                 disabled={!mappingData.district}
                                 value={mappingData.neighborhood}
                                 onChange={e => setMappingData({...mappingData, neighborhood: e.target.value, centerId: center.id})}>
-                                <option value="">Mahalle Seç</option>
-                                {adminNeighborhoods.map(hood => (
+                                <option value="">Atanmamış Mahalle Seç</option>
+                                {getAdminUnmappedNeighborhoods(mappingData.district, mappingData.gender).map(hood => (
                                   <option key={hood} value={hood}>{hood} Mah.</option>
                                 ))}
-                              </select>
-
-                              <select 
-                                className="w-full sm:w-1/6 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white"
-                                value={mappingData.gender}
-                                onChange={e => setMappingData({...mappingData, gender: e.target.value, centerId: center.id})}>
-                                <option value="Tümü">Tümü</option>
-                                <option value="Erkek">Erkek</option>
-                                <option value="Kız">Kız</option>
                               </select>
                               
                               <input type="text" value={mappingData.contactName} onChange={e=>setMappingData({...mappingData, contactName: e.target.value, centerId: center.id})} className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white" placeholder="Sorumlu İsim"/>
 
                               <input type="tel" value={mappingData.phone} onChange={e=>setMappingData({...mappingData, phone: e.target.value, centerId: center.id})} className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white" placeholder="Sorumlu Tel"/>
                               
-                              <button onClick={handleAddMapping} disabled={mappingData.centerId !== center.id} className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-black p-3 px-6 rounded-xl transition disabled:opacity-50">Ekle</button>
+                              <button onClick={handleAddMapping} disabled={!mappingData.centerId || !mappingData.gender || !mappingData.district || !mappingData.neighborhood} className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-black p-3 px-6 rounded-xl transition disabled:opacity-50">Ekle</button>
                            </div>
                         </div>
 
