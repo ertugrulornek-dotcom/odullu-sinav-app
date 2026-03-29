@@ -1,5 +1,5 @@
 import React from 'react';
-import { Award, ChevronRight, FileText, CheckCircle2, Gift, Clock, AlertCircle, PlayCircle } from 'lucide-react';
+import { Award, ChevronRight, FileText, CheckCircle2, Gift, Clock, AlertCircle } from 'lucide-react';
 import ModernPrizeCard from '../components/ModernPrizeCard';
 import TimelineCalendar from '../components/TimelineCalendar';
 import { INITIAL_ZONES } from '../data/constants';
@@ -22,7 +22,6 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
         <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col items-center text-center animate-in zoom-in-95 duration-500">
           
-          {/* Logo yüzeyle uyumlu ve arka planı beyaz */}
           <div className="bg-white rounded-full p-3 mb-8 drop-shadow-[0_0_25px_rgba(255,255,255,0.2)]">
              <img src="/Sembol.png" alt="Ödüllü Sınav Logo" className="w-40 h-40 md:w-48 md:h-48 object-contain" />
           </div>
@@ -109,31 +108,26 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
             </div>
           </div>
 
-          <div id="tanitim" className="flex flex-col md:flex-row items-center gap-16 pt-10">
-            <div className="w-full md:w-1/2">
-              <div className="w-16 h-16 bg-indigo-100 rounded-3xl flex items-center justify-center mb-6 text-indigo-600 shadow-inner">
-                <PlayCircle className="w-8 h-8" />
-              </div>
+          <div id="tanitim" className="flex flex-col items-center gap-10 pt-10">
+            <div className="w-full max-w-5xl text-center">
               <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6 leading-tight">Deneme <span className="text-indigo-600">Tanıtımı</span></h2>
-              <p className="text-xl text-slate-600 leading-relaxed mb-8">
-                Tanıtım videomuzda deneme sınavımız ile ilgili bilgiler yer almaktadır.
+              <p className="text-xl text-slate-600 mb-10 max-w-3xl mx-auto">
+                Aşağıdaki tanıtım videomuzda deneme sınavımız ile ilgili bilgiler yer almaktadır.
               </p>
-              <div className="bg-amber-50 p-6 rounded-2xl border border-amber-200 shadow-sm flex items-start text-left">
-                 <AlertCircle className="w-8 h-8 text-amber-500 mr-4 flex-shrink-0" />
-                 <p className="text-md text-amber-900 font-bold leading-relaxed">
-                    Not: 8. sınıflarımız için doğrudan <span className="text-amber-600 font-black">LGS formatında hazırlanmış özel bir deneme</span> yapılacaktır.
-                 </p>
-              </div>
-            </div>
-            <div className="w-full md:w-1/2 relative group">
-              <div className="absolute inset-0 bg-indigo-200 rounded-[3rem] transform rotate-3 scale-105 opacity-50 group-hover:rotate-0 transition-transform duration-500"></div>
               
-              {/* Video Dikdörtgen ve Sığdırılmış (aspect-video eklendi) */}
-              <div className="relative bg-slate-900 rounded-[3rem] p-2 shadow-2xl z-10 transition-transform duration-500 group-hover:scale-[1.02]">
+              <div className="bg-slate-900 rounded-[2.5rem] p-3 md:p-5 shadow-2xl relative overflow-hidden">
+                 <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 pointer-events-none"></div>
                  <video controls playsInline className="w-full aspect-video rounded-[2.5rem] object-cover bg-black" poster="/Sembol.png">
                     <source src="/Ödüllü Deneme Sınavı Tanıtım Videosu.mp4" type="video/mp4" />
                     Tarayıcınız video oynatmayı desteklemiyor.
                  </video>
+              </div>
+              
+              <div className="mt-8 bg-amber-50 p-6 rounded-2xl border border-amber-200 shadow-sm flex items-start text-left max-w-4xl mx-auto">
+                 <AlertCircle className="w-8 h-8 text-amber-500 mr-4 flex-shrink-0" />
+                 <p className="text-lg text-amber-900 font-bold leading-relaxed">
+                    Not: 8. sınıflarımız için doğrudan <span className="text-amber-600 font-black">LGS formatında hazırlanmış özel bir deneme</span> yapılacaktır.
+                 </p>
               </div>
             </div>
           </div>

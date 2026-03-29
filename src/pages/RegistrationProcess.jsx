@@ -7,7 +7,6 @@ import { sendSMS, SMS_FOOTER } from '../services/smsService';
 import { LOCATIONS } from '../data/constants';
 import { determineZoneName, findZoneByName, parsePrizeArray, getNeighborhoodDetails } from '../utils/helpers';
 
-// Katılım Ödülü Seçici (Butonu Aktifleştiren Bileşen)
 const RegistrationPrizeSelector = ({ type, prizes, selectedPrize, onSelect }) => {
   if (!prizes || prizes.length === 0) return null;
   if (prizes.length === 1 && !prizes[0].title) return null;
@@ -50,6 +49,10 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
   const [selectedSlot, setSelectedSlot] = useState(null); 
   const [showAlternativeExams, setShowAlternativeExams] = useState(false);
   const [selectedParticipationPrize, setSelectedParticipationPrize] = useState('');
+  
+  // Eskiden şifre girmek için Alert çıkıyordu, şimdi otomatik geçiyor veya modal gösteriliyor.
+  // Uyarıları kaldırıp sadece SMS'e döneceğimiz için doğrulama adımını otomatik atlattıracağız 
+  // ya da ekranda göstermeye devam edeceğiz ama şifreyi SMS'ten girmesini isteyeceğiz.
   const [showVerification, setShowVerification] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   const [enteredCode, setEnteredCode] = useState('');
@@ -78,7 +81,6 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
   };
 
   const handleStep1Submit = async () => {
-    // Kara Liste Kontrolü
     if (blacklist.includes(formData.phone)) {
        alert("Bu numara personel numarasıdır. Lütfen veli numarası giriniz.");
        return;
@@ -88,14 +90,12 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
       const isDuplicate = students.some(s => s.fullName?.trim().toLowerCase() === formData.fullName.trim().toLowerCase() && s.phone === formData.phone);
       if(isDuplicate) return alert("Bu isim ve telefon numarası ile sistemde zaten bir profil bulunuyor. Lütfen 'Giriş Yap' menüsünü kullanın.");
     }
-    
     const code = Math.floor(1000 + Math.random() * 9000).toString();
-    console.log("TEST İÇİN DOĞRULAMA KODU:", code);
     setVerificationCode(code);
     setShowVerification(true);
     
-    // Doğrulama SMS'i gönder
-    await sendSMS([{tel: [formData.phone], msg: `odullusinav.net dogrulama kodunuz: ${code}`}]);
+    // Doğrulama kodu SMS ile atılıyor (Ekranda alert vs çıkmaz)
+    sendSMS([{tel: [formData.phone], msg: `odullusinav.net dogrulama kodunuz: ${code}`}]);
   };
 
   const verifyCodeAndProceed = () => {
@@ -120,7 +120,7 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
   const partPrizesList = parsePrizeArray(matchedZone?.prizes?.participation);
   const needsPartSelection = partPrizesList.length > 1;
   
-  // Ödül seçimi yapıldıysa (veya seçim gerekmiyorsa) buton aktif olur
+  // Ödül seçimi kontrolü (Eğer ödül seçiliyse veya ödül tek seçenekliyse buton aktif olur)
   const isFormValid = selectedSlot && (!needsPartSelection || selectedParticipationPrize !== '');
 
   const handleComplete = async (withoutExam = false) => {
@@ -146,12 +146,13 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
       }
 
       if (withoutExam) {
-         sendSMS([{tel: [finalUserObj.phone], msg: `odullusinav.net basvurunuz alinmistir.\nGiris Sifreniz: ${newPassword}.\nBolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`}]);
+         sendSMS([{tel: [finalUserObj.phone], msg: `odullusinav.net basvurunuz alinmistir.\nGiris Sifreniz: ${newPassword}\nBolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`}]);
       } else if (finalUserObj.selectedDate) {
-         const centerInfo = getNeighborhoodDetails(matchedZone, finalUserObj.district, finalUserObj.neighborhood);
+         // Cinsiyete göre adres getir
+         const centerInfo = getNeighborhoodDetails(matchedZone, finalUserObj.district, finalUserObj.neighborhood, finalUserObj.gender);
          const contactPhone = centerInfo.phone || "+905074475598";
          
-         const regMsg = `odullusinav.net başvurunuz alınmıştır.\n\nGiris Sifreniz: ${newPassword}.\n\nSize en yakın sınav mahallimiz ${finalUserObj.district} ilçesi ${finalUserObj.neighborhood} mahallesindedir.\n\nSınav saatinden 30 dakika önce aşağıdaki konumda olmanızı rica ederiz.\n\nOturum: ${finalUserObj.selectedDate} - ${finalUserObj.selectedTime}\n\nKonum: ${centerInfo.mapLink || 'Belirtilmedi'}\n\nİletişim: ${contactPhone}${SMS_FOOTER}`;
+         const regMsg = `odullusinav.net başvurunuz alınmıştır.\nGiris Sifreniz: ${newPassword}\nSize en yakın sınav mahallimiz ${finalUserObj.district} ilçesi ${finalUserObj.neighborhood} mahallesindedir.\nSınav saatinden 30 dakika önce aşağıdaki konumda olmanızı rica ederiz.\n\nOturum: ${finalUserObj.selectedDate} - ${finalUserObj.selectedTime}\n\nKonum: ${centerInfo.mapLink || 'Belirtilmedi'}\n\nİletişim: ${contactPhone}${SMS_FOOTER}`;
          sendSMS([{tel: [finalUserObj.phone], msg: regMsg}]);
       }
       setStep(3); 
@@ -170,7 +171,7 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
                <button onClick={() => setShowVerification(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"><Plus className="w-8 h-8 transform rotate-45"/></button>
                <Phone className="w-16 h-16 text-indigo-500 mx-auto mb-6" />
                <h3 className="text-3xl font-black text-center text-slate-900 mb-2">Telefon Doğrulama</h3>
-               <p className="text-center text-slate-500 font-bold mb-8">Lütfen 0{formData.phone} numaralı telefonunuza gönderilen 4 haneli kodu giriniz.</p>
+               <p className="text-center text-slate-500 font-bold mb-8">Lütfen 0{formData.phone} numaralı telefonunuza SMS olarak gönderilen 4 haneli kodu giriniz.</p>
                <input type="text" maxLength="4" value={enteredCode} onChange={e => setEnteredCode(e.target.value.replace(/\D/g, ''))} className="w-full text-center tracking-[1em] border-4 border-slate-100 rounded-2xl px-6 py-4 text-3xl font-black focus:border-indigo-500 outline-none mb-6" placeholder="••••" />
                <button onClick={verifyCodeAndProceed} disabled={enteredCode.length !== 4} className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 disabled:opacity-50 transition shadow-xl shadow-indigo-500/30">Doğrula ve Devam Et</button>
             </div>
@@ -305,10 +306,7 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
                     
                     {/* Ödül Seçici Bileşen */}
                     {selectedSlot && needsPartSelection && (
-                       <div className="mt-10 pt-10 border-t-4 border-slate-100 animate-in fade-in slide-in-from-bottom-4">
-                         <h4 className="text-2xl font-black text-slate-800 mb-6 flex items-center"><Gift className="w-8 h-8 mr-3 text-indigo-600"/> Hedef ve Ödül Tercihlerinizi Belirleyin</h4>
-                         <RegistrationPrizeSelector type="part" prizes={partPrizesList} selectedPrize={selectedParticipationPrize} onSelect={setSelectedParticipationPrize} />
-                       </div>
+                       <RegistrationPrizeSelector type="part" prizes={partPrizesList} selectedPrize={selectedParticipationPrize} onSelect={setSelectedParticipationPrize} />
                     )}
 
                     <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-6 mt-12 pt-8 border-t-2 border-slate-100">

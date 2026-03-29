@@ -81,13 +81,12 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
   const [examData, setExamData] = useState({ title: '' });
   const [examSessions, setExamSessions] = useState([{ date: '', times: '' }]);
   const [newCenter, setNewCenter] = useState({ name: '', address: '', mapLink: '' });
-  const [mappingData, setMappingData] = useState({ district: '', neighborhood: '', centerId: '', contactName: '', phone: '' });
+  const [mappingData, setMappingData] = useState({ district: '', neighborhood: '', centerId: '', gender: 'Tümü', contactName: '', phone: '' });
   const [resultModal, setResultModal] = useState({ isOpen: false, student: null, score: '', rank: '' });
   const [smsModal, setSmsModal] = useState({ isOpen: false, type: 'custom', customMsg: '', loading: false, targetStudent: null });
   const [bulkExcelData, setBulkExcelData] = useState("");
   const [editingCenter, setEditingCenter] = useState(null);
 
-  // Kara liste
   const [blacklistPhones, setBlacklistPhones] = useState([]);
   const [newBlacklistPhone, setNewBlacklistPhone] = useState('');
 
@@ -258,11 +257,12 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
     if(!mappingData.district || !mappingData.neighborhood || !mappingData.centerId) return alert("Lütfen ilçe, mahalle ve atanacak kurumu seçin.");
     try {
       const newMappings = [...adminMappings];
-      const existingIndex = newMappings.findIndex(m => m.district === mappingData.district && m.neighborhood === mappingData.neighborhood);
+      const existingIndex = newMappings.findIndex(m => m.district === mappingData.district && m.neighborhood === mappingData.neighborhood && m.gender === mappingData.gender);
       
       const newMapObj = {
         district: mappingData.district,
         neighborhood: mappingData.neighborhood,
+        gender: mappingData.gender,
         centerId: mappingData.centerId,
         contactName: mappingData.contactName || "",
         phone: mappingData.phone || "0850 123 45 67"
@@ -275,7 +275,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
       }
       
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { mappings: newMappings });
-      alert(`${mappingData.district} / ${mappingData.neighborhood} mahallesi başarıyla kuruma atandı!`);
+      alert(`${mappingData.district} / ${mappingData.neighborhood} (${mappingData.gender}) başarıyla kuruma atandı!`);
       setMappingData({ ...mappingData, neighborhood: '', contactName: '', phone: '' }); 
     } catch (e) {
       console.error(e);
@@ -299,18 +299,18 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
        
        let rawDistrict = cols[0]?.trim();
        let rawNeighborhood = cols[1]?.trim();
-       
+       let rawGender = cols[2]?.trim() || "Tümü"; 
+       let centerName = cols[3]?.trim();
+       let contactName = cols[4] ? cols[4].trim() : "";
+       let phone = cols[5] ? cols[5].trim() : "";
+       let address = cols[6] ? cols[6].trim() : "";
+       let mapLink = cols[7] ? cols[7].trim() : "";
+
        if (rawDistrict.includes('/') && !rawNeighborhood) {
            const parts = rawDistrict.split('/');
            rawDistrict = parts[0].trim();
            rawNeighborhood = parts[1].trim();
        }
-
-       const centerName = cols[2]?.trim();
-       const contactName = cols[3] ? cols[3].trim() : "";
-       let phone = cols[4] ? cols[4].trim() : "";
-       const address = cols[5] ? cols[5].trim() : "";
-       const mapLink = cols[6] ? cols[6].trim() : "";
 
        if (!rawDistrict || !rawNeighborhood || !centerName) {
            errors.push(`Satır ${rowIndex+1}: Eksik sütun verisi.`);
@@ -358,8 +358,8 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
           updatedCenters.push(center);
        }
        
-       const existingMapIndex = updatedMappings.findIndex(m => m.district === matchedDistrict && m.neighborhood === matchedNeighborhood);
-       const newMapObj = { district: matchedDistrict, neighborhood: matchedNeighborhood, centerId: center.id, contactName, phone };
+       const existingMapIndex = updatedMappings.findIndex(m => m.district === matchedDistrict && m.neighborhood === matchedNeighborhood && m.gender === rawGender);
+       const newMapObj = { district: matchedDistrict, neighborhood: matchedNeighborhood, gender: rawGender, centerId: center.id, contactName, phone };
        
        if(existingMapIndex >= 0) {
           updatedMappings[existingIndex] = newMapObj;
@@ -388,9 +388,9 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
     }
   };
 
-  const handleDeleteMapping = async (district, neighborhood) => {
+  const handleDeleteMapping = async (district, neighborhood, gender) => {
     try {
-      const updatedMappings = adminMappings.filter(m => !(m.district === district && m.neighborhood === neighborhood));
+      const updatedMappings = adminMappings.filter(m => !(m.district === district && m.neighborhood === neighborhood && m.gender === gender));
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { mappings: updatedMappings });
     } catch (e) {
       console.error(e);
@@ -454,7 +454,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
     }
 
     const msgDataArray = validStudents.map(student => {
-      const stdCenter = getNeighborhoodDetails(adminZoneData, student.district, student.neighborhood);
+      const stdCenter = getNeighborhoodDetails(adminZoneData, student.district, student.neighborhood, student.gender);
       let text = "";
 
       if (smsModal.type === 'custom') {
@@ -479,7 +479,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
     if(result !== false) {
       alert(`${msgDataArray.length} öğrenciye mesajlar başarıyla iletildi!`);
     } else {
-      alert("SMS gönderimi başarısız oldu. API bağlantınızı veya bakiyenizi kontrol ediniz.");
+      alert("SMS gönderimi başarısız oldu. Lütfen bağlantınızı kontrol ediniz.");
     }
     
     setSmsModal({ isOpen: false, type: 'custom', customMsg: '', loading: false, targetStudent: null });
@@ -490,7 +490,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
      
      filteredStudents.forEach(s => {
         const stdZone = isSuperAdmin ? (zones.find(z => z.id === s.zone?.id) || s.zone) : adminZoneData;
-        const center = getNeighborhoodDetails(stdZone, s.district, s.neighborhood)?.centerName || 'Bekleniyor';
+        const center = getNeighborhoodDetails(stdZone, s.district, s.neighborhood, s.gender)?.centerName || 'Bekleniyor';
         
         const hasPast = s.pastExams && s.pastExams.length > 0;
         const lastPast = hasPast ? s.pastExams[s.pastExams.length-1] : null;
@@ -537,8 +537,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
          }
       }
     }
-    const mappedHoods = adminMappings.filter(m => m.district === district).map(m => m.neighborhood);
-    return allHoods.filter(h => !mappedHoods.includes(h));
+    return allHoods;
   };
 
   const adminDistricts = getAdminDistricts();
@@ -735,7 +734,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b-2 border-slate-100 pb-8 gap-4">
               <div>
                 <h3 className="font-black text-3xl text-slate-900 mb-2">Sınav Yerleri ve Atamalar</h3>
-                <p className="text-base font-bold text-slate-500">Mıntıkaya yeni kurumlar ekleyin ve mahalleleri bu kurumlara (farklı numaralarla) bağlayın.</p>
+                <p className="text-base font-bold text-slate-500">Mıntıkaya yeni kurumlar ekleyin ve mahalleleri cinsiyete göre kurumlara bağlayın.</p>
               </div>
             </div>
 
@@ -765,13 +764,13 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
                  <div>
                     <div className="text-sm font-black text-emerald-600 uppercase mb-4 tracking-wider flex items-center"><FileText className="w-6 h-6 mr-2"/> Toplu Ekle (Excel'den Yapıştır)</div>
                     <div className="space-y-4 bg-emerald-50/50 p-6 rounded-3xl border-2 border-emerald-100">
-                       <p className="text-xs font-bold text-emerald-800 mb-2">Excel tablonuzdaki şu sütunları seçip kopyalayın ve aşağıdaki alana yapıştırın:<br/><br/><b>İlçe | Mahalle | Kurum Adı | Sorumlu Hoca | Telefon | Açık Adres | Harita Linki</b></p>
+                       <p className="text-xs font-bold text-emerald-800 mb-2">Excel tablonuzdaki şu sütunları seçip kopyalayın ve aşağıdaki alana yapıştırın:<br/><br/><b>İlçe | Mahalle | Cinsiyet (Erkek/Kız/Tümü) | Kurum Adı | Sorumlu Hoca | Telefon | Açık Adres | Harita Linki</b></p>
                        <textarea 
                          rows="5" 
                          value={bulkExcelData}
                          onChange={e => setBulkExcelData(e.target.value)}
                          className="w-full text-xs font-mono p-4 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 resize-none whitespace-pre" 
-                         placeholder="Gebze&#9;Akarçeşme&#9;Şekerpınar Eğitim...&#9;Ahmet Hoca&#9;0532..."/>
+                         placeholder="Gebze&#9;Akarçeşme&#9;Erkek&#9;Şekerpınar Eğitim...&#9;Ahmet Hoca&#9;0532..."/>
                        <button onClick={handleBulkUploadExcel} className="bg-emerald-600 hover:bg-emerald-700 text-white text-base font-black py-4 px-4 rounded-xl transition w-full shadow-lg">Excel Verilerini İçe Aktar</button>
                     </div>
                  </div>
@@ -816,7 +815,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
                         </div>
 
                         <div className="bg-indigo-50/50 p-5 rounded-2xl border-2 border-indigo-100 mb-6">
-                           <h5 className="text-xs font-black text-indigo-500 uppercase tracking-widest mb-3">Bu Kuruma Mahalle Bağla</h5>
+                           <h5 className="text-xs font-black text-indigo-500 uppercase tracking-widest mb-3">Cinsiyete Göre Mahalle Bağla</h5>
                            <div className="flex flex-col sm:flex-row gap-3">
                               <select 
                                 className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white"
@@ -831,10 +830,19 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
                                 disabled={!mappingData.district}
                                 value={mappingData.neighborhood}
                                 onChange={e => setMappingData({...mappingData, neighborhood: e.target.value, centerId: center.id})}>
-                                <option value="">Mahalle Seç (Boştakiler)</option>
+                                <option value="">Mahalle Seç</option>
                                 {adminNeighborhoods.map(hood => (
                                   <option key={hood} value={hood}>{hood} Mah.</option>
                                 ))}
+                              </select>
+
+                              <select 
+                                className="w-full sm:w-1/6 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white"
+                                value={mappingData.gender}
+                                onChange={e => setMappingData({...mappingData, gender: e.target.value, centerId: center.id})}>
+                                <option value="Tümü">Tümü</option>
+                                <option value="Erkek">Erkek</option>
+                                <option value="Kız">Kız</option>
                               </select>
                               
                               <input type="text" value={mappingData.contactName} onChange={e=>setMappingData({...mappingData, contactName: e.target.value, centerId: center.id})} className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white" placeholder="Sorumlu İsim"/>
@@ -850,9 +858,9 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
                           <div className="flex flex-wrap gap-3">
                             {mappedHoods.length > 0 ? mappedHoods.map((m, i) => (
                                <div key={i} className="flex flex-col bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm relative group pr-10 hover:shadow-md transition">
-                                  <span className="font-black text-slate-800 mb-1">{m.district} / {m.neighborhood}</span>
+                                  <span className="font-black text-slate-800 mb-1">{m.district} / {m.neighborhood} <span className="text-xs ml-1 text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-md">{m.gender || 'Tümü'}</span></span>
                                   <span className="text-slate-500 font-medium text-xs"><Users className="w-3 h-3 inline mr-1"/>{m.contactName || 'İsimsiz'} - {m.phone}</span>
-                                  <button onClick={() => handleDeleteMapping(m.district, m.neighborhood)} className="absolute top-1/2 right-3 transform -translate-y-1/2 text-slate-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100"><Trash2 className="w-5 h-5"/></button>
+                                  <button onClick={() => handleDeleteMapping(m.district, m.neighborhood, m.gender)} className="absolute top-1/2 right-3 transform -translate-y-1/2 text-slate-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100"><Trash2 className="w-5 h-5"/></button>
                                </div>
                             )) : (
                                <span className="text-sm font-medium text-slate-400 italic">Henüz hiç mahalle bağlanmamış.</span>
@@ -905,13 +913,13 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
                   filteredStudents.map(student => {
                     const hasActiveExam = !!(student.examId || student.examTitle || student.exam);
                     const realZoneData = isSuperAdmin ? (zones.find(z => z.id === student.zone?.id) || student.zone) : adminZoneData;
-                    const stdCenter = getNeighborhoodDetails(realZoneData, student.district, student.neighborhood);
+                    const stdCenter = getNeighborhoodDetails(realZoneData, student.district, student.neighborhood, student.gender);
                     
                     return (
                       <tr key={student.firebaseId} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
                         <td className="p-6 font-black text-slate-900 text-lg">
                           {student.fullName}
-                          <div className="text-xs font-bold text-slate-400">{student.grade}. Sınıf - {student.phone}</div>
+                          <div className="text-xs font-bold text-slate-400">{student.grade}. Sınıf - {student.gender} - {student.phone}</div>
                         </td>
                         <td className="p-6 font-bold text-slate-600">{student.district} / {student.neighborhood}</td>
                         <td className="p-6">
@@ -925,7 +933,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
                           )}
                         </td>
                         
-                        {/* Yeni Durum Dropdownları */}
+                        {/* Öğrenci Durum Güncellemeleri */}
                         <td className="p-4 flex flex-col gap-1">
                           <select value={student.attendance || ''} onChange={e => handleUpdateStudentStatus(student.firebaseId, 'attendance', e.target.value)} className="text-xs border border-slate-200 rounded p-1 outline-none text-slate-700 font-bold">
                              <option value="">Katılım Durumu</option>

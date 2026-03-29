@@ -26,12 +26,18 @@ export const determineZoneName = (province, district, neighborhood) => {
   return null;
 };
 
-export const getNeighborhoodDetails = (zone, district, neighborhood) => {
+export const getNeighborhoodDetails = (zone, district, neighborhood, gender = null) => {
   const defaultDetails = { phone: "0553 973 54 40", centerName: "Sınav Merkezi Bekleniyor", address: "", mapLink: "", contactName: "" };
   if (!zone || !zone.mappings || !zone.centers) return defaultDetails;
   
-  const map = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood) 
-           || zone.mappings.find(m => m.neighborhood === neighborhood);
+  // Önce cinsiyete özel atanmış yer var mı ona bakar, yoksa genel (cinsiyetsiz) atamaya bakar.
+  let map;
+  if (gender) {
+    map = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood && m.gender === gender);
+  }
+  if (!map) {
+    map = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood && (!m.gender || m.gender === 'Tümü'));
+  }
            
   if (!map) return defaultDetails;
 
