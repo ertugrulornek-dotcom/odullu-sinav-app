@@ -37,7 +37,11 @@ export default function TimelineCalendar({ zoneExams, currentUser, defaultContac
   });
 
   const sortedGroups = Object.values(groupedSessions).sort((a,b) => a.timestamp - b.timestamp);
-  const contactInfo = currentUser ? getNeighborhoodDetails(currentUser.zone, currentUser.district, currentUser.neighborhood) : (defaultContact || { phone: "0553 973 54 40", contactName: "" });
+  
+  // Eğer kullanıcı giriş yaptıysa onun merkez numarasını, yapmadıysa varsayılan ana numarayı kullanır
+  const contactInfo = currentUser 
+       ? getNeighborhoodDetails(currentUser.zone, currentUser.district, currentUser.neighborhood, currentUser.gender) 
+       : (defaultContact || { phone: "0531 333 32 32", contactName: "" });
 
   return (
     <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col md:flex-row max-w-5xl mx-auto animate-in fade-in zoom-in-95 duration-500">

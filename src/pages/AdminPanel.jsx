@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Building2, Users, Download, MessageSquare, Plus, Trophy, Trash2, Edit3, Save, X, KeyRound, LogOut, CalendarIcon, Send, Gift, Award, FileText, MapPin, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { Settings, Building2, Users, Download, MessageSquare, Plus, Trophy, Trash2, Edit3, Save, X, KeyRound, LogOut, CalendarIcon, Send, Gift, Award, FileText, MapPin, CheckCircle2, ShieldAlert, Map } from 'lucide-react';
 import { db, appId } from '../services/firebase';
 import { updateDoc, doc, addDoc, collection, deleteDoc, onSnapshot } from "firebase/firestore";
 import { sendSMS, SMS_FOOTER } from '../services/smsService';
@@ -69,6 +69,7 @@ export function AdminLogin({ setAdminAuth, zones }) {
 
 export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exams }) {
   const [activeTab, setActiveTab] = useState('ayarlar'); 
+  const [isSyncing, setIsSyncing] = useState(false); // Çıkış sırasında senkronizasyon kontrolü
   
   const adminZoneData = isSuperAdmin 
      ? { id: 'ALL', name: "Genel Merkez (Tüm Mıntıkalar)", active: true, districts: [], prizes: {grand: DEFAULT_PRIZE_OBJ, degree: [], participation: []}, centers: [], mappings: [] } 
@@ -113,6 +114,159 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
 
   const adminCenters = adminZoneData.centers || [];
   const adminMappings = adminZoneData.mappings || [];
+
+  // ==========================================
+  // AKILLI VERİ SENKRONİZASYONU (ÇIKIŞ YAPARKEN)
+  // ==========================================
+  const handleLogoutWithSync = async () => {
+    setIsSyncing(true);
+    try {
+      let dbUpdates = [];
+      let smsQueue = [];
+
+      for (let student of students) {
+        const zone = zones.find(z => z.id === student.zone?.id);
+        if (!zone) continue;
+
+        let updates = {};
+        let needsSms = false;
+        let smsText = "";
+
+        // 1. Sınav Yeri Atanması Durumu Kontrolü
+        const centerInfo = getNeighborhoodDetails(zone, student.district, student.neighborhood, student.gender);
+        const hasValidCenter = centerInfo.centerName !== "Sınav Merkezi Bekleniyor";
+        
+        if (student.isWaitingPool && hasValidCenter) {
+           updates.isWaitingPool = false;
+           needsSms = true;
+           smsText = `Müjde! Sınav merkeziniz tanımlandı. Lütfen odullusinav.net üzerinden profilinize giriş yaparak oturumunuzu seçiniz.${SMS_FOOTER}`;
+        }
+
+        // 2. Sınav Oturumu (Tarih/Saat) Geçerliliği Kontrolü
+        if (!student.isWaitingPool && student.examId) {
+           const exam = exams.find(e => e.firebaseId === student.examId || e.id === student.examId);
+           let validSlot = false;
+           if (exam && exam.sessions) {
+              const session = exam.sessions.find(s => s.date === student.selectedDate);
+              if (session && session.slots.includes(student.selectedTime)) {
+                 validSlot = true;
+              }
+           }
+           // Eğer seçilen slot veya sınav silinmişse/değişmişse verisini sıfırla
+           if (!validSlot && student.selectedDate && student.selectedTime) {
+              updates.selectedDate = null;
+              updates.selectedTime = null;
+              updates.examId = null;
+              updates.examTitle = null;
+              if (!needsSms) {
+                 needsSms = true;
+                 smsText = `Önemli: Adresinizdeki sınav oturumunda değişiklikten dolayı işlem yapmanız lazım. Lütfen odullusinav.net profilinize girerek yeni oturumunuzu seçiniz.${SMS_FOOTER}`;
+              }
+           }
+        }
+
+        // 3. Ödül Geçerliliği Kontrolü
+        if (student.selectedParticipationPrize) {
+           const partPrizesList = parsePrizeArray(zone.prizes?.participation);
+           const prizeExists = partPrizesList.some(p => p.title === student.selectedParticipationPrize);
+           if (!prizeExists) {
+              updates.selectedParticipationPrize = '';
+              if (!needsSms) {
+                 needsSms = true;
+                 smsText = `Önemli: Adresinizdeki sınav ödüllerinde değişiklikten dolayı işlem yapmanız lazım. Lütfen odullusinav.net profilinize girerek ödülünüzü güncelleyiniz.${SMS_FOOTER}`;
+              }
+           }
+        }
+
+        // Değişiklikleri veritabanı kuyruğuna al
+        if (Object.keys(updates).length > 0) {
+           dbUpdates.push({
+              ref: doc(db, 'artifacts', appId, 'public', 'data', 'students', student.firebaseId),
+              data: updates
+           });
+        }
+        if (needsSms && student.phone) {
+           smsQueue.push({ tel: [student.phone], msg: smsText });
+        }
+      }
+
+      // Veritabanını güncelle
+      if (dbUpdates.length > 0) {
+         const updatePromises = dbUpdates.map(u => updateDoc(u.ref, u.data));
+         await Promise.all(updatePromises);
+      }
+
+      // Değişiklikten etkilenen öğrencilere SMS at
+      if (smsQueue.length > 0) {
+         await sendSMS(smsQueue);
+         alert(`${smsQueue.length} öğrenciye yapılan değişiklikler nedeniyle otomatik bilgilendirme SMS'i gönderildi.`);
+      }
+
+    } catch(err) {
+      console.error("Çıkış senkronizasyon hatası:", err);
+    } finally {
+      setIsSyncing(false);
+      onLogout(); // İşlemler bitince güvenle çıkış yaptırılır
+    }
+  };
+
+  // ==========================================
+  // MAHALLE İSTATİSTİKLERİ HESAPLAMALARI
+  // ==========================================
+  const getZoneTotalHoods = (zone) => {
+    let count = 0;
+    if (zone.districts) {
+      zone.districts.forEach(d => {
+        for(let prov in LOCATIONS) {
+          if(LOCATIONS[prov][d]) { count += LOCATIONS[prov][d].length; break; }
+        }
+      });
+    }
+    if (zone.partialDistricts) {
+      Object.keys(zone.partialDistricts).forEach(d => {
+        count += zone.partialDistricts[d].length;
+      });
+    }
+    return count;
+  };
+
+  const getMissingMappings = () => {
+     let missing = [];
+     zones.forEach(z => {
+        const mappings = z.mappings || [];
+        const checkDistrictHood = (dist, hood) => {
+           const hoodMappings = mappings.filter(m => m.district === dist && m.neighborhood === hood);
+           const hasTumu = hoodMappings.some(m => m.gender === 'Tümü' || !m.gender);
+           const hasErkek = hoodMappings.some(m => m.gender === 'Erkek');
+           const hasKiz = hoodMappings.some(m => m.gender === 'Kız');
+
+           if (hasTumu) return; // Sorun yok, karma atama yapılmış
+           if (hasErkek && hasKiz) return; // Sorun yok, ikisine de ayrı atanmış
+           
+           if (hoodMappings.length === 0) {
+              missing.push({ zone: z.name, district: dist, neighborhood: hood, status: 'Hiç Tanımlanmamış' });
+           } else if (hasErkek && !hasKiz) {
+              missing.push({ zone: z.name, district: dist, neighborhood: hood, status: 'Sadece Erkek (Kız Eksik)' });
+           } else if (!hasErkek && hasKiz) {
+              missing.push({ zone: z.name, district: dist, neighborhood: hood, status: 'Sadece Kız (Erkek Eksik)' });
+           }
+        };
+
+        if (z.districts) {
+           z.districts.forEach(d => {
+              let hoods = [];
+              for(let prov in LOCATIONS) { if(LOCATIONS[prov][d]) hoods = LOCATIONS[prov][d]; }
+              hoods.forEach(h => checkDistrictHood(d, h));
+           });
+        }
+        if (z.partialDistricts) {
+           Object.keys(z.partialDistricts).forEach(d => {
+              z.partialDistricts[d].forEach(h => checkDistrictHood(d, h));
+           });
+        }
+     });
+     return missing;
+  };
 
   const handleUpdateStudentStatus = async (studentId, field, value) => {
     try {
@@ -553,8 +707,8 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
           <h1 className="text-4xl font-black text-slate-900">Mıntıka Paneli</h1>
           <p className="text-slate-500 mt-2 font-bold text-lg">Bölgenize ait ayarlar, sınav planlaması, kurum eşleştirmeleri ve kayıtlı öğrenciler.</p>
         </div>
-        <button onClick={onLogout} className="flex items-center text-red-600 bg-red-50 hover:bg-red-100 px-5 py-2.5 rounded-xl font-bold transition">
-          <LogOut className="w-5 h-5 mr-2"/> Güvenli Çıkış
+        <button onClick={handleLogoutWithSync} disabled={isSyncing} className="flex items-center text-red-600 bg-red-50 hover:bg-red-100 px-5 py-2.5 rounded-xl font-bold transition">
+          {isSyncing ? "Senkronize Ediliyor..." : <><LogOut className="w-5 h-5 mr-2"/> Güvenli Çıkış</>}
         </button>
       </div>
 
@@ -571,11 +725,69 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
           <Users className="w-5 h-5 inline mr-2"/> Öğrenci Listesi ({filteredStudents.length})
         </button>
         {isSuperAdmin && (
+           <button onClick={() => setActiveTab('mahalleler')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'mahalleler' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 border border-slate-100 hover:bg-slate-50'}`}>
+             <Map className="w-5 h-5 inline mr-2"/> Mahalle İstatistikleri
+           </button>
+        )}
+        {isSuperAdmin && (
            <button onClick={() => setActiveTab('karaliste')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'karaliste' ? 'bg-red-600 text-white shadow-lg' : 'bg-white text-red-600 border border-red-100 hover:bg-red-50'}`}>
              <ShieldAlert className="w-5 h-5 inline mr-2"/> Kara Liste Yönetimi
            </button>
         )}
       </div>
+
+      {activeTab === 'mahalleler' && isSuperAdmin && (
+         <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12 animate-in fade-in zoom-in-95 duration-300">
+           <h3 className="font-black text-3xl text-slate-900 mb-6 flex items-center"><Map className="mr-3 w-8 h-8 text-indigo-600"/> Mıntıka ve Mahalle İstatistikleri</h3>
+           
+           <div className="overflow-x-auto rounded-3xl border-2 border-slate-100 mb-10">
+             <table className="w-full text-left border-collapse">
+               <thead>
+                 <tr className="bg-slate-50 text-slate-500 text-sm uppercase tracking-widest border-b-2 border-slate-100">
+                   <th className="p-4 font-black">Mıntıka Adı</th>
+                   <th className="p-4 font-black text-center">Sorumlu Mahalle</th>
+                   <th className="p-4 font-black text-center text-blue-600">Erkek Sınav Yeri</th>
+                   <th className="p-4 font-black text-center text-pink-600">Kız Sınav Yeri</th>
+                   <th className="p-4 font-black text-center text-emerald-600">Karma (Tümü)</th>
+                 </tr>
+               </thead>
+               <tbody className="divide-y-2 divide-slate-50">
+                 {zones.map(z => {
+                   const totalHoods = getZoneTotalHoods(z);
+                   const mappings = z.mappings || [];
+                   const erkekCenters = new Set(mappings.filter(m => m.gender === 'Erkek').map(m => m.centerId)).size;
+                   const kizCenters = new Set(mappings.filter(m => m.gender === 'Kız').map(m => m.centerId)).size;
+                   const tumuCenters = new Set(mappings.filter(m => m.gender === 'Tümü' || !m.gender).map(m => m.centerId)).size;
+
+                   return (
+                     <tr key={z.id} className="hover:bg-slate-50">
+                       <td className="p-4 font-black text-slate-800">{z.name}</td>
+                       <td className="p-4 font-bold text-slate-600 text-center">{totalHoods}</td>
+                       <td className="p-4 font-black text-blue-600 text-center">{erkekCenters}</td>
+                       <td className="p-4 font-black text-pink-600 text-center">{kizCenters}</td>
+                       <td className="p-4 font-black text-emerald-600 text-center">{tumuCenters}</td>
+                     </tr>
+                   )
+                 })}
+               </tbody>
+             </table>
+           </div>
+
+           <h3 className="text-2xl font-black text-slate-800 mb-4">Sınav Yeri Tanımlanmamış Mahalleler</h3>
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+             {getMissingMappings().map((m, idx) => (
+               <div key={idx} className="bg-red-50 border border-red-100 p-4 rounded-2xl flex flex-col">
+                 <span className="text-xs font-black text-red-500 uppercase tracking-widest mb-1">{m.zone}</span>
+                 <span className="font-bold text-slate-800">{m.district} / {m.neighborhood}</span>
+                 <span className="mt-2 text-sm font-black text-red-600 bg-red-100 px-3 py-1 rounded-lg w-max">{m.status}</span>
+               </div>
+             ))}
+             {getMissingMappings().length === 0 && (
+               <div className="col-span-full text-center py-10 font-bold text-emerald-500 bg-emerald-50 rounded-2xl border border-emerald-100">Tüm mahalle atamaları eksiksiz yapılmış!</div>
+             )}
+           </div>
+         </div>
+      )}
 
       {activeTab === 'karaliste' && isSuperAdmin && (
          <div className="bg-white rounded-[3rem] shadow-xl border-4 border-red-100 p-8 md:p-12 animate-in fade-in zoom-in-95 duration-300">
@@ -734,7 +946,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b-2 border-slate-100 pb-8 gap-4">
               <div>
                 <h3 className="font-black text-3xl text-slate-900 mb-2">Sınav Yerleri ve Atamalar</h3>
-                <p className="text-base font-bold text-slate-500">Mıntıkaya yeni kurumlar ekleyin ve mahalleleri cinsiyete göre kurumlara bağlayın.</p>
+                <p className="text-base font-bold text-slate-500">Mıntıkaya yeni kurumlar ekleyin ve mahalleleri bu kurumlara (farklı numaralarla) bağlayın.</p>
               </div>
             </div>
 
