@@ -49,7 +49,6 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
   const [selectedExam, setSelectedExam] = useState(null);
   const [selectedSlot, setSelectedSlot] = useState(null); 
   
-  // HATA BURADAN DÜZELTİLDİ (EKSİK OLAN STATE EKLENDİ)
   const [showAlternativeExams, setShowAlternativeExams] = useState(false); 
   
   const [selectedParticipationPrize, setSelectedParticipationPrize] = useState('');
@@ -222,7 +221,11 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
           <div className="bg-white rounded-[3rem] shadow-2xl shadow-slate-200/50 border border-slate-100 p-8 md:p-16 space-y-8 animate-in fade-in zoom-in-95 duration-300">
             <h2 className="text-4xl font-black text-slate-800 border-b-2 border-slate-100 pb-6">Öğrenci ve Veli Bilgileri</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="md:col-span-2"><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Öğrenci Ad Soyad <span className="text-red-500">*</span></label><input type="text" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})}/></div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Öğrenci Ad Soyad <span className="text-red-500">*</span></label>
+                {/* Öğrenci ismi büyük harfe çevriliyor */}
+                <input type="text" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value.toLocaleUpperCase('tr-TR')})}/>
+              </div>
               <div>
                 <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">İletişim Numarası <span className="text-red-500">*</span></label>
                 <div className="relative">
@@ -253,14 +256,13 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
               </div>
               <div>
                 <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Veli Ad Soyad <span className="text-red-500">*</span></label>
+                {/* Veli ismi büyük harfe çevriliyor */}
                 <input type="text" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition text-xl font-bold text-slate-800" 
-                  value={formData.parentName} onChange={e => setFormData({...formData, parentName: e.target.value})} placeholder="Örn: Ayşe Yılmaz"/>
+                  value={formData.parentName} onChange={e => setFormData({...formData, parentName: e.target.value.toLocaleUpperCase('tr-TR')})} placeholder="Örn: AYŞE YILMAZ"/>
               </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Okul Bilgisi</label>
-                <input type="text" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition text-xl font-bold text-slate-800" 
-                  value={formData.schoolName} onChange={e => setFormData({...formData, schoolName: e.target.value})} placeholder="Örn: Atatürk Ortaokulu"/>
-              </div>
+              
+              {/* Eski Okul Bilgisi Alanı Buradan Kaldırıldı */}
+
               <div className="md:col-span-2">
                 <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">E-Posta Adresi <span className="text-slate-400 font-medium text-xs">(Şifre yenileme işlemi için gerekiyor, zorunlu değil)</span></label>
                 <input type="email" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition text-xl font-bold text-slate-800" 
@@ -330,7 +332,8 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
                    </select>
                   ) : (
                      <div className="flex flex-col gap-3">
-                        <input type="text" value={customSchoolName} onChange={e => setCustomSchoolName(e.target.value)} className="w-full border-2 border-indigo-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none text-xl font-bold bg-white" placeholder="Okulunuzun adını yazınız"/>
+                        {/* Elle girilen okul ismi büyük harfe çevriliyor */}
+                        <input type="text" value={customSchoolName} onChange={e => setCustomSchoolName(e.target.value.toLocaleUpperCase('tr-TR'))} className="w-full border-2 border-indigo-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none text-xl font-bold bg-white" placeholder="Okulunuzun adını yazınız"/>
                         <button onClick={() => {setIsCustomSchool(false); setCustomSchoolName('');}} className="text-sm font-bold text-indigo-500 hover:text-indigo-700 text-left">Listeye Geri Dön</button>
                      </div>
                   )}
