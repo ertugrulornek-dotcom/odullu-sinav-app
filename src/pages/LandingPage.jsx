@@ -1,5 +1,5 @@
 import React from 'react';
-import { Award, ChevronRight, FileText, CheckCircle2, Gift, Clock, AlertCircle } from 'lucide-react';
+import { ChevronRight, FileText, CheckCircle2, Gift, Clock, AlertCircle } from 'lucide-react';
 import TimelineCalendar from '../components/TimelineCalendar';
 import CombinedPrizeSection from '../components/CombinedPrizeSection';
 import { INITIAL_ZONES } from '../data/constants';
@@ -18,16 +18,14 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
 
   return (
     <div>
-      <section id="hero" className="relative text-slate-900 overflow-hidden pt-24 pb-32 transition-colors duration-300" style={{ backgroundColor: 'var(--color-light-bg)' }}>
+      <section id="hero" className="relative text-slate-900 overflow-hidden pt-16 pb-32 transition-colors duration-300" style={{ backgroundColor: 'var(--color-light-bg)' }}>
         <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col items-center text-center animate-in zoom-in-95 duration-500">
           
-          <div className="bg-white rounded-full p-3 mb-8 shadow-2xl">
-             <img src="/Sembol.png" alt="Ödüllü Sınav Logo" className="w-40 h-40 md:w-48 md:h-48 object-contain" />
-          </div>
-          
-          <div className="inline-flex items-center px-6 py-2.5 rounded-full border text-sm font-black mb-10 backdrop-blur-sm uppercase tracking-wider bg-white shadow-sm transition-colors" style={{ color: 'var(--color-main)', borderColor: 'var(--color-main)' }}>
-            <Award className="w-5 h-5 mr-2" /> 3, 4, 5, 6, 7 ve 8. Sınıflar İçin Kayıtlar Başladı!
+          {/* YENİ EKLENEN GÖRSEL (deneme.jpeg) */}
+          <div className="mb-12 w-full max-w-2xl mx-auto overflow-hidden rounded-[2.5rem] shadow-2xl border-4 md:border-8 border-white/60 relative group">
+             <div className="absolute inset-0 bg-white/10 group-hover:bg-transparent transition-colors duration-500 z-10 pointer-events-none"></div>
+             <img src="/deneme.jpeg" alt="Ödüllü Sınav Duyuru" className="w-full h-auto object-cover group-hover:scale-[1.02] transition-transform duration-700 relative z-0" />
           </div>
           
           <h1 className="text-5xl md:text-8xl font-black mb-10 leading-tight tracking-tight drop-shadow-md">

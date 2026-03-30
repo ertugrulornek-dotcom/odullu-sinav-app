@@ -21,14 +21,8 @@ const RegistrationPrizeSelector = ({ type, prizes, selectedPrize, onSelect }) =>
                   return (
                       <div key={idx} onClick={() => onSelect(prize.title)}
                            className={`cursor-pointer flex items-center p-4 rounded-2xl border-4 transition-all hover:scale-105 ${isSelected ? 'border-green-500 bg-green-50 shadow-md' : 'border-slate-200 bg-white hover:border-green-300'}`}>
-                           {prize.img ? (
-                              <img src={prize.img} alt={prize.title} className="w-16 h-16 object-cover rounded-xl shadow-sm border border-slate-200 mr-4 bg-white flex-shrink-0" />
-                           ) : (
-                              <div className="w-16 h-16 rounded-xl bg-slate-100 border border-slate-200 mr-4 flex items-center justify-center text-slate-300 flex-shrink-0"><ImageIcon className="w-6 h-6"/></div>
-                           )}
-                           <div className="flex-1">
-                              <h4 className={`font-black text-lg ${isSelected ? 'text-green-700' : 'text-slate-700'}`}>{prize.title}</h4>
-                           </div>
+                           {prize.img ? <img src={prize.img} alt={prize.title} className="w-16 h-16 object-cover rounded-xl shadow-sm border border-slate-200 mr-4 bg-white flex-shrink-0" /> : <div className="w-16 h-16 rounded-xl bg-slate-100 border border-slate-200 mr-4 flex items-center justify-center text-slate-300 flex-shrink-0"><ImageIcon className="w-6 h-6"/></div>}
+                           <div className="flex-1"><h4 className={`font-black text-lg ${isSelected ? 'text-green-700' : 'text-slate-700'}`}>{prize.title}</h4></div>
                            {isSelected && <CheckCircle2 className="w-6 h-6 text-green-500 ml-2 flex-shrink-0 animate-in zoom-in" />}
                       </div>
                   )
@@ -49,9 +43,8 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
   const [selectedExam, setSelectedExam] = useState(null);
   const [selectedSlot, setSelectedSlot] = useState(null); 
   
-  const [showAlternativeExams, setShowAlternativeExams] = useState(false); 
+  const [selectedParticipationPrize, setSelectedParticipationPrize] = useState(currentUser?.selectedParticipationPrize || '');
   
-  const [selectedParticipationPrize, setSelectedParticipationPrize] = useState('');
   const [showVerification, setShowVerification] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   const [enteredCode, setEnteredCode] = useState('');
@@ -62,19 +55,15 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
   const [customSchoolName, setCustomSchoolName] = useState('');
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'blacklist'), snap => {
-      setBlacklist(snap.docs.map(d => d.data().phone));
-    });
+    const unsub = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'blacklist'), snap => setBlacklist(snap.docs.map(d => d.data().phone)));
     return () => unsub();
   }, []);
 
   useEffect(() => {
     if (currentUser && step === 1) {
       setFormData({ fullName: currentUser.fullName || '', phone: currentUser.phone || '', grade: currentUser.grade || '8', parentName: currentUser.parentName || '', gender: currentUser.gender || '', email: currentUser.email || '', schoolName: currentUser.schoolName || '', province: currentUser.province || '', district: currentUser.district || '', neighborhood: currentUser.neighborhood || '' });
-      if(currentUser.schoolName && !SCHOOLS.some(s => s.name === currentUser.schoolName)) {
-         setIsCustomSchool(true);
-         setCustomSchoolName(currentUser.schoolName);
-      }
+      if(currentUser.schoolName && !SCHOOLS.some(s => s.name === currentUser.schoolName)) { setIsCustomSchool(true); setCustomSchoolName(currentUser.schoolName); }
+      setSelectedParticipationPrize(currentUser.selectedParticipationPrize || '');
       setStep(2);
     }
   }, [currentUser, step]);
@@ -87,20 +76,14 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
   };
 
   const handleStep1Submit = async () => {
-    if (blacklist.includes(formData.phone)) {
-       alert("Bu numara personel numarasıdır. Lütfen veli numarası giriniz.");
-       return;
-    }
-
+    if (blacklist.includes(formData.phone)) return alert("Bu numara personel numarasıdır. Lütfen veli numarası giriniz.");
     if(!currentUser) {
       const isDuplicate = students.some(s => s.fullName?.trim().toLowerCase() === formData.fullName.trim().toLowerCase() && s.phone === formData.phone);
       if(isDuplicate) return alert("Bu isim ve telefon numarası ile sistemde zaten bir profil bulunuyor. Lütfen 'Giriş Yap' menüsünü kullanın.");
     }
     const code = Math.floor(1000 + Math.random() * 9000).toString();
-    console.log("TEST İÇİN DOĞRULAMA KODU:", code);
     setVerificationCode(code);
     setShowVerification(true);
-    
     await sendSMS([{tel: [formData.phone], msg: `odullusinav.net dogrulama kodunuz: ${code}`}]);
   };
 
@@ -112,62 +95,48 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
   useEffect(() => {
     if (formData.province && formData.district && formData.grade) {
        const gradeNum = parseInt(formData.grade);
-       const targetType = gradeNum <= 4 ? 'ilkokul' : 'ortaokul';
-       
-       const filtered = SCHOOLS.filter(s => 
-          s.province === formData.province && 
-          s.district === formData.district && 
-          s.type === targetType
-       );
-       
+       const filtered = SCHOOLS.filter(s => s.province === formData.province && s.district === formData.district && s.type === (gradeNum <= 4 ? 'ilkokul' : 'ortaokul'));
        filtered.sort((a,b) => a.name.localeCompare(b.name, 'tr-TR'));
        setAvailableSchools(filtered);
-       
-       if (!filtered.some(s => s.name === formData.schoolName) && !isCustomSchool) {
-          setFormData(prev => ({...prev, schoolName: ''}));
-       }
+       if (!filtered.some(s => s.name === formData.schoolName) && !isCustomSchool) setFormData(prev => ({...prev, schoolName: ''}));
     }
   }, [formData.province, formData.district, formData.grade]);
 
+  // DÜZELTME: Kullanıcı seçimi etkilenmesin diye useEffect ikiye bölündü
   useEffect(() => {
     if (formData.district && formData.neighborhood) {
       const zoneName = determineZoneName(formData.province, formData.district, formData.neighborhood);
       const zone = findZoneByName(zones, zoneName);
       setMatchedZone(zone);
-      setSelectedParticipationPrize('');
-
-      if (zone && zone.active) setAvailableExams(exams.filter(e => e.zoneId === zone.id));
+      if (zone && zone.active) setAvailableExams(exams.filter(e => e.zoneId == zone.id && e.active !== false));
       else setAvailableExams([]);
-      
-      setSelectedExam(null); setSelectedSlot(null); setShowAlternativeExams(false);
     }
   }, [formData.district, formData.neighborhood, zones, exams]);
+
+  // Sadece mahalle değiştiğinde eski seçimi sıfırla
+  useEffect(() => {
+    setSelectedExam(null);
+    setSelectedSlot(null);
+    if (!currentUser) setSelectedParticipationPrize('');
+  }, [formData.district, formData.neighborhood]);
 
   const partPrizesList = parsePrizeArray(matchedZone?.prizes?.participation);
   const needsPartSelection = partPrizesList.length > 0 && !!partPrizesList[0].title;
 
   useEffect(() => {
-     if (needsPartSelection && partPrizesList.length === 1 && !selectedParticipationPrize) {
-         setSelectedParticipationPrize(partPrizesList[0].title);
-     }
+     if (needsPartSelection && partPrizesList.length === 1 && !selectedParticipationPrize) setSelectedParticipationPrize(partPrizesList[0].title);
   }, [needsPartSelection, partPrizesList, selectedParticipationPrize]);
 
   const isFormValid = selectedSlot !== null && (!needsPartSelection || selectedParticipationPrize !== '');
 
   const handleComplete = async (withoutExam = false) => {
     setIsSubmitting(true);
-    
     const finalSchoolName = isCustomSchool ? customSchoolName : formData.schoolName;
     const finalPartPrize = withoutExam ? '' : (selectedParticipationPrize || (partPrizesList.length === 1 ? partPrizesList[0].title : ''));
     const newPassword = Math.floor(100000 + Math.random() * 900000).toString();
     setGeneratedPassword(newPassword);
 
-    const baseData = {
-        ...formData,
-        schoolName: finalSchoolName,
-        zone: matchedZone || null,
-        selectedParticipationPrize: finalPartPrize,
-    };
+    const baseData = { ...formData, schoolName: finalSchoolName, zone: matchedZone || null, selectedParticipationPrize: finalPartPrize };
 
     try {
       let finalUserObj;
@@ -190,7 +159,6 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
       } else if (finalUserObj.selectedDate) {
          const centerInfo = getNeighborhoodDetails(matchedZone, finalUserObj.district, finalUserObj.neighborhood, finalUserObj.gender);
          const contactPhone = centerInfo.phone || "0553 973 54 40";
-         
          const regMsg = `odullusinav.net başvurunuz alınmıştır.\n\nGiris Sifreniz: ${newPassword}.\n\nSize en yakın sınav mahallimiz ${finalUserObj.district} ilçesi ${finalUserObj.neighborhood} mahallesindedir.\n\nSınav saatinden 30 dakika önce aşağıdaki konumda olmanızı rica ederiz.\n\nOturum: ${finalUserObj.selectedDate} - ${finalUserObj.selectedTime}\n\nKonum: ${centerInfo.mapLink || 'Belirtilmedi'}\n\nİletişim: ${contactPhone}${SMS_FOOTER}`;
          sendSMS([{tel: [finalUserObj.phone], msg: regMsg}]);
       }
@@ -199,8 +167,8 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
     finally { setIsSubmitting(false); }
   };
 
-  const availableDistricts = formData.province ? Object.keys(LOCATIONS[formData.province] || {}) : [];
-  const availableNeighborhoods = (formData.province && formData.district && LOCATIONS[formData.province][formData.district]) ? LOCATIONS[formData.province][formData.district] : [];
+  const availableDistricts = formData.province && LOCATIONS[formData.province] ? Object.keys(LOCATIONS[formData.province]) : [];
+  const availableNeighborhoods = formData.province && formData.district && LOCATIONS[formData.province][formData.district] ? LOCATIONS[formData.province][formData.district] : [];
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-16 relative">
@@ -221,119 +189,36 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
           <div className="bg-white rounded-[3rem] shadow-2xl shadow-slate-200/50 border border-slate-100 p-8 md:p-16 space-y-8 animate-in fade-in zoom-in-95 duration-300">
             <h2 className="text-4xl font-black text-slate-800 border-b-2 border-slate-100 pb-6">Öğrenci ve Veli Bilgileri</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Öğrenci Ad Soyad <span className="text-red-500">*</span></label>
-                {/* Öğrenci ismi büyük harfe çevriliyor */}
-                <input type="text" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value.toLocaleUpperCase('tr-TR')})}/>
-              </div>
-              <div>
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">İletişim Numarası <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-5 text-slate-400 font-black text-xl">0</span>
-                  <input type="tel" className="w-full border-2 border-slate-200 rounded-2xl pl-10 pr-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-black tracking-widest" value={formData.phone} onChange={handlePhoneInput} placeholder="5XX XXX XX XX"/>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Sınıfı <span className="text-red-500">*</span></label>
-                <select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition text-xl font-bold text-slate-800"
-                  value={formData.grade} onChange={e => setFormData({...formData, grade: e.target.value, schoolName: ''})}>
-                  <option value="3">3. Sınıf Öğrencisi</option>
-                  <option value="4">4. Sınıf Öğrencisi</option>
-                  <option value="5">5. Sınıf Öğrencisi</option>
-                  <option value="6">6. Sınıf Öğrencisi</option>
-                  <option value="7">7. Sınıf Öğrencisi</option>
-                  <option value="8">8. Sınıf Öğrencisi (LGS)</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Cinsiyet <span className="text-red-500">*</span></label>
-                <select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition text-xl font-bold text-slate-800"
-                  value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})}>
-                  <option value="">Seçiniz</option>
-                  <option value="Erkek">Erkek</option>
-                  <option value="Kız">Kız</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Veli Ad Soyad <span className="text-red-500">*</span></label>
-                {/* Veli ismi büyük harfe çevriliyor */}
-                <input type="text" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition text-xl font-bold text-slate-800" 
-                  value={formData.parentName} onChange={e => setFormData({...formData, parentName: e.target.value.toLocaleUpperCase('tr-TR')})} placeholder="Örn: AYŞE YILMAZ"/>
-              </div>
-              
-              {/* Eski Okul Bilgisi Alanı Buradan Kaldırıldı */}
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">E-Posta Adresi <span className="text-slate-400 font-medium text-xs">(Şifre yenileme işlemi için gerekiyor, zorunlu değil)</span></label>
-                <input type="email" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition text-xl font-bold text-slate-800" 
-                  value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="Örn: ornek@email.com"/>
-              </div>
+              <div className="md:col-span-2"><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Öğrenci Ad Soyad <span className="text-red-500">*</span></label><input type="text" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})}/></div>
+              <div><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">İletişim Numarası <span className="text-red-500">*</span></label><div className="relative"><span className="absolute inset-y-0 left-0 flex items-center pl-5 text-slate-400 font-black text-xl">0</span><input type="tel" className="w-full border-2 border-slate-200 rounded-2xl pl-10 pr-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-black tracking-widest" value={formData.phone} onChange={handlePhoneInput} placeholder="5XX XXX XX XX"/></div></div>
+              <div><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Sınıfı <span className="text-red-500">*</span></label><select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold" value={formData.grade} onChange={e => setFormData({...formData, grade: e.target.value, schoolName: ''})}><option value="3">3. Sınıf Öğrencisi</option><option value="4">4. Sınıf Öğrencisi</option><option value="5">5. Sınıf Öğrencisi</option><option value="6">6. Sınıf Öğrencisi</option><option value="7">7. Sınıf Öğrencisi</option><option value="8">8. Sınıf Öğrencisi (LGS)</option></select></div>
+              <div><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Cinsiyet <span className="text-red-500">*</span></label><select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold" value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})}><option value="">Seçiniz</option><option value="Erkek">Erkek</option><option value="Kız">Kız</option></select></div>
+              <div><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Veli Ad Soyad <span className="text-red-500">*</span></label><input type="text" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold" value={formData.parentName} onChange={e => setFormData({...formData, parentName: e.target.value})} placeholder="Örn: Ayşe Yılmaz"/></div>
+              <div className="md:col-span-2"><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Okul Bilgisi</label><input type="text" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold" value={formData.schoolName} onChange={e => setFormData({...formData, schoolName: e.target.value})} placeholder="Örn: Atatürk Ortaokulu"/></div>
             </div>
-            
-            <p className="text-xs text-slate-500 mt-4 font-bold"><span className="text-red-500">*</span> İşaretli alanların doldurulması zorunludur.</p>
-
             <button onClick={handleStep1Submit} disabled={!formData.fullName || formData.phone.length !== 10 || !formData.parentName || !formData.gender} className="w-full bg-indigo-600 text-white font-black text-2xl py-6 rounded-2xl mt-8 hover:bg-indigo-700 transition shadow-2xl disabled:opacity-50">Devam Et</button>
           </div>
       )}
       
       {step === 2 && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-500 bg-white rounded-[3rem] shadow-2xl shadow-slate-200/50 border border-slate-100 p-8 md:p-16">
-            <h2 className="text-4xl font-black text-slate-800 border-b-2 border-slate-100 pb-6 flex items-center">
-              <MapPin className="mr-4 w-10 h-10 text-indigo-600" /> Konum ve Sınav Bilgisi
-            </h2>
-            
+            <h2 className="text-4xl font-black text-slate-800 border-b-2 border-slate-100 pb-6 flex items-center"><MapPin className="mr-4 w-10 h-10 text-indigo-600" /> Konum ve Sınav Bilgisi</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-              <div>
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Yaşadığınız İl <span className="text-red-500">*</span></label>
-                <select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 text-xl font-bold focus:border-indigo-500 outline-none"
-                  value={formData.province} onChange={e => setFormData({...formData, province: e.target.value, district: '', neighborhood: '', schoolName: ''})}>
-                  <option value="">İl Seçiniz</option>
-                  {Object.keys(LOCATIONS).map(prov => (<option key={prov} value={prov}>{prov}</option>))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Yaşadığınız İlçe <span className="text-red-500">*</span></label>
-                <select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 text-xl font-bold focus:border-indigo-500 outline-none disabled:bg-slate-100"
-                  disabled={!formData.province} value={formData.district} onChange={e => setFormData({...formData, district: e.target.value, neighborhood: '', schoolName: ''})}>
-                  <option value="">Önce İl Seçiniz</option>
-                  {availableDistricts.map(dist => (<option key={dist} value={dist}>{dist}</option>))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Mahalle <span className="text-red-500">*</span></label>
-                <select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 text-xl font-bold focus:border-indigo-500 outline-none disabled:bg-slate-100"
-                  disabled={!formData.district} value={formData.neighborhood} onChange={e => setFormData({...formData, neighborhood: e.target.value})}>
-                  <option value="">Önce İlçe Seçiniz</option>
-                  {availableNeighborhoods.map(hood => (<option key={hood} value={hood}>{hood} Mah.</option>))}
-                </select>
-              </div>
+              <div><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Yaşadığınız İl</label><select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 text-xl font-bold outline-none" value={formData.province} onChange={e => setFormData({...formData, province: e.target.value, district: '', neighborhood: '', schoolName: ''})}><option value="">İl Seçiniz</option>{Object.keys(LOCATIONS).map(prov => (<option key={prov} value={prov}>{prov}</option>))}</select></div>
+              <div><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Yaşadığınız İlçe</label><select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 text-xl font-bold outline-none disabled:bg-slate-100" disabled={!formData.province} value={formData.district} onChange={e => setFormData({...formData, district: e.target.value, neighborhood: '', schoolName: ''})}><option value="">Önce İl Seçiniz</option>{availableDistricts.map(dist => (<option key={dist} value={dist}>{dist}</option>))}</select></div>
+              <div><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Mahalle</label><select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 text-xl font-bold outline-none disabled:bg-slate-100" disabled={!formData.district} value={formData.neighborhood} onChange={e => setFormData({...formData, neighborhood: e.target.value})}><option value="">Önce İlçe Seçiniz</option>{availableNeighborhoods.map(hood => (<option key={hood} value={hood}>{hood} Mah.</option>))}</select></div>
             </div>
 
-            {/* OKUL SEÇİMİ BÖLÜMÜ */}
             {formData.district && (
                <div className="bg-indigo-50 p-6 rounded-3xl border-2 border-indigo-100 animate-in fade-in">
                   <label className="block text-sm font-black text-indigo-700 mb-3 uppercase tracking-wider flex items-center"><School className="w-5 h-5 mr-2"/> Okulunuz (İsteğe Bağlı)</label>
                   {!isCustomSchool ? (
-                     <select className="w-full border-2 border-indigo-200 rounded-2xl px-5 py-4 text-xl font-bold focus:border-indigo-500 outline-none bg-white"
-                     value={formData.schoolName} 
-                     onChange={e => {
-                        if (e.target.value === 'CUSTOM') {
-                           setIsCustomSchool(true);
-                           setFormData({...formData, schoolName: ''});
-                        } else {
-                           setFormData({...formData, schoolName: e.target.value});
-                        }
-                     }}>
-                     <option value="">Okulunuzu Seçin</option>
-                     {availableSchools.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-                     <option value="CUSTOM" className="font-black text-indigo-600">Diğer (Listede Yok) / Elde Gir</option>
+                     <select className="w-full border-2 border-indigo-200 rounded-2xl px-5 py-4 text-xl font-bold outline-none bg-white" value={formData.schoolName} onChange={e => { if(e.target.value === 'CUSTOM'){ setIsCustomSchool(true); setFormData({...formData, schoolName: ''}); } else { setFormData({...formData, schoolName: e.target.value}); } }}>
+                     <option value="">Okulunuzu Seçin</option>{availableSchools.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}<option value="CUSTOM" className="font-black text-indigo-600">Diğer (Listede Yok) / Elde Gir</option>
                    </select>
                   ) : (
                      <div className="flex flex-col gap-3">
-                        {/* Elle girilen okul ismi büyük harfe çevriliyor */}
-                        <input type="text" value={customSchoolName} onChange={e => setCustomSchoolName(e.target.value.toLocaleUpperCase('tr-TR'))} className="w-full border-2 border-indigo-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none text-xl font-bold bg-white" placeholder="Okulunuzun adını yazınız"/>
+                        <input type="text" value={customSchoolName} onChange={e => setCustomSchoolName(e.target.value)} className="w-full border-2 border-indigo-200 rounded-2xl px-5 py-4 outline-none text-xl font-bold bg-white" placeholder="Okulunuzun adını yazınız"/>
                         <button onClick={() => {setIsCustomSchool(false); setCustomSchoolName('');}} className="text-sm font-bold text-indigo-500 hover:text-indigo-700 text-left">Listeye Geri Dön</button>
                      </div>
                   )}
@@ -349,8 +234,7 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
                       {availableExams.map(exam => {
                         const examSessions = exam.sessions || (exam.date && exam.slots ? [{ date: exam.date, slots: exam.slots }] : []);
                         return (
-                          <div key={exam.firebaseId || exam.id} className={`border-4 rounded-3xl p-6 md:p-8 transition-all hover:-translate-y-1 ${selectedExam?.firebaseId === exam.firebaseId ? 'border-indigo-600 bg-indigo-50 ring-4 ring-indigo-500/20 shadow-xl' : 'border-slate-100 bg-white hover:border-indigo-300 hover:shadow-lg cursor-pointer'}`}
-                              onClick={() => { setSelectedExam(exam); setSelectedSlot(null); }}>
+                          <div key={exam.firebaseId || exam.id} className={`border-4 rounded-3xl p-6 md:p-8 transition-all ${(selectedExam?.firebaseId || selectedExam?.id) === (exam.firebaseId || exam.id) ? 'border-indigo-600 bg-indigo-50 ring-4 ring-indigo-500/20 shadow-xl' : 'border-slate-100 bg-white hover:border-indigo-300 hover:shadow-lg'}`}>
                             <h4 className="font-black text-3xl text-slate-800 mb-4">{exam.title}</h4>
                             <div className="space-y-6">
                               {examSessions.map((session, sIdx) => (
@@ -358,12 +242,12 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
                                   <span className="text-lg font-black text-slate-700 mb-4 flex items-center"><CalendarIcon className="w-6 h-6 mr-3 text-indigo-500"/> {session.date} Tarihli Oturumlar:</span>
                                   <div className="flex flex-wrap gap-4 mt-4">
                                     {session.slots && session.slots.map(slot => {
-                                      const isSelected = selectedExam?.firebaseId === exam.firebaseId && selectedSlot?.date === session.date && selectedSlot?.time === slot;
+                                      const isSelected = selectedExam && (selectedExam.firebaseId === exam.firebaseId || selectedExam.id === exam.id) && selectedSlot?.date === session.date && selectedSlot?.time === slot;
                                       return (
-                                        <button key={slot} onClick={(e) => { e.stopPropagation(); setSelectedExam(exam); setSelectedSlot({ date: session.date, time: slot }); }}
-                                          className={`px-8 py-4 rounded-2xl text-xl font-black border-4 transition-all hover:scale-105 flex items-center ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-xl' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-indigo-400'}`}>
+                                        <div key={slot} onClick={() => { setSelectedExam(exam); setSelectedSlot({ date: session.date, time: slot }); }}
+                                          className={`px-8 py-4 rounded-2xl text-xl font-black border-4 transition-all hover:scale-105 flex items-center cursor-pointer ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-xl' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-indigo-400'}`}>
                                           {isSelected ? <CheckCircle2 className="w-5 h-5 mr-2" /> : <Clock className="w-5 h-5 mr-2 opacity-70" />} {slot.replace(':', '.')}
-                                        </button>
+                                        </div>
                                       )
                                     })}
                                   </div>
@@ -409,13 +293,11 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
               <CheckCircle2 className="w-20 h-20 text-green-600" />
             </div>
             <h2 className="text-5xl font-black text-slate-900 mb-6">Harika, Kaydınız Onaylandı!</h2>
-            
             <div className="bg-indigo-50 border-4 border-indigo-200 border-dashed rounded-3xl p-8 max-w-lg mx-auto mb-12 relative overflow-hidden group">
                <p className="text-sm font-black text-indigo-500 uppercase tracking-widest mb-3">Sisteme Giriş Şifreniz</p>
                <div className="text-5xl font-black text-indigo-900 tracking-[0.2em]">{generatedPassword}</div>
                <p className="text-sm font-medium text-slate-500 mt-4">Bu şifreyi ve telefon numaranızı kullanarak <br/>öğrenci panelinize giriş yapabilirsiniz.</p>
             </div>
-
             <button onClick={() => navigateTo('profile')} className="bg-indigo-600 text-white font-black text-2xl py-6 px-12 rounded-3xl hover:bg-indigo-700 transition-all shadow-2xl flex items-center mx-auto">
               Öğrenci Paneline Git <ChevronRight className="ml-2 w-8 h-8"/>
             </button>

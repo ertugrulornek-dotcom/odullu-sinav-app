@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Gift, Trophy, Award, Plus, Trash2, CalendarIcon, CheckCircle2, Edit } from 'lucide-react';
 import { db, appId } from '../../services/firebase';
-import { updateDoc, doc, addDoc, collection, deleteDoc } from "firebase/firestore";
+import { updateDoc, doc, addDoc, collection, deleteDoc, getDocs } from "firebase/firestore";
 import { INITIAL_ZONES } from '../../data/constants';
 import { parsePrizeArray } from '../../utils/helpers';
+import { sendSMS, SMS_FOOTER } from '../../services/smsService'; // DÜZELTME: SMS servisi eklendi
 
 export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, setHasMadeChanges, filteredExams, zones }) {
   const [localPrizes, setLocalPrizes] = useState({ grand: { title: '', desc: '', img: '' }, degree: [{ title: '', desc: '', img: '' }], participation: [{ title: '', desc: '', img: '' }] });
-  
-  // Sınav Düzenleme Eklentileri
   const [examData, setExamData] = useState({ title: '' });
   const [examSessions, setExamSessions] = useState([{ date: '', times: '' }]);
   const [editingExamId, setEditingExamId] = useState(null);
@@ -27,9 +26,7 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
     try {
       setHasMadeChanges(true);
       const targetZoneIds = isSuperAdmin ? INITIAL_ZONES.map(z => z.id) : [adminZoneId];
-      for (const zId of targetZoneIds) {
-         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', zId.toString()), { prizes: localPrizes });
-      }
+      for (const zId of targetZoneIds) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', zId.toString()), { prizes: localPrizes });
       alert(`Ödüller başarıyla güncellendi!`);
     } catch (e) { console.error(e); }
   };
@@ -45,18 +42,15 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
     setExamSessions(newSessions.length > 0 ? newSessions : [{ date: '', times: '' }]);
   };
 
-  // Yeni Sınav Düzenleme Moduna Alma
   const handleEditExam = (exam) => {
      setExamData({ title: exam.title });
-     const editableSessions = (exam.sessions || []).map(s => ({
-        date: s.date,
-        times: s.slots ? s.slots.join(', ') : ''
-     }));
+     const editableSessions = (exam.sessions || []).map(s => ({ date: s.date, times: s.slots ? s.slots.join(', ') : '' }));
      setExamSessions(editableSessions.length > 0 ? editableSessions : [{ date: '', times: '' }]);
      setEditingExamId(exam.firebaseId);
      window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // DÜZELTME: SINAV GÜNCELLENİNCE ÖĞRENCİLERE OTOMATİK SMS GİDER
   const handleAddOrUpdateExam = async () => {
     if(!examData.title) return alert("Sınav Adı boş bırakılamaz.");
     const formattedSessions = examSessions
@@ -68,23 +62,37 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
     try {
       setHasMadeChanges(true);
       
-      // GÜNCELLEME İŞLEMİ
       if (editingExamId) {
          await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'exams', editingExamId), {
-            title: examData.title,
-            sessions: formattedSessions,
-            updatedAt: new Date().getTime()
+            title: examData.title, sessions: formattedSessions, updatedAt: new Date().getTime(), active: true
          });
-         alert("Sınav oturumu başarıyla güncellendi!");
+         
+         // Öğrencileri Tarama ve SMS Gönderme İşlemi
+         const studentsSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'students'));
+         let smsQueue = [];
+         let updatePromises = [];
+         studentsSnap.docs.forEach(d => {
+             const s = { firebaseId: d.id, ...d.data() };
+             if (s.examId === editingExamId || s.exam?.firebaseId === editingExamId) {
+                 let stillValid = false;
+                 for (let sess of formattedSessions) {
+                     if (sess.date === s.selectedDate && sess.slots.includes(s.selectedTime)) { stillValid = true; break; }
+                 }
+                 if (!stillValid && s.selectedDate && s.selectedTime) {
+                     updatePromises.push(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', s.firebaseId), { examId: null, examTitle: null, selectedDate: null, selectedTime: null, isWaitingPool: true }));
+                     if (s.phone) smsQueue.push({ tel: [s.phone], msg: `Önemli: Sınav oturumunuzda saat/tarih değişikliği olmuştur. Lütfen odullusinav.net adresinden profilinize girerek yeni oturumunuzu seçiniz.${SMS_FOOTER}` });
+                 }
+             }
+         });
+         await Promise.all(updatePromises);
+         if (smsQueue.length > 0) { await sendSMS(smsQueue); alert(`Oturumu kaldırılan ${smsQueue.length} öğrenciye SMS gönderildi.`); }
+         else { alert("Sınav oturumu başarıyla güncellendi!"); }
          setEditingExamId(null);
       } 
-      // YENİ EKLEME İŞLEMİ
       else {
          const targetZoneIds = isSuperAdmin ? INITIAL_ZONES.map(z => z.id) : [adminZoneId];
          for (const zId of targetZoneIds) {
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'exams'), {
-              zoneId: zId, title: examData.title, sessions: formattedSessions, createdAt: new Date().getTime()
-            });
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'exams'), { zoneId: zId, title: examData.title, sessions: formattedSessions, createdAt: new Date().getTime(), active: true });
          }
          alert(`Sınav oturumları başarıyla eklendi!`);
       }
@@ -92,11 +100,26 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
     } catch (e) { console.error(e); }
   };
 
+  // DÜZELTME: SINAV SİLİNİNCE ÖĞRENCİLERE OTOMATİK SMS GİDER
   const handleDeleteExam = async (examId) => {
       if(!window.confirm("Bu sınav oturumunu tamamen iptal etmek istediğinize emin misiniz?")) return;
       try {
           setHasMadeChanges(true);
           await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'exams', examId));
+          
+          // Öğrencileri Tarama ve SMS Gönderme İşlemi
+          const studentsSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'students'));
+          let smsQueue = [];
+          let updatePromises = [];
+          studentsSnap.docs.forEach(d => {
+              const s = { firebaseId: d.id, ...d.data() };
+              if (s.examId === examId || s.exam?.firebaseId === examId) {
+                  updatePromises.push(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', s.firebaseId), { examId: null, examTitle: null, selectedDate: null, selectedTime: null, isWaitingPool: true }));
+                  if (s.phone) smsQueue.push({ tel: [s.phone], msg: `Önemli: Kayıtlı olduğunuz sınav oturumu iptal edilmiştir. Lütfen odullusinav.net adresinden profilinize girerek yeni bir oturum seçiniz.${SMS_FOOTER}` });
+              }
+          });
+          await Promise.all(updatePromises);
+          if (smsQueue.length > 0) { await sendSMS(smsQueue); alert(`${smsQueue.length} etkilenen öğrenciye SMS ile haber verildi ve profilleri güncellendi.`); }
       } catch(e) { console.error(e); }
   };
 
@@ -111,7 +134,6 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
         <div>
-           {/* Ödüller Kısmı (Aynı Kaldı) */}
           <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider flex items-center"><Gift className="w-6 h-6 mr-2"/> {isSuperAdmin ? 'Tüm Türkiye' : 'Bölge'} Ödüllerini Yönet</div>
           <div className="space-y-6 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
             {/* Büyük Ödül */}
@@ -121,7 +143,6 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
               <textarea rows="2" value={localPrizes.grand.desc} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, desc: e.target.value}})} className="w-full text-sm font-medium p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2 resize-none" placeholder="Açıklama (İsteğe bağlı)"/>
               <input type="text" value={localPrizes.grand.img} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, img: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Resim Linki veya Dosya Adı"/>
             </div>
-
             {/* Derece Ödülleri */}
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
               <div className="text-sm font-black text-slate-800 mb-3 flex justify-between items-center">
@@ -139,7 +160,6 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
                 </div>
               ))}
             </div>
-
             {/* Katılım Ödülleri */}
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
               <div className="text-sm font-black text-slate-800 mb-3 flex justify-between items-center">
@@ -189,9 +209,7 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
              
              <div className="flex gap-3 mt-6">
                  {editingExamId && (
-                    <button onClick={() => {setEditingExamId(null); setExamData({title:''}); setExamSessions([{date:'', times:''}]);}} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-black py-4 px-4 rounded-xl transition w-1/3">
-                       İptal
-                    </button>
+                    <button onClick={() => {setEditingExamId(null); setExamData({title:''}); setExamSessions([{date:'', times:''}]);}} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-black py-4 px-4 rounded-xl transition w-1/3">İptal</button>
                  )}
                  <button onClick={handleAddOrUpdateExam} className={`text-white text-base font-black py-4 px-4 rounded-xl transition shadow-md flex items-center justify-center flex-1 ${editingExamId ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}>
                    {editingExamId ? <><Edit className="w-5 h-5 mr-2"/> Değişiklikleri Kaydet</> : <><CheckCircle2 className="w-5 h-5 mr-2"/> Oturumları Toplu Ekle</>}
@@ -215,14 +233,9 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
                       
                       <div className="space-y-3">
                         {sessions.map((session, idx) => {
-                           // TARİH FORMATLAMASI GÜN.AY.YIL (YAZI İLE AY)
                            const [y, m, d] = session.date.split('-');
                            const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
-                           
-                           const numberDate = `${d}.${m}.${y}`;
-                           const textDate = `${parseInt(d)} ${monthNames[parseInt(m)-1]}`;
-                           const finalDateDisplay = `${numberDate} (${textDate})`;
-                           
+                           const finalDateDisplay = `${d}.${m}.${y} (${parseInt(d)} ${monthNames[parseInt(m)-1]})`;
                            return (
                              <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-3 bg-white/50 p-2 rounded-xl">
                                <span className="bg-white px-3 py-1.5 rounded-lg border border-indigo-200 text-sm font-bold text-slate-800 w-max shadow-sm"><CalendarIcon className="inline w-4 h-4 mr-1.5 text-indigo-500"/>{finalDateDisplay}</span>
