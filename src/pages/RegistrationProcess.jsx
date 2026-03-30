@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Phone, Plus, MapPin, AlertCircle, CalendarIcon, Clock, CheckCircle2, Gift, ChevronRight } from 'lucide-react';
+import { Phone, Plus, MapPin, AlertCircle, CalendarIcon, Clock, CheckCircle2, Gift, ChevronRight, School } from 'lucide-react';
 import { Image as ImageIcon } from 'lucide-react';
 import { db, appId } from '../services/firebase';
 import { collection, addDoc, updateDoc, doc, onSnapshot } from "firebase/firestore";
 import { sendSMS, SMS_FOOTER } from '../services/smsService';
 import { LOCATIONS } from '../data/constants';
+import { SCHOOLS } from '../data/schools';
 import { determineZoneName, findZoneByName, parsePrizeArray, getNeighborhoodDetails } from '../utils/helpers';
 
 const RegistrationPrizeSelector = ({ type, prizes, selectedPrize, onSelect }) => {
@@ -13,7 +14,7 @@ const RegistrationPrizeSelector = ({ type, prizes, selectedPrize, onSelect }) =>
 
   return (
       <div className="mb-8 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
-          <label className="block text-sm font-black uppercase tracking-widest mb-4 text-emerald-600">İstediğiniz Katılım Ödülü</label>
+          <label className="block text-sm font-black uppercase tracking-widest mb-4 text-emerald-600">İstediğiniz Katılım Ödülü *</label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {prizes.map((prize, idx) => {
                   const isSelected = selectedPrize === prize.title;
@@ -40,25 +41,25 @@ const RegistrationPrizeSelector = ({ type, prizes, selectedPrize, onSelect }) =>
 export default function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, exams, students }) {
   const [step, setStep] = useState(1); 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState({ fullName: '', phone: '', grade: '8', parentName: '', gender: '', email: '', schoolName: '', province: '', district: '', neighborhood: '' });
+  const [formData, setFormData] = useState({ fullName: '', phone: '', grade: '8', parentName: '', gender: '', email: '', province: '', district: '', neighborhood: '', schoolName: '' });
   
   const [blacklist, setBlacklist] = useState([]);
   const [matchedZone, setMatchedZone] = useState(null);
   const [availableExams, setAvailableExams] = useState([]);
   const [selectedExam, setSelectedExam] = useState(null);
   const [selectedSlot, setSelectedSlot] = useState(null); 
-  const [showAlternativeExams, setShowAlternativeExams] = useState(false);
   const [selectedParticipationPrize, setSelectedParticipationPrize] = useState('');
   
-  // Eskiden şifre girmek için Alert çıkıyordu, şimdi otomatik geçiyor veya modal gösteriliyor.
-  // Uyarıları kaldırıp sadece SMS'e döneceğimiz için doğrulama adımını otomatik atlattıracağız 
-  // ya da ekranda göstermeye devam edeceğiz ama şifreyi SMS'ten girmesini isteyeceğiz.
   const [showVerification, setShowVerification] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   const [enteredCode, setEnteredCode] = useState('');
   const [generatedPassword, setGeneratedPassword] = useState('');
+  
+  // Okul Seçimi İçin Özel Durumlar
+  const [availableSchools, setAvailableSchools] = useState([]);
+  const [isCustomSchool, setIsCustomSchool] = useState(false);
+  const [customSchoolName, setCustomSchoolName] = useState('');
 
-  // Kara listeyi getir
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'blacklist'), snap => {
       setBlacklist(snap.docs.map(d => d.data().phone));
@@ -69,6 +70,10 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
   useEffect(() => {
     if (currentUser && step === 1) {
       setFormData({ fullName: currentUser.fullName || '', phone: currentUser.phone || '', grade: currentUser.grade || '8', parentName: currentUser.parentName || '', gender: currentUser.gender || '', email: currentUser.email || '', schoolName: currentUser.schoolName || '', province: currentUser.province || '', district: currentUser.district || '', neighborhood: currentUser.neighborhood || '' });
+      if(currentUser.schoolName && !SCHOOLS.some(s => s.name === currentUser.schoolName)) {
+         setIsCustomSchool(true);
+         setCustomSchoolName(currentUser.schoolName);
+      }
       setStep(2);
     }
   }, [currentUser, step]);
@@ -91,17 +96,38 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
       if(isDuplicate) return alert("Bu isim ve telefon numarası ile sistemde zaten bir profil bulunuyor. Lütfen 'Giriş Yap' menüsünü kullanın.");
     }
     const code = Math.floor(1000 + Math.random() * 9000).toString();
+    console.log("TEST İÇİN DOĞRULAMA KODU:", code);
     setVerificationCode(code);
     setShowVerification(true);
     
-    // Doğrulama kodu SMS ile atılıyor (Ekranda alert vs çıkmaz)
-    sendSMS([{tel: [formData.phone], msg: `odullusinav.net dogrulama kodunuz: ${code}`}]);
+    await sendSMS([{tel: [formData.phone], msg: `odullusinav.net dogrulama kodunuz: ${code}`}]);
   };
 
   const verifyCodeAndProceed = () => {
     if (enteredCode === verificationCode || enteredCode === "1234") { setShowVerification(false); setStep(2); } 
     else alert("Girdiğiniz doğrulama kodu hatalı. Lütfen tekrar deneyin.");
   };
+
+  // İl, ilçe veya sınıf değiştiğinde okulları otomatik filtrele
+  useEffect(() => {
+    if (formData.province && formData.district && formData.grade) {
+       const gradeNum = parseInt(formData.grade);
+       const targetType = gradeNum <= 4 ? 'ilkokul' : 'ortaokul';
+       
+       const filtered = SCHOOLS.filter(s => 
+          s.province === formData.province && 
+          s.district === formData.district && 
+          s.type === targetType
+       );
+       
+       filtered.sort((a,b) => a.name.localeCompare(b.name, 'tr-TR'));
+       setAvailableSchools(filtered);
+       
+       if (!filtered.some(s => s.name === formData.schoolName) && !isCustomSchool) {
+          setFormData(prev => ({...prev, schoolName: ''}));
+       }
+    }
+  }, [formData.province, formData.district, formData.grade]);
 
   useEffect(() => {
     if (formData.district && formData.neighborhood) {
@@ -118,41 +144,54 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
   }, [formData.district, formData.neighborhood, zones, exams]);
 
   const partPrizesList = parsePrizeArray(matchedZone?.prizes?.participation);
-  const needsPartSelection = partPrizesList.length > 1;
-  
-  // Ödül seçimi kontrolü (Eğer ödül seçiliyse veya ödül tek seçenekliyse buton aktif olur)
-  const isFormValid = selectedSlot && (!needsPartSelection || selectedParticipationPrize !== '');
+  const needsPartSelection = partPrizesList.length > 0 && !!partPrizesList[0].title;
+
+  useEffect(() => {
+     if (needsPartSelection && partPrizesList.length === 1 && !selectedParticipationPrize) {
+         setSelectedParticipationPrize(partPrizesList[0].title);
+     }
+  }, [needsPartSelection, partPrizesList, selectedParticipationPrize]);
+
+  const isFormValid = selectedSlot !== null && (!needsPartSelection || selectedParticipationPrize !== '');
 
   const handleComplete = async (withoutExam = false) => {
     setIsSubmitting(true);
+    
+    const finalSchoolName = isCustomSchool ? customSchoolName : formData.schoolName;
     const finalPartPrize = withoutExam ? '' : (selectedParticipationPrize || (partPrizesList.length === 1 ? partPrizesList[0].title : ''));
     const newPassword = Math.floor(100000 + Math.random() * 900000).toString();
     setGeneratedPassword(newPassword);
 
+    const baseData = {
+        ...formData,
+        schoolName: finalSchoolName,
+        zone: matchedZone || null,
+        selectedParticipationPrize: finalPartPrize,
+    };
+
     try {
       let finalUserObj;
       if (currentUser) {
-        const updatedData = withoutExam ? { examId: null, examTitle: null, selectedDate: null, selectedTime: null, zone: matchedZone || null, selectedParticipationPrize: finalPartPrize, isWaitingPool: true } 
-        : { examId: selectedExam.firebaseId || selectedExam.id, examTitle: selectedExam.title, selectedDate: selectedSlot.date, selectedTime: selectedSlot.time, zone: matchedZone || null, selectedParticipationPrize: finalPartPrize, isWaitingPool: false };
+        const updatedData = withoutExam ? { ...baseData, examId: null, examTitle: null, selectedDate: null, selectedTime: null, isWaitingPool: true } 
+        : { ...baseData, examId: selectedExam.firebaseId || selectedExam.id, examTitle: selectedExam.title, selectedDate: selectedSlot.date, selectedTime: selectedSlot.time, isWaitingPool: false };
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', currentUser.firebaseId), updatedData);
         finalUserObj = { ...currentUser, ...updatedData };
         setCurrentUser(finalUserObj);
       } else {
-        const newStudent = withoutExam ? { ...formData, password: newPassword, examId: null, examTitle: null, selectedDate: null, selectedTime: null, zone: matchedZone || null, selectedParticipationPrize: finalPartPrize, isWaitingPool: true, pastExams: [], attendance: '', interview: '', interviewResult: '', registrationDate: new Date().toLocaleDateString('tr-TR'), createdAt: new Date().getTime() } 
-        : { ...formData, password: newPassword, examId: selectedExam.firebaseId || selectedExam.id, examTitle: selectedExam.title, selectedDate: selectedSlot.date, selectedTime: selectedSlot.time, zone: matchedZone || null, selectedParticipationPrize: finalPartPrize, isWaitingPool: false, pastExams: [], attendance: '', interview: '', interviewResult: '', registrationDate: new Date().toLocaleDateString('tr-TR'), createdAt: new Date().getTime() };
+        const newStudent = withoutExam ? { ...baseData, password: newPassword, examId: null, examTitle: null, selectedDate: null, selectedTime: null, isWaitingPool: true, pastExams: [], attendance: '', interview: '', interviewResult: '', registrationDate: new Date().toLocaleDateString('tr-TR'), createdAt: new Date().getTime() } 
+        : { ...baseData, password: newPassword, examId: selectedExam.firebaseId || selectedExam.id, examTitle: selectedExam.title, selectedDate: selectedSlot.date, selectedTime: selectedSlot.time, isWaitingPool: false, pastExams: [], attendance: '', interview: '', interviewResult: '', registrationDate: new Date().toLocaleDateString('tr-TR'), createdAt: new Date().getTime() };
         const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'students'), newStudent);
         finalUserObj = { firebaseId: docRef.id, ...newStudent };
         setCurrentUser(finalUserObj);
       }
 
       if (withoutExam) {
-         sendSMS([{tel: [finalUserObj.phone], msg: `odullusinav.net basvurunuz alinmistir.\nGiris Sifreniz: ${newPassword}\nBolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`}]);
+         sendSMS([{tel: [finalUserObj.phone], msg: `odullusinav.net başvurunuz alınmıştır.\nGiris Sifreniz: ${newPassword}.\nBolgenizde sınav açıldığında size haber verecegiz.${SMS_FOOTER}`}]);
       } else if (finalUserObj.selectedDate) {
-         // Cinsiyete göre adres getir
          const centerInfo = getNeighborhoodDetails(matchedZone, finalUserObj.district, finalUserObj.neighborhood, finalUserObj.gender);
-         const contactPhone = centerInfo.phone || "+905074475598";
+         const contactPhone = centerInfo.phone || "0531 333 32 32";
          
-         const regMsg = `odullusinav.net başvurunuz alınmıştır.\nGiris Sifreniz: ${newPassword}\nSize en yakın sınav mahallimiz ${finalUserObj.district} ilçesi ${finalUserObj.neighborhood} mahallesindedir.\nSınav saatinden 30 dakika önce aşağıdaki konumda olmanızı rica ederiz.\n\nOturum: ${finalUserObj.selectedDate} - ${finalUserObj.selectedTime}\n\nKonum: ${centerInfo.mapLink || 'Belirtilmedi'}\n\nİletişim: ${contactPhone}${SMS_FOOTER}`;
+         const regMsg = `odullusinav.net başvurunuz alınmıştır.\nGiris Sifreniz: ${newPassword}.\nSize en yakın sınav mahallimiz ${finalUserObj.district} ilçesi ${finalUserObj.neighborhood} mahallesindedir.\nSınav saatinden 30 dakika önce aşağıdaki konumda olmanızı rica ederiz.\n\nOturum: ${finalUserObj.selectedDate} - ${finalUserObj.selectedTime}\nKonum: ${centerInfo.mapLink || 'Belirtilmedi'}\nİletişim: ${contactPhone}${SMS_FOOTER}`;
          sendSMS([{tel: [finalUserObj.phone], msg: regMsg}]);
       }
       setStep(3); 
@@ -171,7 +210,7 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
                <button onClick={() => setShowVerification(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"><Plus className="w-8 h-8 transform rotate-45"/></button>
                <Phone className="w-16 h-16 text-indigo-500 mx-auto mb-6" />
                <h3 className="text-3xl font-black text-center text-slate-900 mb-2">Telefon Doğrulama</h3>
-               <p className="text-center text-slate-500 font-bold mb-8">Lütfen 0{formData.phone} numaralı telefonunuza SMS olarak gönderilen 4 haneli kodu giriniz.</p>
+               <p className="text-center text-slate-500 font-bold mb-8">Lütfen 0{formData.phone} numaralı telefonunuza gönderilen 4 haneli kodu giriniz.</p>
                <input type="text" maxLength="4" value={enteredCode} onChange={e => setEnteredCode(e.target.value.replace(/\D/g, ''))} className="w-full text-center tracking-[1em] border-4 border-slate-100 rounded-2xl px-6 py-4 text-3xl font-black focus:border-indigo-500 outline-none mb-6" placeholder="••••" />
                <button onClick={verifyCodeAndProceed} disabled={enteredCode.length !== 4} className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 disabled:opacity-50 transition shadow-xl shadow-indigo-500/30">Doğrula ve Devam Et</button>
             </div>
@@ -182,18 +221,18 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
           <div className="bg-white rounded-[3rem] shadow-2xl shadow-slate-200/50 border border-slate-100 p-8 md:p-16 space-y-8 animate-in fade-in zoom-in-95 duration-300">
             <h2 className="text-4xl font-black text-slate-800 border-b-2 border-slate-100 pb-6">Öğrenci ve Veli Bilgileri</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="md:col-span-2"><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Öğrenci Ad Soyad *</label><input type="text" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})}/></div>
+              <div className="md:col-span-2"><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Öğrenci Ad Soyad <span className="text-red-500">*</span></label><input type="text" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})}/></div>
               <div>
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">İletişim Numarası *</label>
+                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">İletişim Numarası <span className="text-red-500">*</span></label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-5 text-slate-400 font-black text-xl">0</span>
                   <input type="tel" className="w-full border-2 border-slate-200 rounded-2xl pl-10 pr-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-black tracking-widest" value={formData.phone} onChange={handlePhoneInput} placeholder="5XX XXX XX XX"/>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Sınıfı *</label>
+                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Sınıfı <span className="text-red-500">*</span></label>
                 <select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition text-xl font-bold text-slate-800"
-                  value={formData.grade} onChange={e => setFormData({...formData, grade: e.target.value})}>
+                  value={formData.grade} onChange={e => setFormData({...formData, grade: e.target.value, schoolName: ''})}>
                   <option value="3">3. Sınıf Öğrencisi</option>
                   <option value="4">4. Sınıf Öğrencisi</option>
                   <option value="5">5. Sınıf Öğrencisi</option>
@@ -203,7 +242,7 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Cinsiyet *</label>
+                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Cinsiyet <span className="text-red-500">*</span></label>
                 <select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition text-xl font-bold text-slate-800"
                   value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})}>
                   <option value="">Seçiniz</option>
@@ -212,14 +251,9 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Veli Ad Soyad *</label>
+                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Veli Ad Soyad <span className="text-red-500">*</span></label>
                 <input type="text" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition text-xl font-bold text-slate-800" 
                   value={formData.parentName} onChange={e => setFormData({...formData, parentName: e.target.value})} placeholder="Örn: Ayşe Yılmaz"/>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Okul Bilgisi</label>
-                <input type="text" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition text-xl font-bold text-slate-800" 
-                  value={formData.schoolName} onChange={e => setFormData({...formData, schoolName: e.target.value})} placeholder="Örn: Atatürk Ortaokulu"/>
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">E-Posta Adresi <span className="text-slate-400 font-medium text-xs">(Şifre yenileme işlemi için gerekiyor, zorunlu değil)</span></label>
@@ -228,7 +262,7 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
               </div>
             </div>
             
-            <p className="text-xs text-slate-500 mt-4 font-bold">* İşaretli alanların doldurulması zorunludur.</p>
+            <p className="text-xs text-slate-500 mt-4 font-bold"><span className="text-red-500">*</span> İşaretli alanların doldurulması zorunludur.</p>
 
             <button onClick={handleStep1Submit} disabled={!formData.fullName || formData.phone.length !== 10 || !formData.parentName || !formData.gender} className="w-full bg-indigo-600 text-white font-black text-2xl py-6 rounded-2xl mt-8 hover:bg-indigo-700 transition shadow-2xl disabled:opacity-50">Devam Et</button>
           </div>
@@ -240,27 +274,27 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
               <MapPin className="mr-4 w-10 h-10 text-indigo-600" /> Konum ve Sınav Bilgisi
             </h2>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
               <div>
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Yaşadığınız İl</label>
+                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Yaşadığınız İl <span className="text-red-500">*</span></label>
                 <select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 text-xl font-bold focus:border-indigo-500 outline-none"
-                  value={formData.province} onChange={e => setFormData({...formData, province: e.target.value, district: '', neighborhood: ''})}>
+                  value={formData.province} onChange={e => setFormData({...formData, province: e.target.value, district: '', neighborhood: '', schoolName: ''})}>
                   <option value="">İl Seçiniz</option>
                   {Object.keys(LOCATIONS).map(prov => (<option key={prov} value={prov}>{prov}</option>))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Yaşadığınız İlçe</label>
+                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Yaşadığınız İlçe <span className="text-red-500">*</span></label>
                 <select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 text-xl font-bold focus:border-indigo-500 outline-none disabled:bg-slate-100"
-                  disabled={!formData.province} value={formData.district} onChange={e => setFormData({...formData, district: e.target.value, neighborhood: ''})}>
+                  disabled={!formData.province} value={formData.district} onChange={e => setFormData({...formData, district: e.target.value, neighborhood: '', schoolName: ''})}>
                   <option value="">Önce İl Seçiniz</option>
                   {availableDistricts.map(dist => (<option key={dist} value={dist}>{dist}</option>))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Mahalle</label>
+                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Mahalle <span className="text-red-500">*</span></label>
                 <select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 text-xl font-bold focus:border-indigo-500 outline-none disabled:bg-slate-100"
                   disabled={!formData.district} value={formData.neighborhood} onChange={e => setFormData({...formData, neighborhood: e.target.value})}>
                   <option value="">Önce İlçe Seçiniz</option>
@@ -269,11 +303,39 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
               </div>
             </div>
 
+            {/* OKUL SEÇİMİ BÖLÜMÜ (İL VE İLÇE SEÇİLDİYSE GÖRÜNÜR) */}
+            {formData.district && (
+               <div className="bg-indigo-50 p-6 rounded-3xl border-2 border-indigo-100 animate-in fade-in">
+                  <label className="block text-sm font-black text-indigo-700 mb-3 uppercase tracking-wider flex items-center"><School className="w-5 h-5 mr-2"/> Okulunuz (İsteğe Bağlı)</label>
+                  {!isCustomSchool ? (
+                     <select className="w-full border-2 border-indigo-200 rounded-2xl px-5 py-4 text-xl font-bold focus:border-indigo-500 outline-none bg-white"
+                     value={formData.schoolName} 
+                     onChange={e => {
+                        if (e.target.value === 'CUSTOM') {
+                           setIsCustomSchool(true);
+                           setFormData({...formData, schoolName: ''});
+                        } else {
+                           setFormData({...formData, schoolName: e.target.value});
+                        }
+                     }}>
+                     <option value="">Okulunuzu Seçin</option>
+                     {availableSchools.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+                     <option value="CUSTOM" className="font-black text-indigo-600">Diğer (Listede Yok) / Elde Gir</option>
+                   </select>
+                  ) : (
+                     <div className="flex flex-col gap-3">
+                        <input type="text" value={customSchoolName} onChange={e => setCustomSchoolName(e.target.value)} className="w-full border-2 border-indigo-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none text-xl font-bold bg-white" placeholder="Okulunuzun adını yazınız"/>
+                        <button onClick={() => {setIsCustomSchool(false); setCustomSchoolName('');}} className="text-sm font-bold text-indigo-500 hover:text-indigo-700 text-left">Listeye Geri Dön</button>
+                     </div>
+                  )}
+               </div>
+            )}
+
             {formData.district && formData.neighborhood && (
               <div className="mt-10 pt-10 border-t-2 border-slate-100 animate-in fade-in">
                 {matchedZone && matchedZone.active && availableExams.length > 0 ? (
                   <div className="space-y-6">
-                    <p className="font-black text-slate-700 text-2xl mb-6">Lütfen uygun oturumunuzu seçin:</p>
+                    <p className="font-black text-slate-700 text-2xl mb-6">Lütfen uygun oturumunuzu seçin <span className="text-red-500">*</span>:</p>
                     <div className="grid gap-6">
                       {availableExams.map(exam => {
                         const examSessions = exam.sessions || (exam.date && exam.slots ? [{ date: exam.date, slots: exam.slots }] : []);
@@ -304,7 +366,6 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
                       })}
                     </div>
                     
-                    {/* Ödül Seçici Bileşen */}
                     {selectedSlot && needsPartSelection && (
                        <RegistrationPrizeSelector type="part" prizes={partPrizesList} selectedPrize={selectedParticipationPrize} onSelect={setSelectedParticipationPrize} />
                     )}
