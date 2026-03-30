@@ -42,9 +42,8 @@ export default function TimelineCalendar({ zoneExams, currentUser, defaultContac
        ? getNeighborhoodDetails(currentUser.zone, currentUser.district, currentUser.neighborhood, currentUser.gender) 
        : (defaultContact || { phone: "0553 973 54 40", contactName: "" });
 
-  // BURAYA DA FİLTRE KOYUYORUZ (Eski Veritabanı verisine karşı)
-  let takvimPhone = contactInfo.phone;
-  if (takvimPhone.includes("0531 333 32 32")) { takvimPhone = "0553 973 54 40"; }
+  let takvimPhone = contactInfo?.phone || "0553 973 54 40";
+  if (takvimPhone?.includes("0553 973 54 40")) { takvimPhone = "0553 973 54 40"; }
 
   return (
     <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col md:flex-row max-w-5xl mx-auto animate-in fade-in zoom-in-95 duration-500">
