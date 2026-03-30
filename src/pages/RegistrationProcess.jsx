@@ -49,7 +49,6 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
   const [verificationCode, setVerificationCode] = useState('');
   const [enteredCode, setEnteredCode] = useState('');
   const [generatedPassword, setGeneratedPassword] = useState('');
-  
   const [availableSchools, setAvailableSchools] = useState([]);
   const [isCustomSchool, setIsCustomSchool] = useState(false);
   const [customSchoolName, setCustomSchoolName] = useState('');
@@ -102,7 +101,6 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
     }
   }, [formData.province, formData.district, formData.grade]);
 
-  // DÜZELTME: Kullanıcı seçimi etkilenmesin diye useEffect ikiye bölündü
   useEffect(() => {
     if (formData.district && formData.neighborhood) {
       const zoneName = determineZoneName(formData.province, formData.district, formData.neighborhood);
@@ -113,10 +111,8 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
     }
   }, [formData.district, formData.neighborhood, zones, exams]);
 
-  // Sadece mahalle değiştiğinde eski seçimi sıfırla
   useEffect(() => {
-    setSelectedExam(null);
-    setSelectedSlot(null);
+    setSelectedExam(null); setSelectedSlot(null);
     if (!currentUser) setSelectedParticipationPrize('');
   }, [formData.district, formData.neighborhood]);
 
@@ -133,34 +129,46 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
     setIsSubmitting(true);
     const finalSchoolName = isCustomSchool ? customSchoolName : formData.schoolName;
     const finalPartPrize = withoutExam ? '' : (selectedParticipationPrize || (partPrizesList.length === 1 ? partPrizesList[0].title : ''));
-    const newPassword = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedPassword(newPassword);
+    
+    // DÜZELTME: Öğrenci zaten kayıtlıysa şifresi değişmez. Yeni öğrenciyse şifre üretilir.
+    const isUpdate = !!currentUser;
+    let finalPassword = isUpdate ? currentUser.password : Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedPassword(isUpdate ? "Mevcut Şifreniz" : finalPassword);
 
     const baseData = { ...formData, schoolName: finalSchoolName, zone: matchedZone || null, selectedParticipationPrize: finalPartPrize };
 
     try {
       let finalUserObj;
-      if (currentUser) {
+      if (isUpdate) {
         const updatedData = withoutExam ? { ...baseData, examId: null, examTitle: null, selectedDate: null, selectedTime: null, isWaitingPool: true } 
         : { ...baseData, examId: selectedExam.firebaseId || selectedExam.id, examTitle: selectedExam.title, selectedDate: selectedSlot.date, selectedTime: selectedSlot.time, isWaitingPool: false };
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', currentUser.firebaseId), updatedData);
         finalUserObj = { ...currentUser, ...updatedData };
         setCurrentUser(finalUserObj);
+
+        // DÜZELTME: Güncelleme (Oturum Değişikliği) Mesajı (Şifresiz)
+        if (!withoutExam && finalUserObj.selectedDate) {
+           const centerInfo = getNeighborhoodDetails(matchedZone, finalUserObj.district, finalUserObj.neighborhood, finalUserObj.gender, finalUserObj.grade);
+           const contactPhone = centerInfo.phone || "0553 973 54 40";
+           const updateMsg = `odullusinav.net başvurunuz GÜNCELLENDİ!\n\nYeni Oturum Bilgileriniz:\nSınav: ${finalUserObj.examTitle}\nTarih: ${finalUserObj.selectedDate}\nSaat: ${finalUserObj.selectedTime}\nKonum: ${centerInfo.mapLink || 'Belirtilmedi'}\n\nDetaylı bilgi için profilinize giriş yapabilirsiniz. Başarılar!${SMS_FOOTER}`;
+           sendSMS([{tel: [finalUserObj.phone], msg: updateMsg}]);
+        }
       } else {
-        const newStudent = withoutExam ? { ...baseData, password: newPassword, examId: null, examTitle: null, selectedDate: null, selectedTime: null, isWaitingPool: true, pastExams: [], attendance: '', interview: '', interviewResult: '', registrationDate: new Date().toLocaleDateString('tr-TR'), createdAt: new Date().getTime() } 
-        : { ...baseData, password: newPassword, examId: selectedExam.firebaseId || selectedExam.id, examTitle: selectedExam.title, selectedDate: selectedSlot.date, selectedTime: selectedSlot.time, isWaitingPool: false, pastExams: [], attendance: '', interview: '', interviewResult: '', registrationDate: new Date().toLocaleDateString('tr-TR'), createdAt: new Date().getTime() };
+        const newStudent = withoutExam ? { ...baseData, password: finalPassword, examId: null, examTitle: null, selectedDate: null, selectedTime: null, isWaitingPool: true, pastExams: [], attendance: '', interview: '', interviewResult: '', registrationDate: new Date().toLocaleDateString('tr-TR'), createdAt: new Date().getTime() } 
+        : { ...baseData, password: finalPassword, examId: selectedExam.firebaseId || selectedExam.id, examTitle: selectedExam.title, selectedDate: selectedSlot.date, selectedTime: selectedSlot.time, isWaitingPool: false, pastExams: [], attendance: '', interview: '', interviewResult: '', registrationDate: new Date().toLocaleDateString('tr-TR'), createdAt: new Date().getTime() };
         const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'students'), newStudent);
         finalUserObj = { firebaseId: docRef.id, ...newStudent };
         setCurrentUser(finalUserObj);
-      }
 
-      if (withoutExam) {
-         sendSMS([{tel: [finalUserObj.phone], msg: `odullusinav.net basvurunuz alinmistir.\nGiris Sifreniz: ${newPassword}.\nBolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`}]);
-      } else if (finalUserObj.selectedDate) {
-         const centerInfo = getNeighborhoodDetails(matchedZone, finalUserObj.district, finalUserObj.neighborhood, finalUserObj.gender);
-         const contactPhone = centerInfo.phone || "0553 973 54 40";
-         const regMsg = `odullusinav.net başvurunuz alınmıştır.\n\nGiris Sifreniz: ${newPassword}.\n\nSize en yakın sınav mahallimiz ${finalUserObj.district} ilçesi ${finalUserObj.neighborhood} mahallesindedir.\n\nSınav saatinden 30 dakika önce aşağıdaki konumda olmanızı rica ederiz.\n\nOturum: ${finalUserObj.selectedDate} - ${finalUserObj.selectedTime}\n\nKonum: ${centerInfo.mapLink || 'Belirtilmedi'}\n\nİletişim: ${contactPhone}${SMS_FOOTER}`;
-         sendSMS([{tel: [finalUserObj.phone], msg: regMsg}]);
+        // Yeni Kayıt Mesajı (Şifreli)
+        if (withoutExam) {
+           sendSMS([{tel: [finalUserObj.phone], msg: `odullusinav.net basvurunuz alinmistir.\nGiris Sifreniz: ${finalPassword}.\nBolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`}]);
+        } else if (finalUserObj.selectedDate) {
+           const centerInfo = getNeighborhoodDetails(matchedZone, finalUserObj.district, finalUserObj.neighborhood, finalUserObj.gender, finalUserObj.grade);
+           const contactPhone = centerInfo.phone || "0553 973 54 40";
+           const regMsg = `odullusinav.net başvurunuz alınmıştır.\n\nGiris Sifreniz: ${finalPassword}.\n\nSınav Merkeziniz ${finalUserObj.district} ilçesi ${finalUserObj.neighborhood} mahallesindedir.\n\nOturum: ${finalUserObj.selectedDate} - ${finalUserObj.selectedTime}\nKonum: ${centerInfo.mapLink || 'Belirtilmedi'}\nİletişim: ${contactPhone}${SMS_FOOTER}`;
+           sendSMS([{tel: [finalUserObj.phone], msg: regMsg}]);
+        }
       }
       setStep(3); 
     } catch (error) { alert("İşlem sırasında bir hata oluştu."); } 
@@ -191,10 +199,12 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="md:col-span-2"><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Öğrenci Ad Soyad <span className="text-red-500">*</span></label><input type="text" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})}/></div>
               <div><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">İletişim Numarası <span className="text-red-500">*</span></label><div className="relative"><span className="absolute inset-y-0 left-0 flex items-center pl-5 text-slate-400 font-black text-xl">0</span><input type="tel" className="w-full border-2 border-slate-200 rounded-2xl pl-10 pr-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-black tracking-widest" value={formData.phone} onChange={handlePhoneInput} placeholder="5XX XXX XX XX"/></div></div>
-              <div><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Sınıfı <span className="text-red-500">*</span></label><select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold" value={formData.grade} onChange={e => setFormData({...formData, grade: e.target.value, schoolName: ''})}><option value="3">3. Sınıf Öğrencisi</option><option value="4">4. Sınıf Öğrencisi</option><option value="5">5. Sınıf Öğrencisi</option><option value="6">6. Sınıf Öğrencisi</option><option value="7">7. Sınıf Öğrencisi</option><option value="8">8. Sınıf Öğrencisi (LGS)</option></select></div>
+              <div><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Sınıfı <span className="text-red-500">*</span></label><select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold" value={formData.grade} onChange={e => setFormData({...formData, grade: e.target.value})}><option value="3">3. Sınıf Öğrencisi</option><option value="4">4. Sınıf Öğrencisi</option><option value="5">5. Sınıf Öğrencisi</option><option value="6">6. Sınıf Öğrencisi</option><option value="7">7. Sınıf Öğrencisi</option><option value="8">8. Sınıf Öğrencisi (LGS)</option></select></div>
               <div><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Cinsiyet <span className="text-red-500">*</span></label><select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold" value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})}><option value="">Seçiniz</option><option value="Erkek">Erkek</option><option value="Kız">Kız</option></select></div>
               <div><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Veli Ad Soyad <span className="text-red-500">*</span></label><input type="text" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold" value={formData.parentName} onChange={e => setFormData({...formData, parentName: e.target.value})} placeholder="Örn: Ayşe Yılmaz"/></div>
-              <div className="md:col-span-2"><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Okul Bilgisi</label><input type="text" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold" value={formData.schoolName} onChange={e => setFormData({...formData, schoolName: e.target.value})} placeholder="Örn: Atatürk Ortaokulu"/></div>
+              
+              {/* DÜZELTME: Okul Bilgisi silindi, E-Posta tüm satırı kaplıyor */}
+              <div className="md:col-span-2"><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">E-Posta Adresi <span className="text-slate-400 font-medium text-xs">(Şifre yenileme işlemi için gerekiyor, zorunlu değil)</span></label><input type="email" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold text-slate-800" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="Örn: ornek@email.com"/></div>
             </div>
             <button onClick={handleStep1Submit} disabled={!formData.fullName || formData.phone.length !== 10 || !formData.parentName || !formData.gender} className="w-full bg-indigo-600 text-white font-black text-2xl py-6 rounded-2xl mt-8 hover:bg-indigo-700 transition shadow-2xl disabled:opacity-50">Devam Et</button>
           </div>
@@ -234,7 +244,7 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
                       {availableExams.map(exam => {
                         const examSessions = exam.sessions || (exam.date && exam.slots ? [{ date: exam.date, slots: exam.slots }] : []);
                         return (
-                          <div key={exam.firebaseId || exam.id} className={`border-4 rounded-3xl p-6 md:p-8 transition-all ${(selectedExam?.firebaseId || selectedExam?.id) === (exam.firebaseId || exam.id) ? 'border-indigo-600 bg-indigo-50 ring-4 ring-indigo-500/20 shadow-xl' : 'border-slate-100 bg-white hover:border-indigo-300 hover:shadow-lg'}`}>
+                          <div key={exam.firebaseId || exam.id} className={`border-4 rounded-3xl p-6 md:p-8 transition-all hover:-translate-y-1 ${(selectedExam?.firebaseId || selectedExam?.id) === (exam.firebaseId || exam.id) ? 'border-indigo-600 bg-indigo-50 ring-4 ring-indigo-500/20 shadow-xl' : 'border-slate-100 bg-white hover:border-indigo-300 hover:shadow-lg cursor-pointer'}`} onClick={() => { setSelectedExam(exam); setSelectedSlot(null); }}>
                             <h4 className="font-black text-3xl text-slate-800 mb-4">{exam.title}</h4>
                             <div className="space-y-6">
                               {examSessions.map((session, sIdx) => (
@@ -244,7 +254,7 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
                                     {session.slots && session.slots.map(slot => {
                                       const isSelected = selectedExam && (selectedExam.firebaseId === exam.firebaseId || selectedExam.id === exam.id) && selectedSlot?.date === session.date && selectedSlot?.time === slot;
                                       return (
-                                        <div key={slot} onClick={() => { setSelectedExam(exam); setSelectedSlot({ date: session.date, time: slot }); }}
+                                        <div key={slot} onClick={(e) => { e.stopPropagation(); setSelectedExam(exam); setSelectedSlot({ date: session.date, time: slot }); }}
                                           className={`px-8 py-4 rounded-2xl text-xl font-black border-4 transition-all hover:scale-105 flex items-center cursor-pointer ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-xl' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-indigo-400'}`}>
                                           {isSelected ? <CheckCircle2 className="w-5 h-5 mr-2" /> : <Clock className="w-5 h-5 mr-2 opacity-70" />} {slot.replace(':', '.')}
                                         </div>
@@ -294,7 +304,9 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
             </div>
             <h2 className="text-5xl font-black text-slate-900 mb-6">Harika, Kaydınız Onaylandı!</h2>
             <div className="bg-indigo-50 border-4 border-indigo-200 border-dashed rounded-3xl p-8 max-w-lg mx-auto mb-12 relative overflow-hidden group">
-               <p className="text-sm font-black text-indigo-500 uppercase tracking-widest mb-3">Sisteme Giriş Şifreniz</p>
+               <p className="text-sm font-black text-indigo-500 uppercase tracking-widest mb-3">
+                 {currentUser ? "Sisteme Giriş Şifreniz (Değişmedi)" : "Sisteme Giriş Şifreniz"}
+               </p>
                <div className="text-5xl font-black text-indigo-900 tracking-[0.2em]">{generatedPassword}</div>
                <p className="text-sm font-medium text-slate-500 mt-4">Bu şifreyi ve telefon numaranızı kullanarak <br/>öğrenci panelinize giriş yapabilirsiniz.</p>
             </div>

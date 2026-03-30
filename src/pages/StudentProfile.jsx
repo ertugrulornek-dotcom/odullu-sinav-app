@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Plus, Settings, Lock, CalendarIcon, Clock, MapPin, Map, Phone, FileText, Award, Trophy, ChevronRight } from 'lucide-react';
+import { Plus, Settings, Lock, CalendarIcon, Clock, MapPin, Map, Phone, Trophy, ChevronRight, Award } from 'lucide-react';
 import { db, appId } from '../services/firebase';
 import { doc, updateDoc } from "firebase/firestore";
-import { getNeighborhoodDetails, findZoneByName, parsePrizeArray } from '../utils/helpers';
+import { getNeighborhoodDetails, findZoneByName, parsePrizeArray, formatToTurkishDate } from '../utils/helpers';
 import TimelineCalendar from '../components/TimelineCalendar';
+
 
 export default function StudentProfile({ currentUser, exams, navigateTo, setCurrentUser, zones }) {
   const [showSettings, setShowSettings] = useState(false);
@@ -13,8 +14,6 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
 
   if (!currentUser) return <div className="text-center py-32 text-2xl font-black text-slate-500">Lütfen önce giriş yapın veya kayıt oluşturun.</div>;
 
-  // DÜZELTME: Öğrencinin sınavının veritabanında HALA var olup olmadığını teyit ediyoruz. 
-  // Admin sildiyse burası direkt "Şu an aktif sınavınız yok" der.
   let actualExam = null;
   if (currentUser?.examId || currentUser?.exam?.firebaseId) {
       const targetId = currentUser.examId || currentUser.exam?.firebaseId;
@@ -92,9 +91,23 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
       <div className="flex flex-col lg:flex-row gap-10">
         <div className="w-full lg:w-1/3 space-y-8 animate-in slide-in-from-left-8 duration-500">
           <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden relative">
-            <div className="bg-gradient-to-br from-indigo-700 to-indigo-950 h-40 relative">
-              <button onClick={() => setShowSettings(true)} className="absolute top-6 right-6 text-white hover:text-indigo-200 transition bg-white/10 p-2 rounded-xl backdrop-blur-sm" title="Ayarlar / Şifre Değiştir"><Settings className="w-6 h-6"/></button>
-              <div className="absolute -bottom-16 left-10 w-32 h-32 bg-white rounded-full border-8 border-white flex items-center justify-center text-5xl font-black text-indigo-600 shadow-2xl">{currentUser?.fullName?.charAt(0) || "Ö"}</div>
+           <div className="bg-gradient-to-br from-indigo-700 to-indigo-950 h-40 relative">
+  {/* DÜZELTME: Kırmızı bildirim noktası (!currentUser?.email şartına bağlı) */}
+  <button onClick={() => setShowSettings(true)} className="absolute top-6 right-6 text-white hover:text-indigo-200 transition bg-white/10 p-2 rounded-xl backdrop-blur-sm relative" title="Ayarlar / Şifre Değiştir">
+     <Settings className="w-6 h-6"/>
+     {!currentUser?.email && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse border-2 border-indigo-900 shadow-sm"></span>}
+  </button>
+
+  <div className="absolute -bottom-16 left-10 w-32 h-32 bg-white rounded-full border-8 border-white flex items-center justify-center text-5xl font-black text-indigo-600 shadow-2xl overflow-hidden">
+                {currentUser?.gender === 'Kız' ? (
+                   <img src="/kız.png" alt="Öğrenci Profil" className="w-full h-full object-cover" />
+                ) : currentUser?.gender === 'Erkek' ? (
+                   <img src="/erkek.png" alt="Öğrenci Profil" className="w-full h-full object-cover" />
+                ) : (
+                   currentUser?.fullName?.charAt(0) || "Ö"
+                )}
+              </div>
+
             </div>
             <div className="pt-24 pb-10 px-10">
               <h2 className="text-3xl font-black text-slate-900 mb-2">{currentUser?.fullName}</h2>
@@ -117,37 +130,38 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
 
         <div className="w-full lg:w-2/3 space-y-10 animate-in slide-in-from-right-8 duration-500">
           {hasActiveExam ? (
-            <div className="bg-gradient-to-r from-indigo-600 to-blue-700 rounded-[3rem] p-10 md:p-12 text-white relative overflow-hidden shadow-2xl shadow-indigo-500/30">
+            <div className="bg-gradient-to-r from-[var(--color-contrast)] to-indigo-900 rounded-[3rem] p-10 md:p-12 text-white relative overflow-hidden shadow-2xl">
               <div className="absolute top-0 right-0 w-96 h-96 bg-white opacity-5 rounded-full -mr-20 -mt-20 z-0 pointer-events-none"></div>
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 relative z-10">
                 <div>
-                  <div className="bg-white/20 backdrop-blur-md inline-block px-4 py-2 rounded-xl text-sm font-black uppercase tracking-widest mb-4 border border-white/30">ONAYLANAN OTURUMUNUZ</div>
+                  {/* DÜZELTME: ARKA PLANI YEŞİL OLAN ONAYLANAN OTURUM YAZISI */}
+                  <div className="bg-green-500 text-white shadow-lg inline-block px-5 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest mb-4">ONAYLANAN OTURUMUNUZ</div>
                   <h4 className="text-4xl font-black leading-tight drop-shadow-md">{currentUser?.examTitle || currentUser?.exam?.title}</h4>
                 </div>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-10 relative z-10 bg-indigo-900/40 p-8 rounded-3xl border border-indigo-400/30 backdrop-blur-sm">
-                <div><div className="text-indigo-200 text-sm font-bold mb-2 uppercase tracking-wider">Tarih</div><div className="font-black text-2xl flex items-center"><CalendarIcon className="w-6 h-6 mr-2 opacity-80"/> {currentUser?.selectedDate || currentUser?.exam?.date}</div></div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-10 relative z-10 bg-black/20 p-8 rounded-3xl backdrop-blur-sm">
+                <div><div className="text-indigo-200 text-sm font-bold mb-2 uppercase tracking-wider">Tarih</div><div className="font-black text-2xl flex items-center"><CalendarIcon className="w-6 h-6 mr-2 opacity-80"/> {formatToTurkishDate(currentUser?.selectedDate || currentUser?.exam?.date)}</div></div>
                 <div><div className="text-indigo-200 text-sm font-bold mb-2 uppercase tracking-wider">Seans</div><div className="font-black text-2xl flex items-center"><Clock className="w-6 h-6 mr-2 opacity-80"/> {(currentUser?.selectedTime || currentUser?.slot)?.replace(':', '.')}</div></div>
                 <div className="col-span-2 md:col-span-3 mt-4">
                   <div className="text-indigo-200 text-sm font-bold mb-2 uppercase tracking-wider">Sınav Merkezi Adresi ve İletişim</div>
                   <div className="font-bold text-lg flex items-start mb-4"><MapPin className="w-6 h-6 mr-3 opacity-80 flex-shrink-0 mt-1 text-indigo-300"/><div>{neighborhoodDetails.centerName}<div className="text-sm font-medium text-indigo-100 mt-2 leading-relaxed">{neighborhoodDetails.address || "Açık adres bilgisi girilmemiş."}</div></div></div>
                   <div className="flex flex-col sm:flex-row gap-4 mt-6">
-                      {neighborhoodDetails.mapLink && ( <a href={neighborhoodDetails.mapLink} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center text-sm font-black bg-indigo-500/50 px-5 py-3 rounded-xl hover:bg-indigo-400 transition border border-indigo-400/50"><Map className="w-5 h-5 mr-2"/> Haritada Konumu Aç</a> )}
-                      <a href={`tel:${neighborhoodDetails.phone}`} className="inline-flex items-center justify-center text-sm font-black bg-indigo-500/50 px-5 py-3 rounded-xl hover:bg-indigo-400 transition border border-indigo-400/50"><Phone className="w-5 h-5 mr-2"/> {neighborhoodDetails.contactName ? `${neighborhoodDetails.contactName}: ` : ''}{neighborhoodDetails.phone}</a>
+                      {neighborhoodDetails.mapLink && ( <a href={neighborhoodDetails.mapLink} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center text-sm font-black bg-white/10 px-5 py-3 rounded-xl hover:bg-white/20 transition"><Map className="w-5 h-5 mr-2"/> Haritada Konumu Aç</a> )}
+                      <a href={`tel:${neighborhoodDetails.phone}`} className="inline-flex items-center justify-center text-sm font-black bg-white/10 px-5 py-3 rounded-xl hover:bg-white/20 transition"><Phone className="w-5 h-5 mr-2"/> {neighborhoodDetails.contactName ? `${neighborhoodDetails.contactName}: ` : ''}{neighborhoodDetails.phone}</a>
                   </div>
                 </div>
               </div>
-              <div className="flex flex-col sm:flex-row justify-between items-center relative z-10 gap-6 mt-10 border-t border-indigo-500/30 pt-8">
-                <span className="text-base font-bold text-indigo-100 bg-indigo-950/40 px-6 py-4 rounded-2xl border border-indigo-800/50">Lütfen sınavdan 30 dakika önce merkezde olunuz.</span>
-                {!isExamTimePassed && ( <button onClick={() => navigateTo('register')} className="w-full sm:w-auto bg-white/20 text-white px-8 py-4 rounded-2xl text-lg font-black shadow-lg hover:bg-white/30 transition flex items-center justify-center border border-white/40"><Clock className="w-6 h-6 mr-3"/> Oturumu Değiştir</button> )}
+              <div className="flex flex-col sm:flex-row justify-between items-center relative z-10 gap-6 mt-10 border-t border-white/10 pt-8">
+                <span className="text-base font-bold text-indigo-100 bg-black/20 px-6 py-4 rounded-2xl">Lütfen sınavdan 30 dakika önce merkezde olunuz.</span>
+                {!isExamTimePassed && ( <button onClick={() => navigateTo('register')} className="w-full sm:w-auto bg-white text-slate-900 px-8 py-4 rounded-2xl text-lg font-black shadow-xl hover:scale-105 transition flex items-center justify-center"><Clock className="w-6 h-6 mr-3"/> Oturumu Değiştir</button> )}
               </div>
             </div>
           ) : (
-            <div className="bg-white border-4 border-indigo-100 rounded-[3rem] p-12 text-center shadow-xl shadow-indigo-100/50 animate-in zoom-in-95">
+            <div className="bg-white border-4 border-indigo-100 rounded-[3rem] p-12 text-center shadow-xl animate-in zoom-in-95">
               <Award className="w-24 h-24 text-indigo-300 mx-auto mb-6" />
               <h3 className="text-3xl font-black text-slate-800 mb-4">Şu an aktif bir sınavınız yok.</h3>
               <p className="text-lg text-slate-600 mb-8 font-medium">Bölgenizde açılan yeni sınavlara hemen başvurabilir veya kayıtlı sınavlarınızı buradan yönetebilirsiniz.</p>
-              <button onClick={() => navigateTo('register')} className="bg-indigo-600 text-white font-black text-xl py-5 px-10 rounded-2xl hover:bg-indigo-700 hover:scale-105 transition shadow-xl shadow-indigo-500/30">Yeni Bir Sınava Başvur</button>
+              <button onClick={() => navigateTo('register')} className="text-white font-black text-xl py-5 px-10 rounded-2xl hover:scale-105 transition shadow-xl" style={{ backgroundColor: 'var(--color-main)' }}>Yeni Bir Sınava Başvur</button>
             </div>
           )}
 

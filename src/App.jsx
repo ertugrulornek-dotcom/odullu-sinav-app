@@ -101,7 +101,6 @@ export default function App() {
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 
-  // YENİ GÜÇLENDİRİLMİŞ SAYAÇ HESAPLAMA MANTIĞI
   let targetCountdownDate = null;
   let countdownMode = 'none';
 
@@ -109,20 +108,15 @@ export default function App() {
     try {
       const uDate = currentUser.selectedDate || currentUser.exam.date;
       const uTime = currentUser.selectedTime || currentUser.slot || "09:00";
-      
       const cleanDate = uDate.replace(/\//g, '-').replace(/\./g, '-');
       const dParts = cleanDate.split('-'); 
       let year, month, day;
       if (dParts[0].length === 4) { year = dParts[0]; month = dParts[1]; day = dParts[2]; } 
       else { day = dParts[0]; month = dParts[1]; year = dParts[2]; }
-      
       const timeParts = uTime.split(':');
       const examTime = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(timeParts[0]||9), parseInt(timeParts[1]||0)).getTime();
       
-      if (examTime > new Date().getTime()) {
-         targetCountdownDate = examTime;
-         countdownMode = 'personal';
-      }
+      if (examTime > new Date().getTime()) { targetCountdownDate = examTime; countdownMode = 'personal'; }
     } catch(e) {}
   } 
 
@@ -132,10 +126,8 @@ export default function App() {
        const matchedZ = findZoneByName(zones, currentUser.zone.name);
        if (matchedZ) userZoneId = matchedZ.id;
     }
-
     let myZoneUpcoming = [];
     let otherZoneUpcoming = [];
-
     exams.forEach(exam => {
        if (exam.active !== false) {
           const examSessions = exam.sessions || (exam.date && exam.slots ? [{ date: exam.date, slots: exam.slots }] : []);
@@ -150,18 +142,13 @@ export default function App() {
                 
                 const timeStr = (session.slots && session.slots.length > 0) ? session.slots[0] : '09:00';
                 const timeParts = timeStr.split(':');
-                const h = parseInt(timeParts[0] || '9', 10);
-                const m = parseInt(timeParts[1] || '0', 10);
-                
-                const stime = new Date(year, month - 1, day, h, m).getTime();
+                const stime = new Date(year, month - 1, day, parseInt(timeParts[0] || '9'), parseInt(timeParts[1] || '0')).getTime();
                 
                 if (stime > new Date().getTime()) {
                    if (currentUser && userZoneId) {
                        if (exam.zoneId == userZoneId) myZoneUpcoming.push(stime);
                        else otherZoneUpcoming.push(stime);
-                   } else {
-                       myZoneUpcoming.push(stime); 
-                   }
+                   } else { myZoneUpcoming.push(stime); }
                 }
              } catch(e) {}
           });
@@ -171,27 +158,32 @@ export default function App() {
     myZoneUpcoming.sort((a,b) => a - b);
     otherZoneUpcoming.sort((a,b) => a - b);
 
-    if (myZoneUpcoming.length > 0) {
-       targetCountdownDate = myZoneUpcoming[0];
-       countdownMode = 'zone';
-    } else if (currentUser && userZoneId && otherZoneUpcoming.length > 0) {
-       countdownMode = 'other_zones';
-    } else {
-       countdownMode = 'none';
-    }
+    if (myZoneUpcoming.length > 0) { targetCountdownDate = myZoneUpcoming[0]; countdownMode = 'zone'; } 
+    else if (currentUser && userZoneId && otherZoneUpcoming.length > 0) { countdownMode = 'other_zones'; } 
+    else { countdownMode = 'none'; }
   }
 
   if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><img src="/Sembol.png" className="w-24 h-24 animate-pulse" /></div>;
 
   const liveZone = currentUser ? (findZoneByName(zones, currentUser.zone?.name) || currentUser.zone) : null;
-  const userLocDetails = currentUser ? getNeighborhoodDetails(liveZone, currentUser.district, currentUser.neighborhood, currentUser.gender) : null;
+  // DÜZELTME: Öğrencinin sınıf bilgisini de helpers.js'e gönderdik.
+  const userLocDetails = currentUser ? getNeighborhoodDetails(liveZone, currentUser.district, currentUser.neighborhood, currentUser.gender, currentUser.grade) : null;
 
   let headerPhone = userLocDetails?.phone || "0553 973 54 40";
   if (headerPhone?.includes("0531 333 32 32")) headerPhone = "0553 973 54 40";
 
+  // ... üst kısımdaki importlar ve mantık kodları aynı kalacak (Countdown vs.)
+
   return (
     <ThemeProvider>
-      <div className="min-h-screen bg-slate-50 font-sans text-slate-800 transition-colors duration-300">
+      {/* GLOBAL ARKA PLAN (Boya Sıçraması Efekti) */}
+      <div className="fixed inset-0 z-[-1] bg-white pointer-events-none overflow-hidden transition-colors duration-500">
+         <div className="absolute -top-[10%] -left-[5%] w-[40%] h-[40%] rounded-full opacity-60 mix-blend-multiply blur-[80px] transition-colors duration-500" style={{ backgroundColor: 'var(--color-light-bg)' }}></div>
+         <div className="absolute top-[20%] -right-[10%] w-[45%] h-[50%] rounded-full opacity-50 mix-blend-multiply blur-[100px] transition-colors duration-500" style={{ backgroundColor: 'var(--color-light-bg)' }}></div>
+         <div className="absolute -bottom-[15%] left-[15%] w-[55%] h-[60%] rounded-full opacity-60 mix-blend-multiply blur-[120px] transition-colors duration-500" style={{ backgroundColor: 'var(--color-light-bg)' }}></div>
+      </div>
+
+      <div className="min-h-screen font-sans text-slate-800 transition-colors duration-300 bg-transparent relative z-10">
         <div className="text-white text-xs py-2 px-4 flex justify-between items-center sm:px-8 border-b border-black/10 transition-colors" style={{ backgroundColor: 'var(--color-main)' }}>
           <div className="flex items-center space-x-4">
             <span className="flex items-center font-bold"><Phone className="w-3.5 h-3.5 mr-1 opacity-80"/> {headerPhone}</span>
@@ -203,8 +195,10 @@ export default function App() {
         <nav className="bg-white/90 backdrop-blur-md shadow-sm sticky top-0 z-40 transition-colors">
           <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col lg:flex-row justify-between items-center py-3 lg:h-24 gap-4 lg:gap-0 w-full">
+              
+              {/* DÜZELTME: Navbar Sol Üst Logo */}
               <div className="flex items-center cursor-pointer hover:scale-105 transition-transform flex-shrink-0 mr-auto lg:mr-0" onClick={() => navigateTo('landing')}>
-                <img src="/Sembol.png" alt="Logo" className="h-16 w-16 md:h-20 md:w-20 mr-4 object-contain" />
+                <div className="w-12 h-12 md:w-14 md:h-14 mr-3 bg-contain bg-center bg-no-repeat drop-shadow-md transition-all duration-300" style={{ backgroundImage: 'var(--logo-url)' }}></div>
                 <div>
                    <div className="flex items-center gap-1.5">
                       <span className="text-2xl md:text-3xl font-black tracking-tight leading-none" style={{ color: 'var(--color-main)' }}>ÖDÜLLÜ</span>
@@ -217,10 +211,8 @@ export default function App() {
               <div className="hidden lg:flex space-x-6 items-center flex-1 justify-center">
                  <style>{`.nav-btn { position: relative; padding-bottom: 4px; } .nav-btn::after { content: ''; position: absolute; bottom: 0; left: 0; width: 0%; height: 2px; background-color: var(--color-main); transition: width 0.3s ease; } .nav-btn:hover::after { width: 100%; } .nav-btn:hover { color: var(--color-main); }`}</style>
                 <button onClick={() => scrollToSection('hero')} className="nav-btn text-slate-600 font-bold transition text-sm">Ana Sayfa</button>
-                <button onClick={() => scrollToSection('sinav-provasi')} className="nav-btn text-slate-600 font-bold transition text-sm">Sınav Provası</button>
-                <button onClick={() => scrollToSection('analiz')} className="nav-btn text-slate-600 font-bold transition text-sm">Birebir Analiz</button>
-                <button onClick={() => scrollToSection('burs')} className="nav-btn text-slate-600 font-bold transition text-sm">Eğitim Bursları</button>
-                <button onClick={() => scrollToSection('oduller')} className="nav-btn text-slate-600 font-bold transition text-sm">Ödül</button>
+                <button onClick={() => scrollToSection('tanitim')} className="nav-btn text-slate-600 font-bold transition text-sm">Deneme Tanıtımı</button>
+                <button onClick={() => scrollToSection('oduller')} className="nav-btn text-slate-600 font-bold transition text-sm">Ödüller</button>
                 <button onClick={() => scrollToSection('takvim')} className="nav-btn text-slate-600 font-bold transition text-sm">Sınav Takvimi</button>
               </div>
 
@@ -256,7 +248,8 @@ export default function App() {
         
         <footer className="bg-slate-950 text-slate-400 py-16 text-sm text-center border-t-4 transition-colors" style={{ borderTopColor: 'var(--color-main)' }}>
           <div className="max-w-4xl mx-auto px-6">
-            <img src="/Sembol.png" alt="Logo" className="h-16 w-16 mx-auto mb-6 object-contain opacity-90" />
+            {/* DÜZELTME: Footer Logo */}
+            <div className="w-20 h-20 mx-auto mb-6 bg-contain bg-center bg-no-repeat drop-shadow-xl transition-all duration-300" style={{ backgroundImage: 'var(--logo-url)' }}></div>
             <p className="mb-2 text-lg font-bold text-slate-200">Sakarya, Kocaeli ve Yalova'nın En Prestijli LGS Provası</p>
             <p className="mb-8">Gerçek Sınav Deneyimi ve Büyük Ödüller Bir Arada</p>
             <p>© 2026 Ödüllü Sınav Merkezi. Tüm hakları saklıdır.</p>

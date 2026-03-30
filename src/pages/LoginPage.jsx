@@ -1,138 +1,139 @@
 import React, { useState } from 'react';
-import { Users, ChevronRight, Lock, CheckCircle2 } from 'lucide-react';
+import { KeyRound, Phone, ChevronRight, AlertCircle, Send, HelpCircle } from 'lucide-react';
+import { sendSMS, SMS_FOOTER } from '../services/smsService';
 
 export default function LoginPage({ students, setCurrentUser, navigateTo }) {
-  const [step, setStep] = useState(1); 
-  const [phoneQuery, setPhoneQuery] = useState('');
-  const [passwordQuery, setPasswordQuery] = useState('');
-  const [matchedStudents, setMatchedStudents] = useState([]);
-  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  
+  // Şifremi Unuttum Modeli State'leri
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotPhone, setForgotPhone] = useState('');
+  const [hasOldSms, setHasOldSms] = useState(null); // null, true, false
+  const [forgotError, setForgotError] = useState('');
+  const [forgotSuccess, setForgotSuccess] = useState('');
 
-  const handlePhoneSearch = () => {
-    let q = phoneQuery.replace(/\D/g, ''); 
-    if (q.length > 0 && q[0] !== '5') { q = '5' + q; }
+  const handleLogin = (e) => {
+    e.preventDefault();
+    setError('');
+    const cleanPhone = phone.replace(/\D/g, '').slice(-10);
     
-    if (q.length !== 10) {
-      alert("Lütfen 10 haneli telefon numaranızı eksiksiz girin.");
-      return;
-    }
-
-    const matches = students.filter(s => s.phone === q);
-    
-    if (matches.length === 0) {
-      alert("Sistemde bu telefon numarasına ait bir kayıt bulunamadı.");
-    } else if (matches.length === 1) {
-      setMatchedStudents(matches);
-      setSelectedStudent(matches[0]);
-      setStep(3);
-    } else {
-      setMatchedStudents(matches);
-      setStep(2);
-    }
-  };
-
-  const handleLoginSubmit = () => {
-    if (selectedStudent && (selectedStudent.password === passwordQuery || (!selectedStudent.password && passwordQuery === ""))) {
-      setCurrentUser(selectedStudent);
+    const user = students.find(s => s.phone.slice(-10) === cleanPhone && s.password === password);
+    if (user) {
+      setCurrentUser(user);
       navigateTo('profile');
     } else {
-      alert("Girdiğiniz şifre hatalı. Lütfen tekrar deneyin.");
+      setError("Telefon numarası veya şifre hatalı.");
     }
   };
 
-  const handleForgotPassword = () => {
-    alert("Şifrenizi sıfırlamak için lütfen kayıtlı e-posta adresinizi kontrol edin veya eğitim merkezinizle iletişime geçin.");
-  }
+  const handleForgotSubmit = async () => {
+      setForgotError('');
+      setForgotSuccess('');
+      
+      const cleanPhone = forgotPhone.replace(/\D/g, '').slice(-10);
+      const user = students.find(s => s.phone.slice(-10) === cleanPhone);
+
+      if (!user) {
+          setForgotError("Bu numaraya ait bir öğrenci kaydı bulunamadı.");
+          return;
+      }
+
+      if (hasOldSms === null) {
+          setForgotError("Lütfen aşağıdaki seçeneklerden birini işaretleyin.");
+          return;
+      }
+
+      if (hasOldSms === true) {
+          setForgotSuccess("Harika! Lütfen ilk kayıt olduğunuzda size gelen o SMS'teki şifre ile giriş yapmayı deneyin.");
+          setTimeout(() => { setShowForgot(false); setHasOldSms(null); setForgotSuccess(''); setForgotPhone(''); }, 4000);
+      } else {
+          try {
+             await sendSMS([{tel: [user.phone], msg: `odullusinav.net Hatırlatma:\nMevcut Giriş Şifreniz: ${user.password}\nLütfen bu şifre ile sisteme giriş yapınız.${SMS_FOOTER}`}]);
+             setForgotSuccess("Şifreniz, kayıtlı telefon numaranıza SMS olarak tekrar gönderildi!");
+             setTimeout(() => { setShowForgot(false); setHasOldSms(null); setForgotSuccess(''); setForgotPhone(''); }, 4000);
+          } catch(e) {
+             setForgotError("SMS gönderilemedi. Lütfen yöneticinizle iletişime geçin.");
+          }
+      }
+  };
 
   return (
-    <div className="max-w-xl mx-auto px-4 py-32 text-center animate-in fade-in zoom-in-95 duration-500">
-      <div className="bg-white p-12 rounded-[3rem] shadow-2xl shadow-indigo-100/50 border border-slate-100">
-        
-        {step === 1 && (
-          <>
-            <div className="w-24 h-24 bg-indigo-50 rounded-[2rem] flex items-center justify-center mx-auto mb-8">
-              <Users className="w-12 h-12 text-indigo-600" />
+    <div className="max-w-4xl mx-auto px-4 py-20 relative">
+      
+      {/* ŞİFREMİ UNUTTUM MODALI */}
+      {showForgot && (
+         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-md relative animate-in zoom-in-95">
+               <button onClick={() => {setShowForgot(false); setForgotError(''); setForgotSuccess(''); setHasOldSms(null);}} className="absolute top-6 right-6 text-slate-400 hover:text-slate-800 font-black text-xl">X</button>
+               <HelpCircle className="w-16 h-16 text-indigo-500 mx-auto mb-6" />
+               <h3 className="text-2xl font-black text-center text-slate-900 mb-6">Şifremi Unuttum</h3>
+               
+               {forgotSuccess ? (
+                   <div className="bg-green-50 text-green-700 p-4 rounded-2xl font-bold text-center border border-green-200">{forgotSuccess}</div>
+               ) : (
+                   <div className="space-y-6">
+                       {forgotError && <div className="bg-red-50 text-red-600 font-bold p-3 rounded-xl text-sm text-center border border-red-100">{forgotError}</div>}
+                       <div>
+                         <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">Kayıtlı Telefon Numaranız</label>
+                         <input type="tel" value={forgotPhone} onChange={(e) => setForgotPhone(e.target.value.replace(/\D/g, '').substring(0, 10))} placeholder="5XX XXX XX XX" className="w-full border-4 border-slate-100 rounded-2xl px-6 py-4 text-lg font-black tracking-widest focus:border-indigo-500 outline-none transition" />
+                       </div>
+                       <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+                          <p className="text-sm font-bold text-indigo-900 mb-3 text-center">Sisteme ilk kayıt olduğunuzda size SMS ile bir şifre göndermiştik. O mesaj hala duruyor mu?</p>
+                          <div className="flex gap-2">
+                             <button onClick={()=>setHasOldSms(true)} className={`flex-1 py-3 rounded-xl font-black transition-all ${hasOldSms === true ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>Evet, duruyor</button>
+                             <button onClick={()=>setHasOldSms(false)} className={`flex-1 py-3 rounded-xl font-black transition-all ${hasOldSms === false ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>Hayır, silinmiş</button>
+                          </div>
+                       </div>
+                       <button onClick={handleForgotSubmit} className="w-full bg-indigo-600 text-white font-black text-lg py-4 rounded-2xl hover:bg-indigo-700 transition shadow-xl flex justify-center items-center">
+                           Devam Et <Send className="w-5 h-5 ml-2"/>
+                       </button>
+                   </div>
+               )}
             </div>
-            <h2 className="text-4xl font-black text-slate-900 mb-4">Öğrenci Girişi</h2>
-            <p className="text-slate-500 text-lg mb-10 font-bold leading-relaxed">Sisteme kayıt olduğunuz telefon numaranızı giriniz.</p>
+         </div>
+      )}
+
+      {/* STANDART GİRİŞ EKRANI */}
+      <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden flex flex-col md:flex-row">
+        <div className="bg-indigo-600 p-12 md:w-2/5 flex flex-col justify-center items-center text-white text-center relative overflow-hidden">
+          <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+          <KeyRound className="w-20 h-20 mb-6 opacity-90 relative z-10" />
+          <h2 className="text-4xl font-black mb-4 relative z-10">Öğrenci Paneli</h2>
+          <p className="text-indigo-200 font-bold relative z-10">Sınav sonucunuzu öğrenmek, bilgilerinizi güncellemek veya oturumunuzu değiştirmek için giriş yapın.</p>
+        </div>
+
+        <div className="p-12 md:w-3/5 bg-slate-50">
+          <form onSubmit={handleLogin} className="space-y-6">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-2xl flex items-center font-bold text-sm">
+                <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" /> {error}
+              </div>
+            )}
             
-            <div className="relative mb-8">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-8 text-slate-400 font-black text-2xl">0</span>
-              <input 
-                type="tel" 
-                value={phoneQuery}
-                onChange={e => setPhoneQuery(e.target.value)}
-                placeholder="5XX XXX XX XX" 
-                className="w-full text-center border-4 border-slate-100 rounded-[2rem] pl-12 pr-6 py-6 text-2xl font-black tracking-widest focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition"
-              />
+            <div>
+              <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">Telefon Numarası</label>
+              <div className="relative">
+                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-400" />
+                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05XX XXX XX XX" className="w-full border-4 border-slate-100 rounded-2xl pl-12 pr-6 py-4 text-xl font-bold focus:border-indigo-500 outline-none transition bg-white" required />
+              </div>
             </div>
-
-            <button onClick={handlePhoneSearch} disabled={phoneQuery.length < 10} className="w-full bg-indigo-600 text-white font-black text-xl py-6 rounded-[2rem] hover:bg-indigo-700 transition hover:scale-[1.02] shadow-2xl shadow-indigo-500/40 mb-4 disabled:opacity-50">
-              İleri <ChevronRight className="w-6 h-6 inline ml-2" />
-            </button>
-          </>
-        )}
-
-        {step === 2 && (
-          <div className="animate-in slide-in-from-right-8">
-            <h2 className="text-3xl font-black text-slate-900 mb-4">Birden Fazla Kayıt Bulundu</h2>
-            <p className="text-slate-500 text-lg mb-8 font-bold leading-relaxed">Lütfen giriş yapmak istediğiniz öğrenci profilini seçin:</p>
             
-            <div className="space-y-4 mb-8">
-              {matchedStudents.map(student => (
-                <button 
-                  key={student.firebaseId} 
-                  onClick={() => { setSelectedStudent(student); setStep(3); }}
-                  className="w-full bg-indigo-50 border-4 border-indigo-100 hover:border-indigo-400 p-5 rounded-2xl flex flex-col text-left transition"
-                >
-                  <span className="font-black text-indigo-900 text-xl">{student.fullName}</span>
-                  <span className="text-indigo-500 font-bold mt-1">{student.grade}. Sınıf Öğrencisi</span>
-                </button>
-              ))}
+            <div>
+              <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider flex justify-between items-center">
+                 Şifre 
+                 <button type="button" onClick={() => setShowForgot(true)} className="text-xs font-bold text-indigo-600 hover:underline normal-case">Şifremi Unuttum</button>
+              </label>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full border-4 border-slate-100 rounded-2xl px-6 py-4 text-2xl tracking-widest font-black focus:border-indigo-500 outline-none transition bg-white text-center" required />
             </div>
 
-            <button onClick={() => setStep(1)} className="text-slate-400 hover:text-slate-700 font-bold transition underline">Geri Dön</button>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="animate-in slide-in-from-right-8">
-            <div className="w-24 h-24 bg-indigo-50 rounded-[2rem] flex items-center justify-center mx-auto mb-6">
-              <Lock className="w-12 h-12 text-indigo-600" />
-            </div>
-            <h2 className="text-3xl font-black text-slate-900 mb-2">Hoş Geldin, <br/><span className="text-indigo-600">{selectedStudent?.fullName}</span></h2>
-            <p className="text-slate-500 text-lg mb-10 font-bold leading-relaxed">Hesabınıza erişmek için 6 haneli şifrenizi girin.</p>
-
-            <div className="relative mb-8">
-              <input 
-                type="password" 
-                value={passwordQuery}
-                onChange={e => setPasswordQuery(e.target.value)}
-                placeholder="•••••• (Şifreniz)" 
-                className="w-full text-center border-4 border-slate-100 rounded-[2rem] px-6 py-6 text-2xl font-black tracking-widest focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition"
-              />
-            </div>
-
-            <button onClick={handleLoginSubmit} className="w-full bg-green-500 text-white font-black text-xl py-6 rounded-[2rem] hover:bg-green-600 transition hover:scale-[1.02] shadow-2xl shadow-green-500/40 mb-4">
-              Giriş Yap <CheckCircle2 className="w-6 h-6 inline ml-2" />
+            <button type="submit" className="w-full bg-indigo-600 text-white font-black text-2xl py-5 rounded-2xl mt-8 hover:bg-indigo-700 transition shadow-2xl flex items-center justify-center">
+              Giriş Yap <ChevronRight className="ml-2 w-8 h-8" />
             </button>
-
-            <div className="flex flex-col gap-3 mt-4">
-               <button onClick={handleForgotPassword} className="text-indigo-500 hover:text-indigo-700 font-bold transition">Şifremi Unuttum</button>
-               <button onClick={() => { setStep(1); setPasswordQuery(''); }} className="text-slate-500 hover:text-slate-700 font-bold transition">Farklı Bir Numara İle Giriş</button>
-            </div>
-          </div>
-        )}
-
-        {step === 1 && (
-          <div className="mt-8 pt-6 border-t-2 border-slate-100">
-             <button onClick={() => navigateTo('register')} className="text-slate-500 hover:text-indigo-600 font-bold transition">
-               Hesabın yok mu? Hemen Kayıt Ol
-             </button>
-          </div>
-        )}
+          </form>
+        </div>
       </div>
     </div>
   );
 }
-

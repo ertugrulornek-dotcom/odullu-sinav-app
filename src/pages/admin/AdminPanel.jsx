@@ -12,6 +12,8 @@ import CentersTab from './CentersTab';
 import StudentsTab from './StudentsTab';
 import StatsTab from './StatsTab';
 import BlacklistTab from './BlacklistTab';
+// DÜZELTME: 8. Sınıf Erkek İstisnası İçin Yeni Sekme Eklendi
+import SpecialBoysCentersTab from './SpecialBoysCentersTab';
 
 export function AdminLogin({ setAdminAuth, zones }) {
   const [username, setUsername] = useState('');
@@ -107,7 +109,7 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
         let needsSms = false;
         let smsText = "";
 
-        const centerInfo = getNeighborhoodDetails(zone, student.district, student.neighborhood, student.gender);
+        const centerInfo = getNeighborhoodDetails(zone, student.district, student.neighborhood, student.gender, student.grade);
         const hasValidCenter = centerInfo.centerName !== "Sınav Merkezi Bekleniyor";
         
         if (student.isWaitingPool === true && hasValidCenter) {
@@ -209,13 +211,23 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
              <ShieldAlert className="w-5 h-5 inline mr-2"/> Kara Liste Yönetimi
            </button>
         )}
+        {/* DÜZELTME: 8. Sınıf Erkek Özel Merkezler Sekmesi */}
+        {isSuperAdmin && (
+           <button onClick={() => setActiveTab('erkekler')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'erkekler' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-blue-600 border border-blue-100 hover:bg-blue-50'}`}>
+             <Building2 className="w-5 h-5 inline mr-2"/> 8. Sınıf Erkek (Özel)
+           </button>
+        )}
       </div>
 
-      {activeTab === 'ayarlar' && <SettingsTab adminZoneData={adminZoneData} isSuperAdmin={isSuperAdmin} adminZoneId={adminZoneId} setHasMadeChanges={setHasMadeChanges} filteredExams={filteredExams} zones={zones} />}
-      {activeTab === 'merkezler' && !isSuperAdmin && <CentersTab adminZoneData={adminZoneData} adminZoneId={adminZoneId} setHasMadeChanges={setHasMadeChanges} />}
-      {activeTab === 'ogrenci' && <StudentsTab students={filteredStudents} isSuperAdmin={isSuperAdmin} adminZoneData={adminZoneData} zones={zones} setHasMadeChanges={setHasMadeChanges} />}
-      {activeTab === 'mahalleler' && isSuperAdmin && <StatsTab zones={zones} setHasMadeChanges={setHasMadeChanges} />}
-      {activeTab === 'karaliste' && isSuperAdmin && <BlacklistTab setHasMadeChanges={setHasMadeChanges} />}
+      <div className="mt-8 animate-in fade-in duration-300">
+        {activeTab === 'ayarlar' && <SettingsTab adminZoneData={adminZoneData} isSuperAdmin={isSuperAdmin} adminZoneId={adminZoneId} setHasMadeChanges={setHasMadeChanges} filteredExams={filteredExams} zones={zones} />}
+        {activeTab === 'merkezler' && !isSuperAdmin && <CentersTab adminZoneData={adminZoneData} adminZoneId={adminZoneId} setHasMadeChanges={setHasMadeChanges} />}
+        {activeTab === 'ogrenci' && <StudentsTab students={filteredStudents} isSuperAdmin={isSuperAdmin} adminZoneData={adminZoneData} zones={zones} setHasMadeChanges={setHasMadeChanges} />}
+        {activeTab === 'mahalleler' && isSuperAdmin && <StatsTab zones={zones} setHasMadeChanges={setHasMadeChanges} />}
+        {activeTab === 'karaliste' && isSuperAdmin && <BlacklistTab setHasMadeChanges={setHasMadeChanges} />}
+        {/* DÜZELTME: Yeni Bileşen Çağrıldı */}
+        {activeTab === 'erkekler' && isSuperAdmin && <SpecialBoysCentersTab zones={zones} setHasMadeChanges={setHasMadeChanges} />}
+      </div>
     </div>
   );
 }
