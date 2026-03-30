@@ -114,8 +114,8 @@ export default function App() {
   const liveZone = currentUser ? (findZoneByName(zones, currentUser.zone?.name) || currentUser.zone) : null;
   const userLocDetails = currentUser ? getNeighborhoodDetails(liveZone, currentUser.district, currentUser.neighborhood, currentUser.gender) : null;
 
-  let headerPhone = userLocDetails ? userLocDetails.phone : "0553 973 54 40";
-  if (headerPhone.includes("0531 333 32 32")) { headerPhone = "0553 973 54 40"; }
+  let headerPhone = userLocDetails?.phone || "0553 973 54 40";
+  if (headerPhone?.includes("0553 973 54 40")) { headerPhone = "0553 973 54 40"; }
 
   return (
     <ThemeProvider>
