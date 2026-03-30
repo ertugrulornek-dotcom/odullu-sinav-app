@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { CalendarClock } from 'lucide-react';
+import { CalendarClock, X } from 'lucide-react';
 import { ThemeContext } from './ThemeSelector';
 
 export default function CountdownTimer({ examDate }) {
   const { currentTheme } = useContext(ThemeContext);
   const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
+  
+  // Sayaç varsayılan olarak kapalı (sadece ikon) gelir
+  const [isExpanded, setIsExpanded] = useState(false); 
 
   function calculateTimeLeft() {
     if (!examDate) return null;
@@ -20,14 +23,29 @@ export default function CountdownTimer({ examDate }) {
 
   useEffect(() => {
     if (!examDate) return;
+    setTimeLeft(calculateTimeLeft());
     const timer = setInterval(() => {
       setTimeLeft(calculateTimeLeft());
-    }, 1000 * 60); // Her dakika güncelle
+    }, 1000 * 60);
     return () => clearInterval(timer);
   }, [examDate]);
 
   if (!timeLeft) return null;
 
+  // Kapalı (Sadece İkon) Görünümü
+  if (!isExpanded) {
+     return (
+       <div 
+          onClick={() => setIsExpanded(true)} 
+          className="fixed bottom-6 right-6 w-16 h-16 rounded-full shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] border border-slate-100 z-50 cursor-pointer hover:scale-110 active:scale-95 transition-all bg-white group flex items-center justify-center animate-in slide-in-from-right-12 duration-500"
+       >
+         <div className="absolute inset-0 rounded-full animate-ping opacity-20" style={{ backgroundColor: currentTheme.main }}></div>
+         <CalendarClock className="w-8 h-8 relative z-10 transition-transform group-hover:rotate-12" style={{ color: currentTheme.main }} />
+       </div>
+     );
+  }
+
+  // Açık (Tam Sayaç) Görünümü
   const timeUnits = [
     { value: timeLeft.days, label: 'Gün' },
     { value: timeLeft.hours, label: 'Saat' },
@@ -35,19 +53,26 @@ export default function CountdownTimer({ examDate }) {
   ];
 
   return (
-    <div className="fixed bottom-6 right-6 flex items-center gap-3 p-4 bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl border border-slate-100 z-50 animate-in slide-in-from-right-12 duration-500 group">
-      <CalendarClock className="w-10 h-10 text-slate-400 group-hover:scale-110 transition-transform" style={{ color: currentTheme.main }} />
-      <div className="flex gap-2.5">
+    <div className="fixed bottom-6 right-6 flex items-center gap-4 p-4 pr-10 bg-white/95 backdrop-blur-md rounded-3xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.3)] border border-slate-200 z-50 animate-in slide-in-from-right-8 zoom-in-95 duration-300">
+      
+      <button onClick={() => setIsExpanded(false)} className="absolute top-2 right-2 p-1.5 rounded-full bg-slate-100 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors shadow-sm">
+         <X className="w-4 h-4" />
+      </button>
+
+      <div className="bg-slate-50 p-3 rounded-2xl shadow-inner border border-slate-100">
+         <CalendarClock className="w-10 h-10" style={{ color: currentTheme.main }} />
+      </div>
+      
+      <div className="flex gap-2">
         {timeUnits.map(({ value, label }) => (
-          <div key={label} className="text-center p-2 rounded-xl border border-slate-100 bg-white shadow-sm transition-transform group-hover:-translate-y-0.5" style={{ minWidth: '3.5rem' }}>
-            <div className="text-2xl font-black text-slate-900 leading-none">{String(value).padStart(2, '0')}</div>
-            <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-1">{label}</div>
+          <div key={label} className="text-center bg-slate-50 border border-slate-100 rounded-xl px-2 py-1.5 min-w-[3.5rem] shadow-sm">
+            <div className="text-2xl font-black text-slate-800 leading-none" style={{ color: currentTheme.main }}>{String(value).padStart(2, '0')}</div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{label}</div>
           </div>
         ))}
       </div>
-      <div className="flex-1 min-w-[5rem]">
-          <p className="text-sm font-bold text-slate-700 leading-tight">En Yakın Sınava Kalan Süre</p>
-          <p className="text-xs font-medium text-slate-500">Planlarınızı yapmayı unutmayın!</p>
+      <div className="hidden sm:block border-l border-slate-200 pl-4 py-1">
+          <p className="text-sm font-black text-slate-700 leading-tight">En Yakın Sınava<br/>Kalan Süre</p>
       </div>
     </div>
   );

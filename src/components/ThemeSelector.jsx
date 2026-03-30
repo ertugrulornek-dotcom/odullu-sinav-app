@@ -24,7 +24,7 @@ export const ThemeProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    changeTheme('yellow'); // İlk açılışta Sarı temayı uygula
+    changeTheme('purple'); // İlk açılışta Sarı temayı uygula
   }, []);
 
   return (

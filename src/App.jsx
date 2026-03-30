@@ -32,7 +32,6 @@ export default function App() {
         if (window.location.pathname === '/admin' || window.location.hash === '#admin') { 
             setCurrentView('admin'); 
         } else if (window.location.hash === '#register') {
-            // Davet linkinden gelenler direkt kayıt sayfasına yönlensin diye eklendi
             setCurrentView('register');
         }
     };
@@ -87,7 +86,6 @@ export default function App() {
   const navigateTo = (view) => { 
       window.scrollTo({ top: 0, behavior: 'smooth' }); 
       setCurrentView(view);
-      // Linkteki hash'i temizle
       if (window.location.hash) { window.history.pushState("", document.title, window.location.pathname); }
   };
   
@@ -98,24 +96,69 @@ export default function App() {
     } else { document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   };
 
-  // Davet Et Linki Düzenlendi
   const copyInviteLink = () => {
     const text = encodeURIComponent("Merhaba arkadaşım ben odullusinav.net'e katılıyorum gel beraber katılıp ödülleri kazanalım.\n\nSite linki: https://odullusinav.net\n\nHaydi sen de kayıt ol! https://odullusinav.net/#register");
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
+// --- GERÇEK SAYAÇ HESAPLAMA MANTIĞI ---
+  let targetCountdownDate = null;
 
-  const nextExamDate = exams.filter(e => e.active && e.date)
-                           .map(e => new Date(e.date).getTime())
-                           .filter(t => t > new Date().getTime())
-                           .sort((a,b) => a - b)[0];
+  if (currentUser && (currentUser.selectedDate || currentUser.exam?.date)) {
+    try {
+      const uDate = currentUser.selectedDate || currentUser.exam.date;
+      const uTime = currentUser.selectedTime || currentUser.slot || "09:00";
+      
+      const dateParts = uDate.split('-'); 
+      let year = dateParts[2], month = dateParts[1], day = dateParts[0];
+      if (dateParts[0].length === 4) { year = dateParts[0]; day = dateParts[2]; } 
+      
+      const timeParts = uTime.split(':');
+      const examTime = new Date(year, parseInt(month) - 1, day, parseInt(timeParts[0]), parseInt(timeParts[1])).getTime();
+      
+      // Öğrencinin seçtiği sınav henüz geçmemişse
+      if (examTime > new Date().getTime()) {
+         targetCountdownDate = examTime;
+      }
+    } catch(e) { console.error("Kişisel tarih hesaplanamadı", e); }
+  } 
 
+  if (!targetCountdownDate && exams.length > 0) {
+    let upcoming = [];
+    exams.forEach(exam => {
+       if (exam.active) {
+          const examSessions = exam.sessions || (exam.date && exam.slots ? [{ date: exam.date, slots: exam.slots }] : []);
+          
+          examSessions.forEach(session => {
+             if (!session.date) return;
+             try {
+                const dateParts = session.date.split('-');
+                let year = dateParts[2], month = dateParts[1], day = dateParts[0];
+                if (dateParts[0].length === 4) { year = dateParts[0]; day = dateParts[2]; }
+                
+                const timeParts = (session.slots && session.slots.length > 0) ? session.slots[0].split(':') : ['09','00'];
+                const stime = new Date(year, parseInt(month) - 1, day, parseInt(timeParts[0]), parseInt(timeParts[1])).getTime();
+                
+                // Sistemdeki sınav ŞU ANKİ TARİHTEN ilerideyese listeye al
+                if (stime > new Date().getTime()) upcoming.push(stime);
+             } catch(e) {}
+          });
+       }
+    });
+    
+    // En yakın gelecekteki sınavı seç
+    if (upcoming.length > 0) {
+       upcoming.sort((a,b) => a - b);
+       targetCountdownDate = upcoming[0];
+    }
+  }
+  // --- HESAPLAMA BİTİŞ ---
   if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><img src="/Sembol.png" className="w-24 h-24 animate-pulse" /></div>;
 
   const liveZone = currentUser ? (findZoneByName(zones, currentUser.zone?.name) || currentUser.zone) : null;
   const userLocDetails = currentUser ? getNeighborhoodDetails(liveZone, currentUser.district, currentUser.neighborhood, currentUser.gender) : null;
 
   let headerPhone = userLocDetails?.phone || "0553 973 54 40";
-  if (headerPhone?.includes("0553 973 54 40")) { headerPhone = "0553 973 54 40"; }
+  if (headerPhone?.includes("0531 333 32 32")) { headerPhone = "0553 973 54 40"; }
 
   return (
     <ThemeProvider>
@@ -201,7 +244,7 @@ export default function App() {
           </div>
         </footer>
 
-        {currentView === 'landing' && nextExamDate && <CountdownTimer examDate={nextExamDate} />}
+        {currentView === 'landing' && targetCountdownDate && <CountdownTimer examDate={targetCountdownDate} />}
       </div>
     </ThemeProvider>
   );
