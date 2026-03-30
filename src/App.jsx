@@ -27,9 +27,15 @@ export default function App() {
   
   const [adminAuth, setAdminAuth] = useState({ isAuthenticated: false, zoneId: null, isSuperAdmin: false });
 
-  // Mevcut UseEffect'lerin
   useEffect(() => {
-    const checkRoute = () => { if (window.location.pathname === '/admin' || window.location.hash === '#admin') { setCurrentView('admin'); } };
+    const checkRoute = () => { 
+        if (window.location.pathname === '/admin' || window.location.hash === '#admin') { 
+            setCurrentView('admin'); 
+        } else if (window.location.hash === '#register') {
+            // Davet linkinden gelenler direkt kayıt sayfasına yönlensin diye eklendi
+            setCurrentView('register');
+        }
+    };
     checkRoute();
     window.addEventListener('hashchange', checkRoute);
     return () => window.removeEventListener('hashchange', checkRoute);
@@ -78,15 +84,23 @@ export default function App() {
     return () => { unsubZones(); unsubExams(); unsubStudents(); };
   }, [authUser, currentUser]);
 
-  const navigateTo = (view) => { window.scrollTo({ top: 0, behavior: 'smooth' }); setCurrentView(view); };
+  const navigateTo = (view) => { 
+      window.scrollTo({ top: 0, behavior: 'smooth' }); 
+      setCurrentView(view);
+      // Linkteki hash'i temizle
+      if (window.location.hash) { window.history.pushState("", document.title, window.location.pathname); }
+  };
+  
   const scrollToSection = (id) => {
     if (currentView !== 'landing') {
       setCurrentView('landing');
       setTimeout(() => { document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
     } else { document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   };
+
+  // Davet Et Linki Düzenlendi
   const copyInviteLink = () => {
-    const text = encodeURIComponent("Merhaba arkadaşım ben odullusinav.net'e katılıyorum gel beraber katılıp ödülleri kazanalım. Site linki: https://odullusinav.net");
+    const text = encodeURIComponent("Merhaba arkadaşım ben odullusinav.net'e katılıyorum gel beraber katılıp ödülleri kazanalım.\n\nSite linki: https://odullusinav.net\n\nHaydi sen de kayıt ol! https://odullusinav.net/#register");
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 
@@ -100,7 +114,6 @@ export default function App() {
   const liveZone = currentUser ? (findZoneByName(zones, currentUser.zone?.name) || currentUser.zone) : null;
   const userLocDetails = currentUser ? getNeighborhoodDetails(liveZone, currentUser.district, currentUser.neighborhood, currentUser.gender) : null;
 
-  // KESİN VERİTABANI FİLTRESİ: Eski numara veritabanından gelse bile burada eziyoruz.
   let headerPhone = userLocDetails ? userLocDetails.phone : "0553 973 54 40";
   if (headerPhone.includes("0531 333 32 32")) { headerPhone = "0553 973 54 40"; }
 
@@ -108,7 +121,6 @@ export default function App() {
     <ThemeProvider>
       <div className="min-h-screen bg-slate-50 font-sans text-slate-800 transition-colors duration-300">
         
-        {/* Üst Bilgi Barı ve TEMA SEÇİCİ */}
         <div className="text-white text-xs py-2 px-4 flex justify-between items-center sm:px-8 border-b border-black/10 transition-colors" style={{ backgroundColor: 'var(--color-main)' }}>
           <div className="flex items-center space-x-4">
             <span className="flex items-center font-bold">
@@ -119,7 +131,6 @@ export default function App() {
               {currentUser ? `${currentUser.province}, ${currentUser.district}, ${currentUser.neighborhood}` : "Sakarya, Kocaeli, Yalova"}
             </span>
           </div>
-          {/* TEMA SEÇİCİ BURAYA GELDİ */}
           <ThemeSelector />
         </div>
 
@@ -130,12 +141,10 @@ export default function App() {
               <div className="flex items-center cursor-pointer hover:scale-105 transition-transform flex-shrink-0 mr-auto lg:mr-0" onClick={() => navigateTo('landing')}>
                 <img src="/Sembol.png" alt="Logo" className="h-16 w-16 md:h-20 md:w-20 mr-4 object-contain" />
                 <div>
-                   {/* YENİ ZIT RENKLİ LOGO VE İNCE ARA TONLU BAŞLIK */}
                    <div className="flex items-center gap-1.5">
                       <span className="text-2xl md:text-3xl font-black tracking-tight leading-none" style={{ color: 'var(--color-main)' }}>ÖDÜLLÜ</span>
                       <span className="text-2xl md:text-3xl font-black tracking-tight leading-none" style={{ color: 'var(--color-contrast)' }}>SINAV</span>
                    </div>
-                   {/* İki rengin karışımını veren CSS özelliği (color-mix) ile daha ince (font-medium) yazı */}
                    <p className="text-[11px] md:text-[13px] font-medium uppercase tracking-widest mt-1" style={{ color: 'color-mix(in srgb, var(--color-main) 40%, var(--color-contrast) 60%)' }}>LGS Prova Merkezi</p>
                 </div>
               </div>
