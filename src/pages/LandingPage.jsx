@@ -1,5 +1,5 @@
 import React from 'react';
-import { Award, ChevronRight, FileText, CheckCircle2, Gift, Clock, AlertCircle } from 'lucide-react';
+import { Award, ChevronRight, FileText, CheckCircle2, Gift, Clock, AlertCircle, PlayCircle } from 'lucide-react';
 import ModernPrizeCard from '../components/ModernPrizeCard';
 import TimelineCalendar from '../components/TimelineCalendar';
 import { INITIAL_ZONES } from '../data/constants';
@@ -23,6 +23,7 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col items-center text-center animate-in zoom-in-95 duration-500">
           
           <div className="bg-white rounded-full p-3 mb-8 drop-shadow-[0_0_25px_rgba(255,255,255,0.2)]">
+             {/* Logo Uzantısı .png olarak değiştirildi */}
              <img src="/Sembol.png" alt="Ödüllü Sınav Logo" className="w-40 h-40 md:w-48 md:h-48 object-contain" />
           </div>
           
@@ -117,6 +118,7 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
               
               <div className="bg-slate-900 rounded-[2.5rem] p-3 md:p-5 shadow-2xl relative overflow-hidden">
                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 pointer-events-none"></div>
+                 {/* Video Kapak Fotoğrafı Uzantısı .png yapıldı */}
                  <video controls playsInline className="w-full aspect-video rounded-[2.5rem] object-cover bg-black" poster="/Sembol.png">
                     <source src="/Ödüllü Deneme Sınavı Tanıtım Videosu.mp4" type="video/mp4" />
                     Tarayıcınız video oynatmayı desteklemiyor.

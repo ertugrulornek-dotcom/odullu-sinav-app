@@ -1,19 +1,18 @@
 import React, { useState } from 'react';
 import { Settings, Building2, Users, Map, ShieldAlert, LogOut, KeyRound } from 'lucide-react';
-import { db, appId } from '../../services/firebase';
+import { db, appId } from "../../services/firebase"; 
 import { doc, updateDoc } from "firebase/firestore";
 import { sendSMS, SMS_FOOTER } from '../../services/smsService';
 import { DEFAULT_PRIZE_OBJ, INITIAL_ZONES } from '../../data/constants';
-import { parsePrizeArray, getNeighborhoodDetails, normalizeForSearch } from '../../utils/helpers';
+import { getNeighborhoodDetails, normalizeForSearch, parsePrizeArray } from '../../utils/helpers';
 
-// Bölünmüş alt modüllerin importları (Aynı klasörde oldukları varsayımıyla)
+// Bölünmüş Alt Sekmeler
 import SettingsTab from './SettingsTab';
 import CentersTab from './CentersTab';
 import StudentsTab from './StudentsTab';
 import StatsTab from './StatsTab';
 import BlacklistTab from './BlacklistTab';
 
-// EKSİK OLAN YÖNETİCİ GİRİŞİ BİLEŞENİ
 export function AdminLogin({ setAdminAuth, zones }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -75,7 +74,6 @@ export function AdminLogin({ setAdminAuth, zones }) {
   );
 }
 
-// ANA YÖNETİCİ PANELİ BİLEŞENİ
 export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exams }) {
   const [activeTab, setActiveTab] = useState('ayarlar'); 
   const [isSyncing, setIsSyncing] = useState(false); 
@@ -90,7 +88,6 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
 
   if (!adminZoneData) return <div>Erişim Hatası. Mıntıka bulunamadı.</div>;
 
-  // AKILLI VERİ SENKRONİZASYONU VE SMS GÖNDERİMİ (ÇIKIŞ YAPARKEN)
   const handleLogoutWithSync = async () => {
     if (!hasMadeChanges) {
        onLogout();
@@ -214,7 +211,6 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
         )}
       </div>
 
-      {/* İLGİLİ ALT BİLEŞENİN EKRANA ÇAĞRILMASI */}
       {activeTab === 'ayarlar' && <SettingsTab adminZoneData={adminZoneData} isSuperAdmin={isSuperAdmin} adminZoneId={adminZoneId} setHasMadeChanges={setHasMadeChanges} filteredExams={filteredExams} zones={zones} />}
       {activeTab === 'merkezler' && !isSuperAdmin && <CentersTab adminZoneData={adminZoneData} adminZoneId={adminZoneId} setHasMadeChanges={setHasMadeChanges} />}
       {activeTab === 'ogrenci' && <StudentsTab students={filteredStudents} isSuperAdmin={isSuperAdmin} adminZoneData={adminZoneData} zones={zones} setHasMadeChanges={setHasMadeChanges} />}

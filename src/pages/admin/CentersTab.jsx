@@ -53,17 +53,320 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
 
   const adminDistricts = getAdminDistricts();
 
-  // Add Center, Update, Bulk Upload Logics (Same as before but imported correctly)
-  // ... (Yer kazanmak adına yukarıdaki fonksiyonlarınızla birebir aynı, uzun uzun yazmadım, 
-  // ana yapıyı AdminPanel'deki CentersTab içerisine aynı şekilde gömebilirsiniz.)
-  
-  // Özet: Tüm sınav merkezi atama ve düzenleme işlemleri burada yer alır.
+  const handleAddCenter = async () => {
+    if(!newCenter.name || !newCenter.address) return alert("Kurum adı ve açık adres zorunludur.");
+    try {
+      setHasMadeChanges(true);
+      const centerObj = { id: "c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9), name: newCenter.name, address: newCenter.address, mapLink: newCenter.mapLink || "" };
+      const updatedCenters = [...adminCenters, centerObj];
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters });
+      setNewCenter({ name: '', address: '', mapLink: '' });
+    } catch (e) { console.error(e); }
+  };
+
+  const handleUpdateCenter = async (e) => {
+    e.preventDefault();
+    if(!editingCenter.name || !editingCenter.address) return alert("Adres ve isim zorunludur.");
+    try {
+      setHasMadeChanges(true);
+      const updatedCenters = adminCenters.map(c => c.id === editingCenter.id ? editingCenter : c);
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters });
+      setEditingCenter(null);
+    } catch(err) { console.error(err); }
+  };
+
+  const handleDeleteCenter = async (centerId) => {
+    if(!window.confirm("Bu kurumu silmek istediğinize emin misiniz?")) return;
+    try {
+      setHasMadeChanges(true);
+      const updatedCenters = adminCenters.filter(c => c.id !== centerId);
+      const updatedMappings = adminMappings.filter(m => m.centerId !== centerId); 
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters, mappings: updatedMappings });
+    } catch (e) { console.error(e); }
+  };
+
+  const handleAddMapping = async () => {
+    if(!mappingData.gender || !mappingData.district || !mappingData.neighborhood || !mappingData.centerId) return alert("Lütfen Cinsiyet, İlçe, Mahalle ve atanacak kurumu seçin.");
+    try {
+      setHasMadeChanges(true);
+      const newMappings = [...adminMappings];
+      const existingIndex = newMappings.findIndex(m => m.district === mappingData.district && m.neighborhood === mappingData.neighborhood && m.gender === mappingData.gender);
+      
+      const newMapObj = { district: mappingData.district, neighborhood: mappingData.neighborhood, gender: mappingData.gender, centerId: mappingData.centerId, contactName: mappingData.contactName || "", phone: mappingData.phone || "0531 333 32 32" };
+
+      if (existingIndex >= 0) newMappings[existingIndex] = newMapObj;
+      else newMappings.push(newMapObj);
+      
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { mappings: newMappings });
+      alert(`${mappingData.district} / ${mappingData.neighborhood} (${mappingData.gender}) atandı!`);
+      setMappingData({ ...mappingData, neighborhood: '', contactName: '', phone: '' }); 
+    } catch (e) { console.error(e); }
+  };
+
+  const handleBulkUploadExcel = async () => {
+    if(!bulkExcelData.trim()) return alert("Lütfen veriyi yapıştırın.");
+    
+    const rows = bulkExcelData.split('\n');
+    let updatedCenters = [...adminCenters];
+    let updatedMappings = [...adminMappings];
+    let successCount = 0;
+    let errors = [];
+
+    for (let i = 0; i < rows.length; i++) {
+       let row = rows[i];
+       if(!row.trim()) continue;
+       
+       const cols = row.split('\t');
+       if(cols.length < 3) {
+           errors.push(`Satır ${i+1}: Sütunlar eksik.`);
+           continue;
+       }
+       
+       let rawDistrict = cols[0]?.trim();
+       let rawNeighborhood = cols[1]?.trim();
+
+       if (rawDistrict.includes('/') && !rawNeighborhood) {
+           const parts = rawDistrict.split('/');
+           rawDistrict = parts[0].trim();
+           rawNeighborhood = parts[1].trim();
+       }
+
+       let rawGender = "Tümü";
+       let colOffset = 2; 
+       
+       const potentialGender = cols[2]?.trim().toLowerCase();
+       if (['erkek', 'kız', 'kiz', 'tümü', 'tumu', 'karma'].includes(potentialGender)) {
+           if (potentialGender === 'erkek') rawGender = 'Erkek';
+           else if (potentialGender === 'kız' || potentialGender === 'kiz') rawGender = 'Kız';
+           else rawGender = 'Tümü';
+           colOffset = 3; 
+       }
+
+       let centerName = cols[colOffset]?.trim();
+       let contactName = cols[colOffset+1] ? cols[colOffset+1].trim() : "";
+       let phone = cols[colOffset+2] ? cols[colOffset+2].trim() : "";
+       let address = cols[colOffset+3] ? cols[colOffset+3].trim() : "";
+       let mapLink = cols[colOffset+4] ? cols[colOffset+4].trim() : "";
+
+       if (!rawDistrict || !rawNeighborhood || !centerName) { 
+           errors.push(`Satır ${i+1}: İlçe, Mahalle veya Kurum Adı boş olamaz.`); 
+           continue; 
+       }
+
+       phone = phone.replace(/\D/g, '');
+       if (phone.length > 0 && phone[0] !== '5') { phone = '5' + phone; }
+       if (phone.length > 10) phone = phone.substring(0, 10);
+       if (!phone) phone = "0531 333 32 32";
+
+       const normDistrict = normalizeForSearch(rawDistrict);
+       const normNeighborhood = normalizeForSearch(rawNeighborhood);
+
+       const matchedDistrict = adminDistricts.find(d => normalizeForSearch(d) === normDistrict);
+       let matchedNeighborhood = null;
+
+       if (matchedDistrict) {
+           let allHoodsForDistrict = [];
+           if(adminZoneData.partialDistricts && adminZoneData.partialDistricts[matchedDistrict]) {
+               allHoodsForDistrict = adminZoneData.partialDistricts[matchedDistrict];
+           } else {
+               for(let prov in LOCATIONS) {
+                   if(LOCATIONS[prov][matchedDistrict]) { allHoodsForDistrict = LOCATIONS[prov][matchedDistrict]; break; }
+               }
+           }
+           matchedNeighborhood = allHoodsForDistrict.find(h => normalizeForSearch(h) === normNeighborhood);
+       }
+
+       if (!matchedDistrict || !matchedNeighborhood) { 
+           errors.push(`Satır ${i+1}: Veritabanında "${rawDistrict}" ilçesinde "${rawNeighborhood}" bulunamadı.`); 
+           continue; 
+       }
+       
+       let center = updatedCenters.find(c => normalizeForSearch(c.name) === normalizeForSearch(centerName));
+       if(!center) {
+          center = { 
+             id: "c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9), 
+             name: centerName, 
+             address: address || `${matchedDistrict} / ${matchedNeighborhood}`, 
+             mapLink: mapLink 
+          };
+          updatedCenters.push(center);
+       }
+       
+       const existingMapIndex = updatedMappings.findIndex(m => m.district === matchedDistrict && m.neighborhood === matchedNeighborhood && m.gender === rawGender);
+       const newMapObj = { district: matchedDistrict, neighborhood: matchedNeighborhood, gender: rawGender, centerId: center.id, contactName, phone };
+       
+       if(existingMapIndex >= 0) updatedMappings[existingIndex] = newMapObj;
+       else updatedMappings.push(newMapObj);
+       
+       successCount++;
+    }
+
+    if (errors.length > 0) alert("Eksik/Hatalı satırlar atlandı:\n" + errors.join('\n'));
+    if (successCount > 0) {
+      try {
+        setHasMadeChanges(true);
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters, mappings: updatedMappings });
+        alert(`${successCount} adet mahalle ataması başarıyla kaydedildi.`);
+        setBulkExcelData("");
+      } catch(err) { 
+        console.error(err); 
+        alert("Veritabanına kaydedilirken hata oluştu.");
+      }
+    } else {
+        alert("Hiç geçerli veri bulunamadı. Kopyaladığınız Excel formatını kontrol edin.");
+    }
+  };
+
+  const handleDeleteMapping = async (district, neighborhood, gender) => {
+    try {
+      setHasMadeChanges(true);
+      const updatedMappings = adminMappings.filter(m => !(m.district === district && m.neighborhood === neighborhood && m.gender === gender));
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { mappings: updatedMappings });
+    } catch (e) { console.error(e); }
+  };
+
   return (
     <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12 animate-in fade-in zoom-in-95 duration-300">
-        <h3 className="font-black text-3xl text-slate-900 mb-2">Sınav Yerleri ve Atamalar</h3>
-        <p className="text-base font-bold text-slate-500 mb-8">Mıntıkaya yeni kurumlar ekleyin ve mahalleleri bu kurumlara bağlarken ÖNCE CİNSİYET (Erkek/Kız/Tümü) seçin.</p>
-        
-        {/* ... Centers Ekleme, Toplu Yükleme ve Liste Görünümü (App.jsx'deki ile aynı) ... */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b-2 border-slate-100 pb-8 gap-4">
+          <div>
+            <h3 className="font-black text-3xl text-slate-900 mb-2">Sınav Yerleri ve Atamalar</h3>
+            <p className="text-base font-bold text-slate-500">Mıntıkaya yeni kurumlar ekleyin ve mahalleleri bu kurumlara bağlarken ÖNCE CİNSİYET (Erkek/Kız/Tümü) seçin.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+          <div className="lg:col-span-1 space-y-8">
+             <div>
+                <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider flex items-center"><Building2 className="w-6 h-6 mr-2"/> Yeni Kurum / Sınav Yeri Ekle</div>
+                <div className="space-y-4 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Kurum Adı</label>
+                    <input type="text" value={newCenter.name} onChange={e=>setNewCenter({...newCenter, name: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Örn: Şekerpınar Sınav Merkezi"/>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Açık Adres</label>
+                    <textarea rows="3" value={newCenter.address} onChange={e=>setNewCenter({...newCenter, address: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 resize-none" placeholder="Örn: Mutlu Sk. No:5 Çayırova"/>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Google Harita Linki</label>
+                    <input type="url" value={newCenter.mapLink} onChange={e=>setNewCenter({...newCenter, mapLink: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="https://maps.app.goo.gl/..."/>
+                  </div>
+                  <button onClick={handleAddCenter} className="bg-slate-800 hover:bg-slate-900 text-white text-base font-black py-4 px-4 rounded-xl transition w-full shadow-lg">Kurumu Ekle</button>
+                </div>
+             </div>
+
+             <div>
+                <div className="text-sm font-black text-emerald-600 uppercase mb-4 tracking-wider flex items-center"><FileText className="w-6 h-6 mr-2"/> Toplu Ekle (Excel'den Yapıştır)</div>
+                <div className="space-y-4 bg-emerald-50/50 p-6 rounded-3xl border-2 border-emerald-100">
+                   <p className="text-xs font-bold text-emerald-800 mb-2">Excel tablonuzdaki şu sütunları seçip kopyalayın ve aşağıdaki alana yapıştırın:<br/><br/><b>İlçe | Mahalle | Cinsiyet (İsteğe Bağlı) | Kurum Adı | Sorumlu Hoca | Telefon | Açık Adres | Harita Linki</b></p>
+                   <textarea 
+                     rows="5" 
+                     value={bulkExcelData}
+                     onChange={e => setBulkExcelData(e.target.value)}
+                     className="w-full text-xs font-mono p-4 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 resize-none whitespace-pre" 
+                     placeholder="Gebze&#9;Akarçeşme&#9;Erkek&#9;Şekerpınar Eğitim...&#9;Ahmet Hoca&#9;0532..."/>
+                   <button onClick={handleBulkUploadExcel} className="bg-emerald-600 hover:bg-emerald-700 text-white text-base font-black py-4 px-4 rounded-xl transition w-full shadow-lg">Excel Verilerini İçe Aktar</button>
+                </div>
+             </div>
+          </div>
+
+          <div className="lg:col-span-2 space-y-8">
+            {adminCenters.length === 0 ? (
+              <div className="bg-amber-50 border-4 border-amber-100 rounded-3xl p-10 text-center font-bold text-amber-800">
+                Henüz tanımlanmış bir kurum bulunmuyor. Sol taraftan bir Sınav Yeri ekleyin veya Excel'den toplu içe aktarın.
+              </div>
+            ) : (
+              adminCenters.map(center => {
+                const mappedHoods = adminMappings.filter(m => m.centerId === center.id);
+                
+                if (editingCenter?.id === center.id) {
+                   return (
+                      <div key={center.id} className="border-4 border-indigo-400 rounded-3xl p-6 bg-indigo-50 relative">
+                         <h4 className="font-black text-xl text-indigo-900 mb-4">Kurumu Düzenle</h4>
+                         <form onSubmit={handleUpdateCenter} className="space-y-3">
+                            <div><label className="text-xs font-bold text-slate-500 uppercase ml-1 block">Kurum Adı</label><input type="text" value={editingCenter.name} onChange={e=>setEditingCenter({...editingCenter, name: e.target.value})} className="w-full p-3 rounded-xl border border-slate-200" required/></div>
+                            <div><label className="text-xs font-bold text-slate-500 uppercase ml-1 block">Adres</label><input type="text" value={editingCenter.address} onChange={e=>setEditingCenter({...editingCenter, address: e.target.value})} className="w-full p-3 rounded-xl border border-slate-200" required/></div>
+                            <div><label className="text-xs font-bold text-slate-500 uppercase ml-1 block">Harita Linki</label><input type="text" value={editingCenter.mapLink} onChange={e=>setEditingCenter({...editingCenter, mapLink: e.target.value})} className="w-full p-3 rounded-xl border border-slate-200"/></div>
+                            <div className="flex gap-3 mt-4">
+                               <button type="submit" className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold flex items-center"><Save className="w-4 h-4 mr-2"/> Kaydet</button>
+                               <button type="button" onClick={() => setEditingCenter(null)} className="bg-slate-200 text-slate-700 px-6 py-2 rounded-xl font-bold flex items-center"><X className="w-4 h-4 mr-2"/> İptal</button>
+                            </div>
+                         </form>
+                      </div>
+                   )
+                }
+
+                return (
+                  <div key={center.id} className="border-4 border-slate-100 rounded-3xl p-6 bg-white relative group animate-in fade-in zoom-in-95 duration-300">
+                    <div className="absolute top-6 right-6 flex gap-2">
+                       <button onClick={() => setEditingCenter(center)} className="p-2 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Düzenle"><Edit3 className="w-5 h-5"/></button>
+                       <button onClick={() => handleDeleteCenter(center.id)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Sil"><Trash2 className="w-5 h-5"/></button>
+                    </div>
+                    <h4 className="font-black text-2xl text-slate-800 mb-2 pr-20">{center.name}</h4>
+                    <div className="text-sm font-medium text-slate-500 mb-6 flex items-start">
+                      <MapPin className="w-4 h-4 mr-1 flex-shrink-0 text-slate-400 mt-0.5"/> {center.address}
+                    </div>
+
+                    <div className="bg-indigo-50/50 p-5 rounded-2xl border-2 border-indigo-100 mb-6">
+                       <h5 className="text-xs font-black text-indigo-500 uppercase tracking-widest mb-3">Cinsiyete Göre Mahalle Bağla</h5>
+                       <div className="flex flex-col sm:flex-row gap-3">
+                          <select 
+                            className="w-full sm:w-1/6 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white"
+                            value={mappingData.gender}
+                            onChange={e => setMappingData({...mappingData, gender: e.target.value, district: '', neighborhood: '', centerId: center.id})}>
+                            <option value="">Cinsiyet Seç</option>
+                            <option value="Tümü">Tümü (Karma)</option>
+                            <option value="Erkek">Erkek</option>
+                            <option value="Kız">Kız</option>
+                          </select>
+
+                          <select 
+                            className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white disabled:opacity-50"
+                            disabled={!mappingData.gender}
+                            value={mappingData.district}
+                            onChange={e => setMappingData({...mappingData, district: e.target.value, neighborhood: '', centerId: center.id})}>
+                            <option value="">İlçe Seç</option>
+                            {adminDistricts.map(d => <option key={d} value={d}>{d}</option>)}
+                          </select>
+
+                          <select 
+                            className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white disabled:opacity-50"
+                            disabled={!mappingData.district || !mappingData.gender}
+                            value={mappingData.neighborhood}
+                            onChange={e => setMappingData({...mappingData, neighborhood: e.target.value, centerId: center.id})}>
+                            <option value="">Atanmamış Mahalle Seç</option>
+                            {getAdminUnmappedNeighborhoods(mappingData.district, mappingData.gender).map(hood => (
+                              <option key={hood} value={hood}>{hood} Mah.</option>
+                            ))}
+                          </select>
+                          
+                          <input type="text" value={mappingData.contactName} onChange={e=>setMappingData({...mappingData, contactName: e.target.value, centerId: center.id})} className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white" placeholder="Sorumlu İsim"/>
+                          <input type="tel" value={mappingData.phone} onChange={e=>setMappingData({...mappingData, phone: e.target.value, centerId: center.id})} className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white" placeholder="Sorumlu Tel"/>
+                          <button onClick={handleAddMapping} disabled={!mappingData.centerId || !mappingData.gender || !mappingData.district || !mappingData.neighborhood} className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-black p-3 px-6 rounded-xl transition disabled:opacity-50">Ekle</button>
+                       </div>
+                    </div>
+
+                    <div>
+                      <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Bağlı Olan Mahalleler ({mappedHoods.length})</h5>
+                      <div className="flex flex-wrap gap-3">
+                        {mappedHoods.length > 0 ? mappedHoods.map((m, i) => (
+                           <div key={i} className="flex flex-col bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm relative group pr-10 hover:shadow-md transition">
+                              <span className="font-black text-slate-800 mb-1">{m.district} / {m.neighborhood} <span className="text-xs ml-1 text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-md">{m.gender || 'Tümü'}</span></span>
+                              <span className="text-slate-500 font-medium text-xs"><Users className="w-3 h-3 inline mr-1"/>{m.contactName || 'İsimsiz'} - {m.phone}</span>
+                              <button onClick={() => handleDeleteMapping(m.district, m.neighborhood, m.gender)} className="absolute top-1/2 right-3 transform -translate-y-1/2 text-slate-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100"><Trash2 className="w-5 h-5"/></button>
+                           </div>
+                        )) : (
+                           <span className="text-sm font-medium text-slate-400 italic">Henüz hiç mahalle bağlanmamış.</span>
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </div>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Map, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
+import { Map, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { db, appId } from '../../services/firebase';
 import { updateDoc, doc } from "firebase/firestore";
 import { LOCATIONS } from '../../data/constants';

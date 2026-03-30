@@ -109,7 +109,7 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
   };
 
   return (
-    <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-10 overflow-hidden relative animate-in fade-in zoom-in-95 duration-300">
+    <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 p-10 overflow-hidden relative animate-in fade-in zoom-in-95 duration-300">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
         <h2 className="text-3xl font-black text-slate-800">{isSuperAdmin ? "Tüm Türkiye Kayıtları" : "Bölge Kayıtları"} ({students.length})</h2>
         <div className="flex flex-wrap gap-3">
