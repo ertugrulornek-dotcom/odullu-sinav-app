@@ -92,7 +92,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
       const newMappings = [...adminMappings];
       const existingIndex = newMappings.findIndex(m => m.district === mappingData.district && m.neighborhood === mappingData.neighborhood && m.gender === mappingData.gender);
       
-      const newMapObj = { district: mappingData.district, neighborhood: mappingData.neighborhood, gender: mappingData.gender, centerId: mappingData.centerId, contactName: mappingData.contactName || "", phone: mappingData.phone || "0531 333 32 32" };
+      const newMapObj = { district: mappingData.district, neighborhood: mappingData.neighborhood, gender: mappingData.gender, centerId: mappingData.centerId, contactName: mappingData.contactName || "", phone: mappingData.phone || "0553 973 54 40" };
 
       if (existingIndex >= 0) newMappings[existingIndex] = newMapObj;
       else newMappings.push(newMapObj);
@@ -156,7 +156,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
        phone = phone.replace(/\D/g, '');
        if (phone.length > 0 && phone[0] !== '5') { phone = '5' + phone; }
        if (phone.length > 10) phone = phone.substring(0, 10);
-       if (!phone) phone = "0531 333 32 32";
+       if (!phone) phone = "0553 973 54 40";
 
        const normDistrict = normalizeForSearch(rawDistrict);
        const normNeighborhood = normalizeForSearch(rawNeighborhood);

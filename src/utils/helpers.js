@@ -27,7 +27,7 @@ export const determineZoneName = (province, district, neighborhood) => {
 };
 
 export const getNeighborhoodDetails = (zone, district, neighborhood, gender = null) => {
-  const defaultDetails = { phone: "0531 333 32 32", centerName: "Sınav Merkezi Bekleniyor", address: "", mapLink: "", contactName: "" };
+  const defaultDetails = { phone: "0553 973 54 40", centerName: "Sınav Merkezi Bekleniyor", address: "", mapLink: "", contactName: "" };
   if (!zone || !zone.mappings || !zone.centers) return defaultDetails;
   
   let map = null;

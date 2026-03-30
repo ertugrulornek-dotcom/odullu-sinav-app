@@ -12,6 +12,9 @@ import LoginPage from './pages/LoginPage';
 import StudentProfile from './pages/StudentProfile';
 import AdminPanel, { AdminLogin } from './pages/admin/AdminPanel';
 
+import { ThemeProvider, ThemeSelector } from './components/ThemeSelector';
+import CountdownTimer from './components/CountdownTimer';
+
 export default function App() {
   const [currentView, setCurrentView] = useState('landing'); 
   const [currentUser, setCurrentUser] = useState(null);
@@ -24,12 +27,9 @@ export default function App() {
   
   const [adminAuth, setAdminAuth] = useState({ isAuthenticated: false, zoneId: null, isSuperAdmin: false });
 
+  // Mevcut UseEffect'lerin
   useEffect(() => {
-    const checkRoute = () => {
-      if (window.location.pathname === '/admin' || window.location.hash === '#admin') {
-        setCurrentView('admin');
-      }
-    };
+    const checkRoute = () => { if (window.location.pathname === '/admin' || window.location.hash === '#admin') { setCurrentView('admin'); } };
     checkRoute();
     window.addEventListener('hashchange', checkRoute);
     return () => window.removeEventListener('hashchange', checkRoute);
@@ -38,36 +38,24 @@ export default function App() {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
-      } catch (err) {
-        console.error("Kimlik doğrulama hatası:", err);
-      }
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) { await signInWithCustomToken(auth, __initial_auth_token); } 
+        else { await signInAnonymously(auth); }
+      } catch (err) { console.error("Kimlik doğrulama hatası:", err); }
     };
     initAuth();
-
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setAuthUser(user);
-    });
+    const unsubscribe = onAuthStateChanged(auth, (user) => setAuthUser(user));
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     if (!authUser) return;
-
     const zonesRef = collection(db, 'artifacts', appId, 'public', 'data', 'zones');
     const examsRef = collection(db, 'artifacts', appId, 'public', 'data', 'exams');
     const studentsRef = collection(db, 'artifacts', appId, 'public', 'data', 'students');
 
     const unsubZones = onSnapshot(zonesRef, (snapshot) => {
-      if (snapshot.empty) {
-        INITIAL_ZONES.forEach(async (z) => {
-          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', z.id.toString()), z);
-        });
-      } else {
+      if (snapshot.empty) { INITIAL_ZONES.forEach(async (z) => { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', z.id.toString()), z); }); } 
+      else {
         const zonesData = snapshot.docs.map(d => {
           const dbZone = d.data();
           const baseZone = INITIAL_ZONES.find(z => z.id === parseInt(d.id)) || {};
@@ -75,149 +63,137 @@ export default function App() {
         });
         setZones(zonesData.sort((a, b) => a.id - b.id)); 
       }
-    }, (err) => console.error("Bölge verisi alınamadı:", err));
-
-    const unsubExams = onSnapshot(examsRef, (snapshot) => {
-      setExams(snapshot.docs.map(d => ({ firebaseId: d.id, ...d.data() })));
-    }, (err) => console.error("Sınav verisi alınamadı:", err));
-
+    });
+    const unsubExams = onSnapshot(examsRef, (snapshot) => setExams(snapshot.docs.map(d => ({ firebaseId: d.id, ...d.data() }))));
     const unsubStudents = onSnapshot(studentsRef, (snapshot) => {
       const studs = snapshot.docs.map(d => ({ firebaseId: d.id, ...d.data() }));
       setRegisteredStudents(studs);
-      
       if (currentUser) {
         const updatedUser = studs.find(s => s.firebaseId === currentUser.firebaseId);
         if (updatedUser) setCurrentUser(updatedUser);
       }
-    }, (err) => console.error("Öğrenci verisi alınamadı:", err));
+    });
 
     setTimeout(() => setLoading(false), 1000);
+    return () => { unsubZones(); unsubExams(); unsubStudents(); };
+  }, [authUser, currentUser]);
 
-    return () => {
-      unsubZones();
-      unsubExams();
-      unsubStudents();
-    };
-  }, [authUser]);
-
-  const navigateTo = (view) => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    setCurrentView(view);
-  };
-
+  const navigateTo = (view) => { window.scrollTo({ top: 0, behavior: 'smooth' }); setCurrentView(view); };
   const scrollToSection = (id) => {
     if (currentView !== 'landing') {
       setCurrentView('landing');
       setTimeout(() => { document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
-    } else {
-      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    } else { document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   };
-
   const copyInviteLink = () => {
     const text = encodeURIComponent("Merhaba arkadaşım ben odullusinav.net'e katılıyorum gel beraber katılıp ödülleri kazanalım. Site linki: https://odullusinav.net");
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center flex-col">
-        {/* Uzantı .png olarak düzeltildi */}
-        <img src="/Sembol.png" alt="Ödüllü Sınav Yükleniyor" className="w-24 h-24 md:w-32 md:h-32 object-contain animate-pulse rounded-full shadow-lg border-4 border-indigo-200" />
-      </div>
-    );
-  }
+  const nextExamDate = exams.filter(e => e.active && e.date)
+                           .map(e => new Date(e.date).getTime())
+                           .filter(t => t > new Date().getTime())
+                           .sort((a,b) => a - b)[0];
+
+  if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><img src="/Sembol.png" className="w-24 h-24 animate-pulse" /></div>;
 
   const liveZone = currentUser ? (findZoneByName(zones, currentUser.zone?.name) || currentUser.zone) : null;
   const userLocDetails = currentUser ? getNeighborhoodDetails(liveZone, currentUser.district, currentUser.neighborhood, currentUser.gender) : null;
 
-  return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
-      <div className="bg-indigo-950 text-indigo-100 text-xs py-2 px-4 flex justify-between items-center sm:px-8 border-b border-indigo-900">
-        <div className="flex items-center space-x-4">
-          <span className="flex items-center font-bold">
-            <Phone className="w-3.5 h-3.5 mr-1 text-indigo-300"/> 
-            {userLocDetails ? userLocDetails.phone : "0553 973 54 40"}
-          </span>
-          <span className="hidden sm:flex items-center font-bold">
-            <MapPin className="w-3.5 h-3.5 mr-1 text-indigo-300"/> 
-            {currentUser ? `${currentUser.province}, ${currentUser.district}, ${currentUser.neighborhood}` : "Sakarya, Kocaeli, Yalova"}
-          </span>
-        </div>
-      </div>
+  // KESİN VERİTABANI FİLTRESİ: Eski numara veritabanından gelse bile burada eziyoruz.
+  let headerPhone = userLocDetails ? userLocDetails.phone : "0553 973 54 40";
+  if (headerPhone.includes("0531 333 32 32")) { headerPhone = "0553 973 54 40"; }
 
-      <nav className="bg-white/90 backdrop-blur-md shadow-sm sticky top-0 z-50">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col lg:flex-row justify-between items-center py-3 lg:h-24 gap-4 lg:gap-0 w-full">
-             
-             <div className="flex items-center cursor-pointer hover:scale-105 transition-transform flex-shrink-0 mr-auto lg:mr-0" onClick={() => navigateTo('landing')}>
-                {/* Uzantı .png olarak düzeltildi */}
+  return (
+    <ThemeProvider>
+      <div className="min-h-screen bg-slate-50 font-sans text-slate-800 transition-colors duration-300">
+        
+        {/* Üst Bilgi Barı ve TEMA SEÇİCİ */}
+        <div className="text-white text-xs py-2 px-4 flex justify-between items-center sm:px-8 border-b border-black/10 transition-colors" style={{ backgroundColor: 'var(--color-main)' }}>
+          <div className="flex items-center space-x-4">
+            <span className="flex items-center font-bold">
+              <Phone className="w-3.5 h-3.5 mr-1 opacity-80"/> {headerPhone}
+            </span>
+            <span className="hidden sm:flex items-center font-bold">
+              <MapPin className="w-3.5 h-3.5 mr-1 opacity-80"/> 
+              {currentUser ? `${currentUser.province}, ${currentUser.district}, ${currentUser.neighborhood}` : "Sakarya, Kocaeli, Yalova"}
+            </span>
+          </div>
+          {/* TEMA SEÇİCİ BURAYA GELDİ */}
+          <ThemeSelector />
+        </div>
+
+        <nav className="bg-white/90 backdrop-blur-md shadow-sm sticky top-0 z-40 transition-colors">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col lg:flex-row justify-between items-center py-3 lg:h-24 gap-4 lg:gap-0 w-full">
+              
+              <div className="flex items-center cursor-pointer hover:scale-105 transition-transform flex-shrink-0 mr-auto lg:mr-0" onClick={() => navigateTo('landing')}>
                 <img src="/Sembol.png" alt="Logo" className="h-16 w-16 md:h-20 md:w-20 mr-4 object-contain" />
                 <div>
-                   <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight leading-none">ÖDÜLLÜ SINAV</h1>
-                   <p className="text-[10px] md:text-[13px] font-black text-indigo-600 uppercase tracking-widest mt-1">LGS Prova Merkezi</p>
+                   {/* YENİ ZIT RENKLİ LOGO VE İNCE ARA TONLU BAŞLIK */}
+                   <div className="flex items-center gap-1.5">
+                      <span className="text-2xl md:text-3xl font-black tracking-tight leading-none" style={{ color: 'var(--color-main)' }}>ÖDÜLLÜ</span>
+                      <span className="text-2xl md:text-3xl font-black tracking-tight leading-none" style={{ color: 'var(--color-contrast)' }}>SINAV</span>
+                   </div>
+                   {/* İki rengin karışımını veren CSS özelliği (color-mix) ile daha ince (font-medium) yazı */}
+                   <p className="text-[11px] md:text-[13px] font-medium uppercase tracking-widest mt-1" style={{ color: 'color-mix(in srgb, var(--color-main) 40%, var(--color-contrast) 60%)' }}>LGS Prova Merkezi</p>
                 </div>
-             </div>
-             
-             <div className="hidden lg:flex space-x-6 items-center flex-1 justify-center">
-                <button onClick={() => scrollToSection('hero')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Ana Sayfa</button>
-                <button onClick={() => scrollToSection('sinav-provasi')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Sınav Provası</button>
-                <button onClick={() => scrollToSection('analiz')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Birebir Analiz</button>
-                <button onClick={() => scrollToSection('burs')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Eğitim Bursları</button>
-                <button onClick={() => scrollToSection('tanitim')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Deneme Tanıtımı</button>
-                <button onClick={() => scrollToSection('oduller')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Ödül</button>
-                <button onClick={() => scrollToSection('takvim')} className="text-slate-600 hover:text-indigo-600 font-bold transition text-sm">Sınav Takvimi</button>
-             </div>
+              </div>
+              
+              <div className="hidden lg:flex space-x-6 items-center flex-1 justify-center">
+                 <style>{`
+                    .nav-btn { position: relative; padding-bottom: 4px; }
+                    .nav-btn::after { content: ''; position: absolute; bottom: 0; left: 0; width: 0%; height: 2px; background-color: var(--color-main); transition: width 0.3s ease; }
+                    .nav-btn:hover::after { width: 100%; }
+                    .nav-btn:hover { color: var(--color-main); }
+                 `}</style>
+                <button onClick={() => scrollToSection('hero')} className="nav-btn text-slate-600 font-bold transition text-sm">Ana Sayfa</button>
+                <button onClick={() => scrollToSection('sinav-provasi')} className="nav-btn text-slate-600 font-bold transition text-sm">Sınav Provası</button>
+                <button onClick={() => scrollToSection('analiz')} className="nav-btn text-slate-600 font-bold transition text-sm">Birebir Analiz</button>
+                <button onClick={() => scrollToSection('burs')} className="nav-btn text-slate-600 font-bold transition text-sm">Eğitim Bursları</button>
+                <button onClick={() => scrollToSection('oduller')} className="nav-btn text-slate-600 font-bold transition text-sm">Ödül</button>
+                <button onClick={() => scrollToSection('takvim')} className="nav-btn text-slate-600 font-bold transition text-sm">Sınav Takvimi</button>
+              </div>
 
-             <div className="flex flex-wrap lg:flex-nowrap justify-start sm:justify-end gap-2 md:gap-3 items-center flex-shrink-0 w-full lg:w-auto mt-3 lg:mt-0">
-               {currentUser ? (
-                 <>
-                    <button onClick={copyInviteLink} className="flex items-center text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm font-bold px-3 py-2 rounded-xl transition-all text-xs md:text-sm whitespace-nowrap">
-                      <UserPlus className="w-4 h-4 mr-1.5"/> Davet Et
-                    </button>
-                    <button onClick={() => navigateTo('profile')} className="bg-indigo-600 text-white px-4 py-2 md:px-6 md:py-2.5 rounded-xl font-black shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:-translate-y-0.5 transition-all flex items-center text-xs md:text-sm whitespace-nowrap">
-                      <Users className="w-4 h-4 md:w-5 md:h-5 mr-1 md:mr-2" /> Panelim
-                    </button>
-                    <button onClick={() => { setCurrentUser(null); navigateTo('landing'); }} className="text-red-500 hover:bg-red-50 p-2 rounded-xl border border-red-100 shadow-sm transition-all" title="Çıkış Yap">
-                      <LogOut className="w-4 h-4 md:w-5 md:h-5" />
-                    </button>
-                 </>
-               ) : (
-                 <>
-                    <button onClick={copyInviteLink} className="flex items-center text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:shadow-md border border-indigo-200 shadow-sm font-bold px-3 py-2 rounded-xl transition-all text-xs md:text-sm whitespace-nowrap">
-                      <UserPlus className="w-4 h-4 mr-1.5"/> Davet Et
-                    </button>
-                    <button onClick={() => navigateTo('login')} className="bg-white border border-slate-200 shadow-sm text-slate-700 hover:text-indigo-600 hover:border-indigo-300 font-bold px-4 py-2 rounded-xl transition-all text-xs md:text-sm whitespace-nowrap">
-                      Giriş Yap
-                    </button>
-                    <button onClick={() => navigateTo('register')} className="bg-indigo-600 text-white px-4 py-2 md:px-6 md:py-2.5 rounded-xl font-black shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:-translate-y-0.5 transition-all text-xs md:text-sm whitespace-nowrap">
-                      Kayıt Ol
-                    </button>
-                 </>
-               )}
-             </div>
+              <div className="flex flex-wrap lg:flex-nowrap justify-start sm:justify-end gap-2 md:gap-3 items-center flex-shrink-0 w-full lg:w-auto mt-3 lg:mt-0">
+                {currentUser ? (
+                  <>
+                    <button onClick={copyInviteLink} className="flex items-center bg-slate-50 border shadow-sm font-bold px-3 py-2 rounded-xl text-xs md:text-sm" style={{ color: 'var(--color-main)' }}><UserPlus className="w-4 h-4 mr-1.5"/> Davet Et</button>
+                    <button onClick={() => navigateTo('profile')} className="text-white px-4 py-2 rounded-xl font-black shadow-lg flex items-center text-xs md:text-sm" style={{ backgroundColor: 'var(--color-main)' }}><Users className="w-4 h-4 mr-2" /> Panelim</button>
+                    <button onClick={() => { setCurrentUser(null); navigateTo('landing'); }} className="text-red-500 p-2 rounded-xl border border-red-100"><LogOut className="w-4 h-4" /></button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={copyInviteLink} className="flex items-center bg-slate-50 border shadow-sm font-bold px-3 py-2 rounded-xl text-xs md:text-sm" style={{ color: 'var(--color-main)' }}><UserPlus className="w-4 h-4 mr-1.5"/> Davet Et</button>
+                    <button onClick={() => navigateTo('login')} className="bg-white border text-slate-700 font-bold px-4 py-2 rounded-xl text-xs md:text-sm">Giriş Yap</button>
+                    <button onClick={() => navigateTo('register')} className="text-white px-4 py-2 rounded-xl font-black shadow-lg text-xs md:text-sm" style={{ backgroundColor: 'var(--color-main)' }}>Kayıt Ol</button>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      </nav>
+        </nav>
 
-      <main className="pb-0 animate-in fade-in duration-500">
-        {currentView === 'landing' && <LandingPage navigateTo={navigateTo} currentUser={currentUser} scrollToSection={scrollToSection} exams={exams} zones={zones} />}
-        {currentView === 'register' && <RegistrationProcess navigateTo={navigateTo} currentUser={currentUser} setCurrentUser={setCurrentUser} zones={zones} exams={exams} students={registeredStudents} />}
-        {currentView === 'login' && <LoginPage students={registeredStudents} setCurrentUser={setCurrentUser} navigateTo={navigateTo} />}
-        {currentView === 'profile' && <StudentProfile currentUser={currentUser} exams={exams} navigateTo={navigateTo} setCurrentUser={setCurrentUser} zones={zones} />}
-        {currentView === 'admin' && !adminAuth.isAuthenticated && <AdminLogin setAdminAuth={setAdminAuth} zones={zones} />}
-        {currentView === 'admin' && adminAuth.isAuthenticated && <AdminPanel students={registeredStudents} adminZoneId={adminAuth.zoneId} isSuperAdmin={adminAuth.isSuperAdmin} onLogout={() => setAdminAuth({ isAuthenticated: false, zoneId: null, isSuperAdmin: false })} zones={zones} exams={exams} />}
-      </main>
+        <main className="pb-0 animate-in fade-in duration-500">
+          {currentView === 'landing' && <LandingPage navigateTo={navigateTo} currentUser={currentUser} scrollToSection={scrollToSection} exams={exams} zones={zones} />}
+          {currentView === 'register' && <RegistrationProcess navigateTo={navigateTo} currentUser={currentUser} setCurrentUser={setCurrentUser} zones={zones} exams={exams} students={registeredStudents} />}
+          {currentView === 'login' && <LoginPage students={registeredStudents} setCurrentUser={setCurrentUser} navigateTo={navigateTo} />}
+          {currentView === 'profile' && <StudentProfile currentUser={currentUser} exams={exams} navigateTo={navigateTo} setCurrentUser={setCurrentUser} zones={zones} />}
+          {currentView === 'admin' && !adminAuth.isAuthenticated && <AdminLogin setAdminAuth={setAdminAuth} zones={zones} />}
+          {currentView === 'admin' && adminAuth.isAuthenticated && <AdminPanel students={registeredStudents} adminZoneId={adminAuth.zoneId} isSuperAdmin={adminAuth.isSuperAdmin} onLogout={() => setAdminAuth({ isAuthenticated: false, zoneId: null, isSuperAdmin: false })} zones={zones} exams={exams} />}
+        </main>
 
-      <footer className="bg-slate-950 text-slate-400 py-16 text-sm text-center border-t-4 border-indigo-600">
-        <div className="max-w-4xl mx-auto px-6">
-          {/* Uzantı .png olarak düzeltildi */}
-          <img src="/Sembol.png" alt="Logo" className="h-16 w-16 mx-auto mb-6 object-contain opacity-90" />
-          <p className="mb-2 text-lg font-bold text-slate-200">Sakarya, Kocaeli ve Yalova'nın En Prestijli LGS Provası</p>
-          <p className="mb-8">Gerçek Sınav Deneyimi ve Büyük Ödüller Bir Arada</p>
-          <p>© 2026 Ödüllü Sınav Merkezi. Tüm hakları saklıdır.</p>
-        </div>
-      </footer>
-    </div>
+        <footer className="bg-slate-950 text-slate-400 py-16 text-sm text-center border-t-4 transition-colors" style={{ borderTopColor: 'var(--color-main)' }}>
+          <div className="max-w-4xl mx-auto px-6">
+            <img src="/Sembol.png" alt="Logo" className="h-16 w-16 mx-auto mb-6 object-contain opacity-90" />
+            <p className="mb-2 text-lg font-bold text-slate-200">Sakarya, Kocaeli ve Yalova'nın En Prestijli LGS Provası</p>
+            <p className="mb-8">Gerçek Sınav Deneyimi ve Büyük Ödüller Bir Arada</p>
+            <p>© 2026 Ödüllü Sınav Merkezi. Tüm hakları saklıdır.</p>
+          </div>
+        </footer>
+
+        {currentView === 'landing' && nextExamDate && <CountdownTimer examDate={nextExamDate} />}
+      </div>
+    </ThemeProvider>
   );
 }

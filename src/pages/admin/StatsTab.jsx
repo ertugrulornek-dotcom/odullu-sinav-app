@@ -106,7 +106,7 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
           newCenters.push(exceptionModal.center);
       }
 
-      const newMapObj = { district, neighborhood, gender, centerId: exceptionModal.center.id, contactName, phone: phone || "0531 333 32 32" };
+      const newMapObj = { district, neighborhood, gender, centerId: exceptionModal.center.id, contactName, phone: phone || "0553 973 54 40" };
       newMappings.push(newMapObj);
 
       try {
