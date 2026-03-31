@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Gift, Trophy, Award, Plus, Trash2, CalendarIcon, CheckCircle2, Edit } from 'lucide-react';
 import { db, appId } from '../../services/firebase';
-// DÜZELTME: query ve where eklendi
 import { updateDoc, doc, addDoc, collection, deleteDoc, getDocs, query, where } from "firebase/firestore";
 import { INITIAL_ZONES } from '../../data/constants';
 import { parsePrizeArray } from '../../utils/helpers';
@@ -23,12 +22,45 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
     }
   }, [adminZoneData, isSuperAdmin]);
 
+  // DÜZELTME: Ödüller Değişince SMS Atma Sistemi
   const handleUpdatePrizes = async () => {
     try {
       setHasMadeChanges(true);
       const targetZoneIds = isSuperAdmin ? INITIAL_ZONES.map(z => z.id) : [adminZoneId];
-      for (const zId of targetZoneIds) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', zId.toString()), { prizes: localPrizes });
-      alert(`Ödüller başarıyla güncellendi!`);
+      
+      let totalSmsCount = 0;
+
+      for (const zId of targetZoneIds) {
+          await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', zId.toString()), { prizes: localPrizes });
+          
+          const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'students'), where("zone.id", "==", parseInt(zId)));
+          const studentsSnap = await getDocs(q);
+          
+          let smsQueue = [];
+          let updatePromises = [];
+          const partPrizesList = localPrizes.participation.map(p => p.title);
+          
+          studentsSnap.docs.forEach(d => {
+              const s = { firebaseId: d.id, ...d.data() };
+              if (s.selectedParticipationPrize && !partPrizesList.includes(s.selectedParticipationPrize)) {
+                  updatePromises.push(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', s.firebaseId), { selectedParticipationPrize: '' }));
+                  if (s.phone) smsQueue.push({ tel: [s.phone], msg: `Önemli: Bölgenizdeki katılım ödülleri güncellenmiştir. Lütfen odullusinav.net profilinize giriş yaparak yeni ödülünüzü seçiniz.${SMS_FOOTER}` });
+              }
+          });
+          
+          await Promise.all(updatePromises);
+          if (smsQueue.length > 0) { 
+             await sendSMS(smsQueue); 
+             totalSmsCount += smsQueue.length;
+          }
+      }
+
+      if (totalSmsCount > 0) {
+          alert(`Ödüller başarıyla güncellendi! Etkilenen ${totalSmsCount} öğrencinin eski ödülü sıfırlandı ve SMS ile haber verildi.`);
+      } else {
+          alert(`Ödüller başarıyla güncellendi!`);
+      }
+
     } catch (e) { console.error(e); }
   };
 
@@ -67,7 +99,6 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
             title: examData.title, sessions: formattedSessions, updatedAt: new Date().getTime(), active: true
          });
          
-         // DEV OPTİMİZASYON: Sadece bu sınava kayıtlı öğrencileri getir
          const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'students'), where("examId", "==", editingExamId));
          const studentsSnap = await getDocs(q);
          
@@ -108,7 +139,6 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
           setHasMadeChanges(true);
           await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'exams', examId));
           
-          // DEV OPTİMİZASYON: Sadece silinen sınava kayıtlı öğrencileri getir
           const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'students'), where("examId", "==", examId));
           const studentsSnap = await getDocs(q);
           

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Settings, Lock, CalendarIcon, Clock, MapPin, Map, Phone, Trophy, ChevronRight, Award } from 'lucide-react';
 import { db, appId } from '../services/firebase';
 import { doc, updateDoc } from "firebase/firestore";
@@ -26,6 +26,19 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
   const neighborhoodDetails = getNeighborhoodDetails(matchedZone, currentUser.district, currentUser.neighborhood, currentUser.gender, currentUser.grade);
   const zoneExams = exams.filter(e => e.zoneId === matchedZone?.id);
   const partPrizesList = parsePrizeArray(matchedZone?.prizes?.participation);
+
+  // DÜZELTME: Katılım Ödülü Seçilmediyse Otomatik Uyarı ve Ayarlar Penceresi
+  useEffect(() => {
+    if (currentUser && partPrizesList.length > 0 && !currentUser.selectedParticipationPrize) {
+        setShowSettings(true);
+        setHasViewedSettings(true);
+        // Sürekli döngüye girmemesi için oturum başına 1 kez uyar
+        if (!sessionStorage.getItem('prizeAlertShown')) {
+            alert("Lütfen profil ayarlarından size en uygun katılım ödülünü seçiniz.");
+            sessionStorage.setItem('prizeAlertShown', 'true');
+        }
+    }
+  }, [currentUser, partPrizesList.length]);
 
   let isExamTimePassed = false;
   if (currentUser?.selectedDate && currentUser?.selectedTime) {
@@ -98,14 +111,14 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
                   title="Ayarlar / Şifre Değiştir"
               >
                  <Settings className="w-6 h-6"/>
-                 {!currentUser?.email && !hasViewedSettings && (
+                 {(!currentUser?.email || !currentUser?.selectedParticipationPrize) && !hasViewedSettings && (
                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse border-2 border-indigo-900 shadow-sm"></span>
                  )}
               </button>
               
               <div className="absolute -bottom-16 left-10 w-32 h-32 bg-white rounded-full border-8 border-white flex items-center justify-center text-5xl font-black text-indigo-600 shadow-2xl overflow-hidden z-10">
                 {currentUser?.gender === 'Kız' ? (
-                   <img src="/kız.png" alt="Öğrenci Profil" className="w-full h-full object-cover" />
+                   <img src="/kiz.png" alt="Öğrenci Profil" className="w-full h-full object-cover" />
                 ) : currentUser?.gender === 'Erkek' ? (
                    <img src="/erkek.png" alt="Öğrenci Profil" className="w-full h-full object-cover" />
                 ) : (
@@ -140,7 +153,6 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
               
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 relative z-10">
                 <div>
-                  {/* DÜZELTME: ONAYLANAN OTURUMUNUZ ARKA PLANI YEŞİL OLDU */}
                   <div className="bg-green-500 text-white shadow-lg inline-block px-5 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest mb-4 border border-white/20">ONAYLANAN OTURUMUNUZ</div>
                   <h4 className="text-4xl font-black leading-tight drop-shadow-md">{currentUser?.examTitle || currentUser?.exam?.title}</h4>
                 </div>

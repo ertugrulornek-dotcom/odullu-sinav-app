@@ -30,9 +30,11 @@ export default function App() {
   const [authUser, setAuthUser] = useState(null);
   const [zones, setZones] = useState([]);
   const [exams, setExams] = useState([]);
-  const [registeredStudents, setRegisteredStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [adminAuth, setAdminAuth] = useState({ isAuthenticated: false, zoneId: null, isSuperAdmin: false });
+  
+  // DÜZELTME: Konum bazlı dinamik bölge tespiti
+  const [detectedZone, setDetectedZone] = useState(null);
 
   useEffect(() => {
     const checkRoute = () => { 
@@ -68,7 +70,7 @@ export default function App() {
         const zonesData = zonesSnap.docs.map(d => {
           const dbZone = d.data();
           const baseZone = INITIAL_ZONES.find(z => z.id === parseInt(d.id)) || {};
-          return { ...dbZone, id: parseInt(d.id), name: baseZone.name, districts: baseZone.districts || [], partialDistricts: baseZone.partialDistricts || {}, prizes: dbZone.prizes || baseZone.prizes, centers: dbZone.centers || [], mappings: dbZone.mappings || [], specialBoysCenters: dbZone.specialBoysCenters || {}, specialBoysCentersData: dbZone.specialBoysCentersData || { centers: [], mappings: [] } };
+          return { ...dbZone, id: parseInt(d.id), name: baseZone.name, districts: baseZone.districts || [], partialDistricts: baseZone.partialDistricts || {}, prizes: dbZone.prizes || baseZone.prizes, centers: dbZone.centers || [], mappings: dbZone.mappings || [], specialBoysCentersData: dbZone.specialBoysCentersData || { centers: [], mappings: [] } };
         });
         setZones(zonesData.sort((a, b) => a.id - b.id)); 
       }
@@ -81,6 +83,23 @@ export default function App() {
     if (!authUser) return;
     fetchInitialData();
   }, [authUser]);
+
+  // DÜZELTME: Ziyaretçinin konumunu alarak bölgesini bulma (Gebze Varsayılan)
+  useEffect(() => {
+    if (!currentUser && zones.length > 0 && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`);
+          const data = await res.json();
+          const district = data.address?.town || data.address?.county || data.address?.city_district;
+          if (district) {
+            const matchedZone = zones.find(z => z.districts?.includes(district) || (z.partialDistricts && z.partialDistricts[district]));
+            if (matchedZone) setDetectedZone(matchedZone);
+          }
+        } catch(e) {}
+      }, () => { /* Konum reddedilirse sessizce devam et (Varsayılan Gebze olacak) */ });
+    }
+  }, [currentUser, zones]);
 
   const navigateTo = (view) => { 
       window.scrollTo({ top: 0, behavior: 'smooth' }); 
@@ -95,15 +114,19 @@ export default function App() {
     } else document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  // DÜZELTME: Emojilerin Windows/Mac'te bozulmasını engelleyen evrensel yapı
+  // DÜZELTME: PC/Mobil ayrımı ve %100 Kırılamaz Hex URL Mimarisi
   const copyInviteLink = () => {
     const currentTheme = localStorage.getItem('os_theme') || 'watergreen';
     const link = `https://www.odullusinav.net/?theme=${currentTheme}#register`;
     
-    const text = `Ödüllü Akademik Yeterlilik Sınavına beraber katılalım mı? 🤩\n\n🗓️ Sınavı 29 Ekim, 1 ve 2 Kasım tarihlerinde yapacaklar.\n\n🎁 Sınava katılan herkese hediye veriliyor.\n\n🏆 Ayrıca %10'luk dilime girdiğinde dilediğin derece ödülü hediye!\n\n🚀 Kendine güveniyorsan bu linke tıkla ve hemen Başvur 👇🏻\n${link}\n\n🤝 Kim kazanacak görelim! 💫`;
+    // Saf Hex formatı. Hiçbir editör veya işletim sistemi bozamaz.
+    const part1 = "%C3%96d%C3%BCll%C3%BC%20Akademik%20Yeterlilik%20S%C4%B1nav%C4%B1na%20beraber%20kat%C4%B1lal%C4%B1m%20m%C4%B1%3F%20%F0%9F%A4%A9%0A%0A%F0%9F%97%93%EF%B8%8F%20S%C4%B1nav%C4%B1%2029%20Ekim%2C%201%20ve%202%20Kas%C4%B1m%20tarihlerinde%20yapacaklar.%0A%0A%F0%9F%8E%81%20S%C4%B1nava%20kat%C4%B1lan%20herkese%20hediye%20veriliyor.%0A%0A%F0%9F%8F%86%20Ayr%C4%B1ca%20%2510'luk%20dilime%20girdi%C4%9Finde%20diledi%C4%9Fin%20derece%20%C3%B6d%C3%BCl%C3%BC%20hediye!%0A%0A%F0%9F%9A%80%20Kendine%20g%C3%BCveniyorsan%20bu%20linke%20t%C4%B1kla%20ve%20hemen%20Ba%C5%9Fvur%20%F0%9F%91%87%F0%9F%8F%BB%0A";
+    const part2 = "%0A%0A%F0%9F%A4%9D%20Kim%20kazanacak%20g%C3%B6relim!%20%F0%9F%92%AB";
     
-    // api.whatsapp.com URL'leri bilgisayarlarda daha iyi çalışır
-    const finalUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const waDomain = isMobile ? 'api.whatsapp.com' : 'web.whatsapp.com';
+    
+    const finalUrl = `https://${waDomain}/send?text=${part1}${encodeURIComponent(link)}${part2}`;
     window.open(finalUrl, '_blank');
   };
 
@@ -124,45 +147,6 @@ export default function App() {
       if (examTime > new Date().getTime()) { targetCountdownDate = examTime; countdownMode = 'personal'; }
     } catch(e) {}
   } 
-
-  if (countdownMode === 'none' && exams.length > 0) {
-    let userZoneId = currentUser?.zone?.id;
-    if (currentUser && !userZoneId && currentUser?.zone?.name) {
-       const matchedZ = findZoneByName(zones, currentUser.zone.name);
-       if (matchedZ) userZoneId = matchedZ.id;
-    }
-    let myZoneUpcoming = [];
-    let otherZoneUpcoming = [];
-    exams.forEach(exam => {
-       if (exam.active !== false) {
-          const examSessions = exam.sessions || (exam.date && exam.slots ? [{ date: exam.date, slots: exam.slots }] : []);
-          examSessions.forEach(session => {
-             if (!session.date) return;
-             try {
-                const cleanDate = session.date.replace(/\//g, '-').replace(/\./g, '-');
-                const dParts = cleanDate.split('-');
-                let year, month, day;
-                if (dParts[0].length === 4) { year = parseInt(dParts[0]); month = parseInt(dParts[1]); day = parseInt(dParts[2]); }
-                else { day = parseInt(dParts[0]); month = parseInt(dParts[1]); year = parseInt(dParts[2]); }
-                const timeStr = (session.slots && session.slots.length > 0) ? session.slots[0] : '09:00';
-                const timeParts = timeStr.split(':');
-                const stime = new Date(year, month - 1, day, parseInt(timeParts[0] || '9'), parseInt(timeParts[1] || '0')).getTime();
-                if (stime > new Date().getTime()) {
-                   if (currentUser && userZoneId) {
-                       if (exam.zoneId == userZoneId) myZoneUpcoming.push(stime);
-                       else otherZoneUpcoming.push(stime);
-                   } else { myZoneUpcoming.push(stime); }
-                }
-             } catch(e) {}
-          });
-       }
-    });
-    myZoneUpcoming.sort((a,b) => a - b);
-    otherZoneUpcoming.sort((a,b) => a - b);
-    if (myZoneUpcoming.length > 0) { targetCountdownDate = myZoneUpcoming[0]; countdownMode = 'zone'; } 
-    else if (currentUser && userZoneId && otherZoneUpcoming.length > 0) { countdownMode = 'other_zones'; } 
-    else { countdownMode = 'none'; }
-  }
 
   if (loading) return (
      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center relative" aria-hidden="true" data-nosnippet>
@@ -211,7 +195,6 @@ export default function App() {
                    </div>
                  </div>
                  
-                 {/* DÜZELTME: Menü Sırası -> Ödüller, Deneme Tanıtımı, Birebir Analiz, Etüt Desteği, Takvim */}
                  <div className="hidden xl:flex space-x-5 items-center">
                     <style>{`.nav-btn { position: relative; padding-bottom: 4px; color: var(--color-main); font-weight: 900; font-size: 1rem; text-shadow: 0 1px 2px rgba(255,255,255,0.8); } .nav-btn::after { content: ''; position: absolute; bottom: 0; left: 0; width: 0%; height: 2px; background-color: var(--color-main); transition: width 0.3s ease; } .nav-btn:hover::after { width: 100%; }`}</style>
                    <button onClick={() => scrollToSection('oduller')} className="nav-btn tracking-wide transition">Ödüller</button>
@@ -257,7 +240,8 @@ export default function App() {
         </div>
 
         <main className="pb-0 animate-in fade-in duration-500 mt-10">
-          {currentView === 'landing' && <LandingPage navigateTo={navigateTo} currentUser={currentUser} scrollToSection={scrollToSection} exams={exams} zones={zones} />}
+          {/* DÜZELTME: LandingPage'e detectedZone Gönderildi */}
+          {currentView === 'landing' && <LandingPage navigateTo={navigateTo} currentUser={currentUser} detectedZone={detectedZone} scrollToSection={scrollToSection} exams={exams} zones={zones} />}
           {currentView === 'register' && <RegistrationProcess navigateTo={navigateTo} currentUser={currentUser} setCurrentUser={setCurrentUser} zones={zones} exams={exams} refreshData={fetchInitialData} />}
           {currentView === 'login' && <LoginPage setCurrentUser={setCurrentUser} navigateTo={navigateTo} />}
           {currentView === 'profile' && <StudentProfile currentUser={currentUser} exams={exams} navigateTo={navigateTo} setCurrentUser={setCurrentUser} zones={zones} />}

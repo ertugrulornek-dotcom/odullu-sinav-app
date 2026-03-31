@@ -6,7 +6,6 @@ import { parsePrizeArray } from '../utils/helpers';
 export default function CombinedPrizeSection({ displayPrizes, currentUser }) {
   const { currentTheme } = useContext(ThemeContext);
 
-  // DÜZELTME: Katılım Ödülleri, Derece Ödüllerinin Üstüne Alındı
   const categories = [
     { title: "Büyük Ödüller", data: displayPrizes?.grand, type: "grand" },
     { title: "Katılım Ödülleri", data: displayPrizes?.participation, type: "participation" },
@@ -33,7 +32,7 @@ export default function CombinedPrizeSection({ displayPrizes, currentUser }) {
               </div>
 
               {cat.type === 'participation' ? (
-                 <div className="grid grid-cols-2 md:grid-cols-4 gap-8 w-full">
+                 <div className="flex flex-wrap justify-center items-center gap-8 w-full">
                     {items.map((prize, idx) => {
                        const isSelected = currentUser && userSelectedPrize === prize.title;
                        return (
@@ -49,7 +48,7 @@ export default function CombinedPrizeSection({ displayPrizes, currentUser }) {
                     })}
                  </div>
               ) : (
-                 <div className="flex flex-col md:flex-row items-center gap-10 w-full justify-center flex-wrap">
+                 <div className="flex flex-wrap justify-center items-center gap-10 w-full">
                     {items.map((prize, idx) => (
                        <div key={idx} className="flex-1 min-w-[250px] max-w-sm text-center group">
                           <div className="w-full aspect-square md:aspect-[4/3] overflow-hidden drop-shadow-2xl group-hover:scale-105 transition-transform duration-300 mb-6 bg-transparent">
@@ -64,6 +63,11 @@ export default function CombinedPrizeSection({ displayPrizes, currentUser }) {
            </div>
         );
       })}
+      
+      {/* DÜZELTME: Alt Uyarı Yazısı */}
+      <p className="text-sm md:text-base text-slate-400 font-bold text-center w-full mt-12 pb-4">
+         Ödüller kurumlara göre farklılık gösterebilir.
+      </p>
     </div>
   );
 }

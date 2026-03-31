@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Building2, FileText, Edit3, Trash2, MapPin, Users, Save, X, Filter } from 'lucide-react';
 import { db, appId } from '../../services/firebase';
 import { updateDoc, doc } from "firebase/firestore";
@@ -6,15 +6,20 @@ import { LOCATIONS } from '../../data/constants';
 import { normalizeForSearch } from '../../utils/helpers';
 
 export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChanges }) {
-  const adminCenters = adminZoneData.centers || [];
-  const adminMappings = adminZoneData.mappings || [];
+  // DÜZELTME: Verilerin anında ekrana düşmesi için İç Hafıza (Local State) oluşturuldu
+  const [localCenters, setLocalCenters] = useState([]);
+  const [localMappings, setLocalMappings] = useState([]);
+
+  // Firebase'den gelen veri güncellendiğinde iç hafızayı da güncelle
+  useEffect(() => {
+     setLocalCenters(adminZoneData.centers || []);
+     setLocalMappings(adminZoneData.mappings || []);
+  }, [adminZoneData]);
   
   const [newCenter, setNewCenter] = useState({ name: '', address: '', mapLink: '' });
   const [mappingData, setMappingData] = useState({ district: '', neighborhood: '', centerId: '', gender: '', contactName: '', phone: '' });
   const [bulkExcelData, setBulkExcelData] = useState("");
   const [editingCenter, setEditingCenter] = useState(null);
-  
-  // DÜZELTME: Sınav Merkezlerini Listelemek İçin Filtre
   const [displayFilter, setDisplayFilter] = useState('All');
 
   const getAdminDistricts = () => {
@@ -39,7 +44,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
     }
     
     return allHoods.filter(hood => {
-       const hoodMappings = adminMappings.filter(m => m.district === district && m.neighborhood === hood);
+       const hoodMappings = localMappings.filter(m => m.district === district && m.neighborhood === hood);
        const hasTumu = hoodMappings.some(m => m.gender === 'Tümü' || !m.gender);
        const hasErkek = hoodMappings.some(m => m.gender === 'Erkek');
        const hasKiz = hoodMappings.some(m => m.gender === 'Kız');
@@ -61,20 +66,26 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
   const handleAddCenter = async () => {
     if(!newCenter.name || !newCenter.address) return alert("Kurum adı ve açık adres zorunludur.");
     try {
-      setHasMadeChanges(true);
       const centerObj = { id: "c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9), name: newCenter.name, address: newCenter.address, mapLink: newCenter.mapLink || "" };
-      const updatedCenters = [...adminCenters, centerObj];
+      const updatedCenters = [...localCenters, centerObj];
+      
+      setLocalCenters(updatedCenters); // Ekranı anında güncelle
+      setHasMadeChanges(true);
+      
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters });
       setNewCenter({ name: '', address: '', mapLink: '' });
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); alert("Hata oluştu"); }
   };
 
   const handleUpdateCenter = async (e) => {
     e.preventDefault();
     if(!editingCenter.name || !editingCenter.address) return alert("Adres ve isim zorunludur.");
     try {
+      const updatedCenters = localCenters.map(c => c.id === editingCenter.id ? editingCenter : c);
+      
+      setLocalCenters(updatedCenters); // Ekranı anında güncelle
       setHasMadeChanges(true);
-      const updatedCenters = adminCenters.map(c => c.id === editingCenter.id ? editingCenter : c);
+      
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters });
       setEditingCenter(null);
     } catch(err) { console.error(err); }
@@ -83,9 +94,13 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
   const handleDeleteCenter = async (centerId) => {
     if(!window.confirm("Bu kurumu silmek istediğinize emin misiniz?")) return;
     try {
+      const updatedCenters = localCenters.filter(c => c.id !== centerId);
+      const updatedMappings = localMappings.filter(m => m.centerId !== centerId); 
+      
+      setLocalCenters(updatedCenters); // Ekranı anında güncelle
+      setLocalMappings(updatedMappings);
       setHasMadeChanges(true);
-      const updatedCenters = adminCenters.filter(c => c.id !== centerId);
-      const updatedMappings = adminMappings.filter(m => m.centerId !== centerId); 
+
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters, mappings: updatedMappings });
     } catch (e) { console.error(e); }
   };
@@ -93,8 +108,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
   const handleAddMapping = async () => {
     if(!mappingData.gender || !mappingData.district || !mappingData.neighborhood || !mappingData.centerId) return alert("Lütfen Cinsiyet, İlçe, Mahalle ve atanacak kurumu seçin.");
     try {
-      setHasMadeChanges(true);
-      const newMappings = [...adminMappings];
+      const newMappings = [...localMappings];
       const existingIndex = newMappings.findIndex(m => m.district === mappingData.district && m.neighborhood === mappingData.neighborhood && m.gender === mappingData.gender);
       
       const newMapObj = { district: mappingData.district, neighborhood: mappingData.neighborhood, gender: mappingData.gender, centerId: mappingData.centerId, contactName: mappingData.contactName || "", phone: mappingData.phone || "0553 973 54 40" };
@@ -102,6 +116,9 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
       if (existingIndex >= 0) newMappings[existingIndex] = newMapObj;
       else newMappings.push(newMapObj);
       
+      setLocalMappings(newMappings); // Ekranı anında güncelle
+      setHasMadeChanges(true);
+
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { mappings: newMappings });
       alert(`${mappingData.district} / ${mappingData.neighborhood} (${mappingData.gender}) atandı!`);
       setMappingData({ ...mappingData, neighborhood: '', contactName: '', phone: '' }); 
@@ -112,8 +129,8 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
     if(!bulkExcelData.trim()) return alert("Lütfen veriyi yapıştırın.");
     
     const rows = bulkExcelData.split('\n');
-    let updatedCenters = [...adminCenters];
-    let updatedMappings = [...adminMappings];
+    let updatedCenters = [...localCenters];
+    let updatedMappings = [...localMappings];
     let successCount = 0;
     let errors = [];
 
@@ -217,7 +234,10 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
     if (errors.length > 0) alert("Eksik/Hatalı satırlar atlandı:\n" + errors.join('\n'));
     if (successCount > 0) {
       try {
+        setLocalCenters(updatedCenters); // Ekranı anında güncelle
+        setLocalMappings(updatedMappings);
         setHasMadeChanges(true);
+
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters, mappings: updatedMappings });
         alert(`${successCount} adet mahalle ataması başarıyla kaydedildi.`);
         setBulkExcelData("");
@@ -232,17 +252,18 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
 
   const handleDeleteMapping = async (district, neighborhood, gender) => {
     try {
+      const updatedMappings = localMappings.filter(m => !(m.district === district && m.neighborhood === neighborhood && m.gender === gender));
+      
+      setLocalMappings(updatedMappings); // Ekranı anında güncelle
       setHasMadeChanges(true);
-      const updatedMappings = adminMappings.filter(m => !(m.district === district && m.neighborhood === neighborhood && m.gender === gender));
+
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { mappings: updatedMappings });
     } catch (e) { console.error(e); }
   };
 
-  // FİLTRELENMİŞ MERKEZLERİ HESAPLA
-  const filteredCenters = adminCenters.filter(center => {
+  const filteredCenters = localCenters.filter(center => {
       if (displayFilter === 'All') return true;
-      // İlgili kurumda seçilen cinsiyetten atama var mı kontrol et
-      return adminMappings.some(m => m.centerId === center.id && (m.gender === displayFilter || (!m.gender && displayFilter === 'Tümü')));
+      return localMappings.some(m => m.centerId === center.id && (m.gender === displayFilter || (!m.gender && displayFilter === 'Tümü')));
   });
 
   return (
@@ -280,7 +301,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
                 <div className="space-y-3 bg-emerald-50 p-6 rounded-3xl border-2 border-emerald-100">
                   <select value={mappingData.centerId} onChange={e=>setMappingData({...mappingData, centerId: e.target.value})} className="w-full text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white">
                     <option value="">Önce Kurum Seçin</option>
-                    {adminCenters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    {localCenters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                   <select value={mappingData.gender} onChange={e=>setMappingData({...mappingData, gender: e.target.value, neighborhood: ''})} className="w-full text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white">
                     <option value="">Cinsiyet Seçin</option>
@@ -323,8 +344,6 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
           </div>
 
           <div className="lg:col-span-2 space-y-6">
-            
-            {/* DÜZELTME: Sınav Merkezleri Listesine Filtre Eklendi */}
             <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-2xl border-2 border-slate-100 shadow-sm gap-4">
                <h4 className="font-black text-slate-800 text-lg flex items-center"><MapPin className="w-5 h-5 mr-2 text-indigo-500"/> Kayıtlı Merkezler</h4>
                <div className="flex items-center">
@@ -345,8 +364,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
               </div>
             ) : (
               filteredCenters.map(center => {
-                // Kurumun içindeki mahalleleri de filtreye göre süz
-                let mappedHoods = adminMappings.filter(m => m.centerId === center.id);
+                let mappedHoods = localMappings.filter(m => m.centerId === center.id);
                 if (displayFilter !== 'All') {
                    mappedHoods = mappedHoods.filter(m => m.gender === displayFilter || (!m.gender && displayFilter === 'Tümü'));
                 }
