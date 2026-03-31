@@ -27,8 +27,6 @@ export const determineZoneName = (province, district, neighborhood) => {
 };
 
   // 8. SINIF ERKEK İSTİSNASI EKLENMİŞ LOKASYON BULUCU
-// ... diğer kodlar aynı (formatToTurkishDate vs)
-
 export const getNeighborhoodDetails = (zone, district, neighborhood, gender, grade) => {
     const defaultFallback = { phone: "0553 973 54 40", contactName: "", mapLink: null, centerName: "Sınav Merkezi Bekleniyor", address: "" };
     if (!zone || !district || !neighborhood) return defaultFallback;
@@ -37,42 +35,37 @@ export const getNeighborhoodDetails = (zone, district, neighborhood, gender, gra
 
     if (String(grade) === '8' && gender === 'Erkek') {
         const specialKey = `${district}-${neighborhood}`;
-        const specialCenter = zone.specialBoysCenters?.[specialKey];
-        if (specialCenter) {
-            centerInfo = {
-                phone: specialCenter.contactPhone || defaultFallback.phone,
-                contactName: specialCenter.contactName || "",
-                mapLink: specialCenter.mapLink || null,
-                centerName: specialCenter.centerName || defaultFallback.centerName,
-                address: specialCenter.address || ""
-            };
+        if (zone.specialBoysCenters && zone.specialBoysCenters[specialKey]) {
+            centerInfo = zone.specialBoysCenters[specialKey];
         }
     }
 
     if (!centerInfo) {
         const centerKey = `${district}-${neighborhood}`;
-        if (zone.centers && zone.centers[centerKey]) { centerInfo = zone.centers[centerKey]; } 
-        else if (zone.mappings) { centerInfo = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood); }
+        if (zone.centers && zone.centers[centerKey]) {
+            centerInfo = zone.centers[centerKey];
+        } else if (zone.mappings) {
+            centerInfo = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood);
+        }
     }
 
     if (!centerInfo) return defaultFallback;
 
-    let phone = centerInfo.contactPhone || centerInfo.phone;
+    let phone = centerInfo.contactPhone || centerInfo.phone || defaultFallback.phone;
     if (gender === 'Kız' && centerInfo.contactPhoneKiz) phone = centerInfo.contactPhoneKiz;
 
-    let finalCenterName = centerInfo.centerName || defaultFallback.centerName;
+    let finalCenterName = centerInfo.centerName || centerInfo.schoolName || `${district} Sınav Merkezi`;
 
-    // DÜZELTME: Sınav merkezi girilmemişse, hoca adını gizle ve ana numarayı göster!
-    if (finalCenterName === "Sınav Merkezi Bekleniyor" || !centerInfo.address) {
-        return defaultFallback;
-    }
+    // DÜZELTME: Fallback'ler artırıldı (Konum ve Adres için)
+    const finalMapLink = centerInfo.mapLink || centerInfo.mapUrl || centerInfo.googleMaps || centerInfo.link || null;
+    const finalAddress = centerInfo.address || centerInfo.openAddress || centerInfo.acikAdres || centerInfo.fullAddress || "Açık adres bilgisi girilmemiş.";
 
     return {
-        phone: phone || defaultFallback.phone,
+        phone: phone,
         contactName: centerInfo.contactName || "",
-        mapLink: centerInfo.mapLink || defaultFallback.mapLink,
+        mapLink: finalMapLink,
         centerName: finalCenterName,
-        address: centerInfo.address || defaultFallback.address
+        address: finalAddress
     };
 };
 // GÜN-AY-HANGİ GÜN Formatına Çeviren Fonksiyon
@@ -94,7 +87,3 @@ export const formatToTurkishDate = (dateStr) => {
         return dateStr;
     }
 };
-
-
-
-  

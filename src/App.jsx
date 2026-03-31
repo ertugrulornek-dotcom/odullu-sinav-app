@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Award, Users, LogOut, Phone, MapPin, UserPlus } from 'lucide-react';
 import { db, auth, appId } from './services/firebase';
-import { collection, onSnapshot, setDoc, doc } from "firebase/firestore";
+import { collection, getDocs, setDoc, doc } from "firebase/firestore"; // DÜZELTME: onSnapshot silindi, getDocs eklendi
 import { signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "firebase/auth";
 import { INITIAL_ZONES } from './data/constants';
 import { getNeighborhoodDetails, findZoneByName } from './utils/helpers';
@@ -14,6 +14,16 @@ import AdminPanel, { AdminLogin } from './pages/admin/AdminPanel';
 
 import { ThemeProvider, ThemeSelector } from './components/ThemeSelector';
 import CountdownTimer from './components/CountdownTimer';
+
+// SAYDAM AYNA ÇERÇEVE STİLİ
+const mirrorFrameStyle = {
+  border: '1px solid rgba(255, 255, 255, 0.4)',
+  boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.1), inset 0 2px 4px 0 rgba(255, 255, 255, 0.3)',
+  backdropFilter: 'blur(10px)',
+  WebkitBackdropFilter: 'blur(10px)',
+  borderRadius: '2rem',
+  background: 'rgba(255, 255, 255, 0.15)',
+};
 
 export default function App() {
   const [currentView, setCurrentView] = useState('landing'); 
@@ -47,40 +57,43 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (!authUser) return;
-    const zonesRef = collection(db, 'artifacts', appId, 'public', 'data', 'zones');
-    const examsRef = collection(db, 'artifacts', appId, 'public', 'data', 'exams');
-    const studentsRef = collection(db, 'artifacts', appId, 'public', 'data', 'students');
+  // DÜZELTME: Firebase Kotasını Korumak İçin Veriler Tek Seferlik Çekiliyor (getDocs)
+  const fetchAllData = async () => {
+    setLoading(true);
+    try {
+      const zonesSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'zones'));
+      const examsSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'exams'));
+      const studentsSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'students'));
 
-    const unsubZones = onSnapshot(zonesRef, (snapshot) => {
-      if (snapshot.empty) INITIAL_ZONES.forEach(async (z) => await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', z.id.toString()), z));
-      else {
-        const zonesData = snapshot.docs.map(d => {
+      if (zonesSnap.empty) {
+         INITIAL_ZONES.forEach(async (z) => await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', z.id.toString()), z));
+      } else {
+        const zonesData = zonesSnap.docs.map(d => {
           const dbZone = d.data();
           const baseZone = INITIAL_ZONES.find(z => z.id === parseInt(d.id)) || {};
-          return { ...dbZone, id: parseInt(d.id), name: baseZone.name, districts: baseZone.districts || [], partialDistricts: baseZone.partialDistricts || {}, prizes: dbZone.prizes || baseZone.prizes, centers: dbZone.centers || [], mappings: dbZone.mappings || [] };
+          return { ...dbZone, id: parseInt(d.id), name: baseZone.name, districts: baseZone.districts || [], partialDistricts: baseZone.partialDistricts || {}, prizes: dbZone.prizes || baseZone.prizes, centers: dbZone.centers || [], mappings: dbZone.mappings || [], specialBoysCenters: dbZone.specialBoysCenters || {} };
         });
         setZones(zonesData.sort((a, b) => a.id - b.id)); 
       }
-    });
-    
-    const unsubExams = onSnapshot(examsRef, (snapshot) => setExams(snapshot.docs.map(d => ({ firebaseId: d.id, ...d.data() }))));
-    
-    const unsubStudents = onSnapshot(studentsRef, (snapshot) => {
-      const studs = snapshot.docs.map(d => ({ firebaseId: d.id, ...d.data() }));
-      setRegisteredStudents(studs);
-      setCurrentUser(prevUser => {
-         if (prevUser) {
-            const updatedUser = studs.find(s => s.firebaseId === prevUser.firebaseId);
-            return updatedUser ? { ...updatedUser } : prevUser;
-         }
-         return prevUser;
-      });
-    });
 
-    setTimeout(() => setLoading(false), 1000);
-    return () => { unsubZones(); unsubExams(); unsubStudents(); };
+      setExams(examsSnap.docs.map(d => ({ firebaseId: d.id, ...d.data() })));
+      
+      const studs = studentsSnap.docs.map(d => ({ firebaseId: d.id, ...d.data() }));
+      setRegisteredStudents(studs);
+      
+      if (currentUser) {
+         const updatedUser = studs.find(s => s.firebaseId === currentUser.firebaseId);
+         if (updatedUser) setCurrentUser(updatedUser);
+      }
+    } catch(e) {
+      console.error("Veri çekme hatası: ", e);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (!authUser) return;
+    fetchAllData(); // İlk girişte verileri çek
   }, [authUser]);
 
   const navigateTo = (view) => { 
@@ -97,7 +110,9 @@ export default function App() {
   };
 
   const copyInviteLink = () => {
-    const text = encodeURIComponent("Merhaba arkadaşım ben odullusinav.net'e katılıyorum gel beraber katılıp ödülleri kazanalım.\n\nSite linki: https://odullusinav.net\n\nHaydi sen de kayıt ol! https://odullusinav.net/#register");
+    const currentTheme = localStorage.getItem('os_theme') || 'watergreen';
+    const link = `https://odullusinav.net/?theme=${currentTheme}#register`;
+    const text = encodeURIComponent(`Merhaba arkadaşım, ben odullusinav.net'e katılıyorum. Gel beraber katılıp büyük ödülleri kazanalım!\n\nHaydi gel sen de hemen kayıt ol:\n${link}`);
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 
@@ -163,20 +178,20 @@ export default function App() {
     else { countdownMode = 'none'; }
   }
 
-  if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><img src="/Sembol.png" className="w-24 h-24 animate-pulse" /></div>;
+  if (loading) return (
+     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center relative" aria-hidden="true" data-nosnippet>
+        <img src="/Sembol.png" className="w-32 h-32 md:w-40 md:h-40 animate-bounce mb-8 object-contain drop-shadow-2xl" alt="" />
+        <div className="text-2xl md:text-3xl font-black text-slate-400 animate-pulse tracking-[0.2em] uppercase">Ödüllü Sınav Yükleniyor...</div>
+     </div>
+  );
 
   const liveZone = currentUser ? (findZoneByName(zones, currentUser.zone?.name) || currentUser.zone) : null;
-  // DÜZELTME: Öğrencinin sınıf bilgisini de helpers.js'e gönderdik.
   const userLocDetails = currentUser ? getNeighborhoodDetails(liveZone, currentUser.district, currentUser.neighborhood, currentUser.gender, currentUser.grade) : null;
 
   let headerPhone = userLocDetails?.phone || "0553 973 54 40";
-  if (headerPhone?.includes("0531 333 32 32")) headerPhone = "0553 973 54 40";
-
-  // ... üst kısımdaki importlar ve mantık kodları aynı kalacak (Countdown vs.)
 
   return (
     <ThemeProvider>
-      {/* GLOBAL ARKA PLAN (Boya Sıçraması Efekti) */}
       <div className="fixed inset-0 z-[-1] bg-white pointer-events-none overflow-hidden transition-colors duration-500">
          <div className="absolute -top-[10%] -left-[5%] w-[40%] h-[40%] rounded-full opacity-60 mix-blend-multiply blur-[80px] transition-colors duration-500" style={{ backgroundColor: 'var(--color-light-bg)' }}></div>
          <div className="absolute top-[20%] -right-[10%] w-[45%] h-[50%] rounded-full opacity-50 mix-blend-multiply blur-[100px] transition-colors duration-500" style={{ backgroundColor: 'var(--color-light-bg)' }}></div>
@@ -184,7 +199,9 @@ export default function App() {
       </div>
 
       <div className="min-h-screen font-sans text-slate-800 transition-colors duration-300 bg-transparent relative z-10">
-        <div className="text-white text-xs py-2 px-4 flex justify-between items-center sm:px-8 border-b border-black/10 transition-colors" style={{ backgroundColor: 'var(--color-main)' }}>
+        
+        {/* ÜST BANT */}
+        <div className="text-white text-xs py-2 px-4 flex justify-between items-center sm:px-8 transition-colors z-50 relative border-b border-black/10" style={{ backgroundColor: 'var(--color-main)' }}>
           <div className="flex items-center space-x-4">
             <span className="flex items-center font-bold"><Phone className="w-3.5 h-3.5 mr-1 opacity-80"/> {headerPhone}</span>
             <span className="hidden sm:flex items-center font-bold"><MapPin className="w-3.5 h-3.5 mr-1 opacity-80"/> {currentUser ? `${currentUser.province}, ${currentUser.district}, ${currentUser.neighborhood}` : "Sakarya, Kocaeli, Yalova"}</span>
@@ -192,54 +209,56 @@ export default function App() {
           <ThemeSelector />
         </div>
 
-        <nav className="bg-white/90 backdrop-blur-md shadow-sm sticky top-0 z-40 transition-colors">
-          <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col lg:flex-row justify-between items-center py-3 lg:h-24 gap-4 lg:gap-0 w-full">
+        {/* AYNA ÇERÇEVELİ NAVBAR */}
+        <div className="w-full mx-auto px-4 sm:px-8 mt-4 z-40 sticky top-4">
+          <nav className="w-full transition-all duration-300" style={mirrorFrameStyle}>
+            <div className="flex flex-col lg:flex-row justify-between items-center py-3 lg:h-24 gap-4 lg:gap-0 w-full px-4 md:px-8">
               
-              {/* DÜZELTME: Navbar Sol Üst Logo */}
-              <div className="flex items-center cursor-pointer hover:scale-105 transition-transform flex-shrink-0 mr-auto lg:mr-0" onClick={() => navigateTo('landing')}>
-                <div className="w-12 h-12 md:w-14 md:h-14 mr-3 bg-contain bg-center bg-no-repeat drop-shadow-md transition-all duration-300" style={{ backgroundImage: 'var(--logo-url)' }}></div>
-                <div>
-                   <div className="flex items-center gap-1.5">
-                      <span className="text-2xl md:text-3xl font-black tracking-tight leading-none" style={{ color: 'var(--color-main)' }}>ÖDÜLLÜ</span>
-                      <span className="text-2xl md:text-3xl font-black tracking-tight leading-none" style={{ color: 'var(--color-contrast)' }}>SINAV</span>
+              <div className="flex items-center flex-1 justify-start gap-8 lg:gap-12">
+                 <div className="flex items-center cursor-pointer hover:scale-105 transition-transform flex-shrink-0" onClick={() => navigateTo('landing')}>
+                   <div className="w-14 h-14 md:w-16 md:h-16 mr-4 bg-contain bg-center bg-no-repeat drop-shadow-md transition-all duration-300" style={{ backgroundImage: 'var(--logo-url)' }}></div>
+                   <div>
+                      <div className="flex items-center gap-1.5">
+                         <span className="text-2xl md:text-3xl font-black tracking-tight leading-none" style={{ color: 'var(--color-main)' }}>ÖDÜLLÜ</span>
+                         <span className="text-2xl md:text-3xl font-black tracking-tight leading-none" style={{ color: 'var(--color-contrast)' }}>SINAV</span>
+                      </div>
+                      <p className="text-[11px] md:text-[13px] font-bold uppercase tracking-[0.15em] mt-1" style={{ color: 'color-mix(in srgb, var(--color-main) 40%, var(--color-contrast) 60%)' }}>LGS Prova Merkezi</p>
                    </div>
-                   <p className="text-[11px] md:text-[13px] font-medium uppercase tracking-widest mt-1" style={{ color: 'color-mix(in srgb, var(--color-main) 40%, var(--color-contrast) 60%)' }}>LGS Prova Merkezi</p>
-                </div>
-              </div>
-              
-              <div className="hidden lg:flex space-x-6 items-center flex-1 justify-center">
-                 <style>{`.nav-btn { position: relative; padding-bottom: 4px; } .nav-btn::after { content: ''; position: absolute; bottom: 0; left: 0; width: 0%; height: 2px; background-color: var(--color-main); transition: width 0.3s ease; } .nav-btn:hover::after { width: 100%; } .nav-btn:hover { color: var(--color-main); }`}</style>
-                <button onClick={() => scrollToSection('hero')} className="nav-btn text-slate-600 font-bold transition text-sm">Ana Sayfa</button>
-                <button onClick={() => scrollToSection('tanitim')} className="nav-btn text-slate-600 font-bold transition text-sm">Deneme Tanıtımı</button>
-                <button onClick={() => scrollToSection('oduller')} className="nav-btn text-slate-600 font-bold transition text-sm">Ödüller</button>
-                <button onClick={() => scrollToSection('takvim')} className="nav-btn text-slate-600 font-bold transition text-sm">Sınav Takvimi</button>
+                 </div>
+                 
+                 <div className="hidden lg:flex space-x-6 items-center">
+                    <style>{`.nav-btn { position: relative; padding-bottom: 4px; color: var(--color-main); font-weight: 900; font-size: 1.125rem; text-shadow: 0 1px 2px rgba(255,255,255,0.8); } .nav-btn::after { content: ''; position: absolute; bottom: 0; left: 0; width: 0%; height: 2px; background-color: var(--color-main); transition: width 0.3s ease; } .nav-btn:hover::after { width: 100%; }`}</style>
+                   <button onClick={() => scrollToSection('hero')} className="nav-btn tracking-wide transition">Ana Sayfa</button>
+                   <button onClick={() => scrollToSection('tanitim')} className="nav-btn tracking-wide transition">Deneme Tanıtımı</button>
+                   <button onClick={() => scrollToSection('oduller')} className="nav-btn tracking-wide transition">Ödüller</button>
+                   <button onClick={() => scrollToSection('takvim')} className="nav-btn tracking-wide transition">Sınav Takvimi</button>
+                 </div>
               </div>
 
-              <div className="flex flex-wrap lg:flex-nowrap justify-start sm:justify-end gap-2 md:gap-3 items-center flex-shrink-0 w-full lg:w-auto mt-3 lg:mt-0">
+              <div className="flex flex-wrap lg:flex-nowrap justify-start sm:justify-end gap-3 md:gap-4 items-center flex-shrink-0 mt-3 lg:mt-0">
                 {currentUser ? (
                   <>
-                    <button onClick={copyInviteLink} className="flex items-center bg-slate-50 border shadow-sm font-bold px-3 py-2 rounded-xl text-xs md:text-sm" style={{ color: 'var(--color-main)' }}><UserPlus className="w-4 h-4 mr-1.5"/> Davet Et</button>
-                    <button onClick={() => navigateTo('profile')} className="text-white px-4 py-2 rounded-xl font-black shadow-lg flex items-center text-xs md:text-sm" style={{ backgroundColor: 'var(--color-main)' }}><Users className="w-4 h-4 mr-2" /> Panelim</button>
-                    <button onClick={() => { setCurrentUser(null); navigateTo('landing'); }} className="text-red-500 p-2 rounded-xl border border-red-100"><LogOut className="w-4 h-4" /></button>
+                    <button onClick={copyInviteLink} className="flex items-center border border-transparent shadow-sm font-black px-4 py-2.5 rounded-xl text-sm md:text-base hover:bg-black/5" style={{ color: 'var(--color-main)' }}><UserPlus className="w-5 h-5 mr-1.5"/> Davet Et</button>
+                    <button onClick={() => navigateTo('profile')} className="text-white px-5 py-2.5 rounded-xl font-black shadow-lg flex items-center text-sm md:text-base hover:scale-105 transition-transform" style={{ backgroundColor: 'var(--color-main)' }}><Users className="w-5 h-5 mr-2" /> Panelim</button>
+                    <button onClick={() => { setCurrentUser(null); navigateTo('landing'); }} className="text-red-500 p-2.5 rounded-xl border border-red-100 hover:bg-red-50"><LogOut className="w-5 h-5" /></button>
                   </>
                 ) : (
                   <>
-                    <button onClick={copyInviteLink} className="flex items-center bg-slate-50 border shadow-sm font-bold px-3 py-2 rounded-xl text-xs md:text-sm" style={{ color: 'var(--color-main)' }}><UserPlus className="w-4 h-4 mr-1.5"/> Davet Et</button>
-                    <button onClick={() => navigateTo('login')} className="bg-white border text-slate-700 font-bold px-4 py-2 rounded-xl text-xs md:text-sm">Giriş Yap</button>
-                    <button onClick={() => navigateTo('register')} className="text-white px-4 py-2 rounded-xl font-black shadow-lg text-xs md:text-sm" style={{ backgroundColor: 'var(--color-main)' }}>Kayıt Ol</button>
+                    <button onClick={copyInviteLink} className="flex items-center border border-transparent shadow-sm font-black px-4 py-2.5 rounded-xl text-sm md:text-base hover:bg-black/5" style={{ color: 'var(--color-main)' }}><UserPlus className="w-5 h-5 mr-1.5"/> Davet Et</button>
+                    <button onClick={() => navigateTo('login')} className="bg-white border text-slate-700 font-black px-5 py-2.5 rounded-xl text-sm md:text-base shadow-sm hover:bg-slate-50">Giriş Yap</button>
+                    <button onClick={() => navigateTo('register')} className="text-white px-6 py-2.5 rounded-xl font-black shadow-lg text-sm md:text-base hover:scale-105 transition-transform" style={{ backgroundColor: 'var(--color-main)' }}>Kayıt Ol</button>
                   </>
                 )}
               </div>
             </div>
-          </div>
-        </nav>
+          </nav>
+        </div>
 
-        <main className="pb-0 animate-in fade-in duration-500">
+        <main className="pb-0 animate-in fade-in duration-500 mt-10">
           {currentView === 'landing' && <LandingPage navigateTo={navigateTo} currentUser={currentUser} scrollToSection={scrollToSection} exams={exams} zones={zones} />}
-          {currentView === 'register' && <RegistrationProcess navigateTo={navigateTo} currentUser={currentUser} setCurrentUser={setCurrentUser} zones={zones} exams={exams} students={registeredStudents} />}
+          {currentView === 'register' && <RegistrationProcess navigateTo={navigateTo} currentUser={currentUser} setCurrentUser={setCurrentUser} zones={zones} exams={exams} students={registeredStudents} refreshData={fetchAllData} />}
           {currentView === 'login' && <LoginPage students={registeredStudents} setCurrentUser={setCurrentUser} navigateTo={navigateTo} />}
-          {currentView === 'profile' && <StudentProfile currentUser={currentUser} exams={exams} navigateTo={navigateTo} setCurrentUser={setCurrentUser} zones={zones} />}
+          {currentView === 'profile' && <StudentProfile currentUser={currentUser} exams={exams} navigateTo={navigateTo} setCurrentUser={setCurrentUser} zones={zones} refreshData={fetchAllData} />}
           {currentView === 'admin' && !adminAuth.isAuthenticated && <AdminLogin setAdminAuth={setAdminAuth} zones={zones} />}
           {currentView === 'admin' && adminAuth.isAuthenticated && <AdminPanel students={registeredStudents} adminZoneId={adminAuth.zoneId} isSuperAdmin={adminAuth.isSuperAdmin} onLogout={() => setAdminAuth({ isAuthenticated: false, zoneId: null, isSuperAdmin: false })} zones={zones} exams={exams} />}
         </main>
@@ -248,8 +267,7 @@ export default function App() {
         
         <footer className="bg-slate-950 text-slate-400 py-16 text-sm text-center border-t-4 transition-colors" style={{ borderTopColor: 'var(--color-main)' }}>
           <div className="max-w-4xl mx-auto px-6">
-            {/* DÜZELTME: Footer Logo */}
-            <div className="w-20 h-20 mx-auto mb-6 bg-contain bg-center bg-no-repeat drop-shadow-xl transition-all duration-300" style={{ backgroundImage: 'var(--logo-url)' }}></div>
+            <div className="w-20 h-20 mx-auto mb-6 bg-contain bg-center bg-no-repeat drop-shadow-xl transition-all duration-300 filter grayscale brightness-200 opacity-60" style={{ backgroundImage: 'var(--logo-url)' }}></div>
             <p className="mb-2 text-lg font-bold text-slate-200">Sakarya, Kocaeli ve Yalova'nın En Prestijli LGS Provası</p>
             <p className="mb-8">Gerçek Sınav Deneyimi ve Büyük Ödüller Bir Arada</p>
             <p>© 2026 Ödüllü Sınav Merkezi. Tüm hakları saklıdır.</p>

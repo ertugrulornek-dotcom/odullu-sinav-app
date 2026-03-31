@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 
-// Temalar: Ana Renk, Zıt Renk, Zıt Rengin Açık Tonu (Arka Plan İçin), Logo
 const themes = {
-  watergreen: { main: '#0d9488', contrast: '#1e3a8a', lightBg: '#dbeafe', logo: '/OSLOGO1.png' }, // Safir (Mavi) -> Açık Mavi
-  purple: { main: '#7c3aed', contrast: '#f59e0b', lightBg: '#fef3c7', logo: '/OSLOGO2.png' }, // Sarı -> Açık Sarı
-  red: { main: '#990000', contrast: '#0f766e', lightBg: '#ccfbf1', logo: '/OSLOGO3.png' }, // Turkuaz -> Açık Turkuaz
-  yellow: { main: '#facc15', contrast: '#1e3a8a', lightBg: '#dbeafe', logo: '/OSLOGO4.png' }, // Safir (Mavi) -> Açık Mavi
-  blue: { main: '#3b82f6', contrast: '#ea580c', lightBg: '#ffedd5', logo: '/OSLOGO5.png' }, // Turuncu -> Açık Turuncu
-  pink: { main: '#ec4899', contrast: '#047857', lightBg: '#d1fae5', logo: '/OSLOGO6.png' }, // Zümrüt -> Açık Zümrüt Yeşili
+  watergreen: { main: '#0d9488', contrast: '#1e3a8a', lightBg: '#dbeafe', logo: '/OSLOGO1.png' }, 
+  purple: { main: '#7c3aed', contrast: '#f59e0b', lightBg: '#fef3c7', logo: '/OSLOGO2.png' }, 
+  red: { main: '#990000', contrast: '#0f766e', lightBg: '#ccfbf1', logo: '/OSLOGO3.png' }, 
+  yellow: { main: '#facc15', contrast: '#1e3a8a', lightBg: '#dbeafe', logo: '/OSLOGO4.png' }, 
+  blue: { main: '#3b82f6', contrast: '#ea580c', lightBg: '#ffedd5', logo: '/OSLOGO5.png' }, 
+  pink: { main: '#ec4899', contrast: '#047857', lightBg: '#d1fae5', logo: '/OSLOGO6.png' }, 
 };
 
 export const ThemeContext = React.createContext();
@@ -16,16 +15,28 @@ export const ThemeProvider = ({ children }) => {
   const [currentThemeName, setCurrentThemeName] = useState('watergreen');
 
   const changeTheme = (themeName) => {
+    if(!themes[themeName]) themeName = 'watergreen';
     setCurrentThemeName(themeName);
     const theme = themes[themeName];
     document.documentElement.style.setProperty('--color-main', theme.main);
     document.documentElement.style.setProperty('--color-contrast', theme.contrast);
     document.documentElement.style.setProperty('--color-light-bg', theme.lightBg);
-    // Logoyu CSS değişkeni olarak tüm sisteme yayıyoruz
     document.documentElement.style.setProperty('--logo-url', `url('${theme.logo}')`);
+    
+    // Temayı hafızaya alıyoruz (Davet linkinde kullanmak için)
+    localStorage.setItem('os_theme', themeName);
   };
 
-  useEffect(() => { changeTheme('watergreen'); }, []);
+  useEffect(() => { 
+    // Linkte özel bir tema parametresi var mı kontrol et (Örn: ?theme=red)
+    const params = new URLSearchParams(window.location.search);
+    const urlTheme = params.get('theme');
+    const savedTheme = localStorage.getItem('os_theme');
+    
+    if (urlTheme && themes[urlTheme]) changeTheme(urlTheme);
+    else if (savedTheme && themes[savedTheme]) changeTheme(savedTheme);
+    else changeTheme('watergreen'); 
+  }, []);
 
   return (
     <ThemeContext.Provider value={{ currentTheme: themes[currentThemeName], changeTheme, currentThemeName }}>

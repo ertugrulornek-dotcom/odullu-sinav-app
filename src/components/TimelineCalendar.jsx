@@ -45,10 +45,10 @@ export default function TimelineCalendar({ zoneExams, currentUser, defaultContac
        : (defaultContact || { phone: "0553 973 54 40", contactName: "" });
 
   let takvimPhone = contactInfo?.phone || "0553 973 54 40";
-  if (takvimPhone?.includes("0531 333 32 32")) { takvimPhone = "0553 973 54 40"; }
+  if (takvimPhone?.includes("05.. ... .. ..")) { takvimPhone = "0553 973 54 40"; }
 
   // DÜZELTME: Giriş Yapılmamışsa (Ana Sayfadaysa) İsim GÖZÜKMEYECEK
-  const contactName = currentUser ? (contactInfo.contactName || "ERCÜMENT ÖZTÜRK") : "";
+  const contactName = contactInfo?.contactName;
 
   return (
     <div className="max-w-4xl mx-auto animate-in fade-in zoom-in-95 duration-500">

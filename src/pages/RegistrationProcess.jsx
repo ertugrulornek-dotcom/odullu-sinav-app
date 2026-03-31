@@ -6,7 +6,7 @@ import { collection, addDoc, updateDoc, doc, onSnapshot } from "firebase/firesto
 import { sendSMS, SMS_FOOTER } from '../services/smsService';
 import { LOCATIONS } from '../data/constants';
 import { SCHOOLS } from '../data/schools'; 
-import { determineZoneName, findZoneByName, parsePrizeArray, getNeighborhoodDetails } from '../utils/helpers';
+import { determineZoneName, findZoneByName, parsePrizeArray, getNeighborhoodDetails,formatToTurkishDate } from '../utils/helpers';
 
 const RegistrationPrizeSelector = ({ type, prizes, selectedPrize, onSelect }) => {
   if (!prizes || prizes.length === 0) return null;
@@ -125,12 +125,11 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
 
   const isFormValid = selectedSlot !== null && (!needsPartSelection || selectedParticipationPrize !== '');
 
-  const handleComplete = async (withoutExam = false) => {
+const handleComplete = async (withoutExam = false) => {
     setIsSubmitting(true);
     const finalSchoolName = isCustomSchool ? customSchoolName : formData.schoolName;
     const finalPartPrize = withoutExam ? '' : (selectedParticipationPrize || (partPrizesList.length === 1 ? partPrizesList[0].title : ''));
     
-    // DÜZELTME: Öğrenci zaten kayıtlıysa şifresi değişmez. Yeni öğrenciyse şifre üretilir.
     const isUpdate = !!currentUser;
     let finalPassword = isUpdate ? currentUser.password : Math.floor(100000 + Math.random() * 900000).toString();
     setGeneratedPassword(isUpdate ? "Mevcut Şifreniz" : finalPassword);
@@ -146,11 +145,11 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
         finalUserObj = { ...currentUser, ...updatedData };
         setCurrentUser(finalUserObj);
 
-        // DÜZELTME: Güncelleme (Oturum Değişikliği) Mesajı (Şifresiz)
+        // DÜZELTME: Güncelleme Mesajının en başına İsim eklendi
         if (!withoutExam && finalUserObj.selectedDate) {
            const centerInfo = getNeighborhoodDetails(matchedZone, finalUserObj.district, finalUserObj.neighborhood, finalUserObj.gender, finalUserObj.grade);
            const contactPhone = centerInfo.phone || "0553 973 54 40";
-           const updateMsg = `odullusinav.net başvurunuz GÜNCELLENDİ!\n\nYeni Oturum Bilgileriniz:\nSınav: ${finalUserObj.examTitle}\nTarih: ${finalUserObj.selectedDate}\nSaat: ${finalUserObj.selectedTime}\nKonum: ${centerInfo.mapLink || 'Belirtilmedi'}\n\nDetaylı bilgi için profilinize giriş yapabilirsiniz. Başarılar!${SMS_FOOTER}`;
+           const updateMsg = `Sayın ${finalUserObj.fullName},\nodullusinav.net başvurunuz GÜNCELLENDİ!\n\nYeni Oturum Bilgileriniz:\nSınav: ${finalUserObj.examTitle}\nTarih: ${finalUserObj.selectedDate}\nSaat: ${finalUserObj.selectedTime}\nKonum: ${centerInfo.mapLink || 'Belirtilmedi'}\n\nDetaylı bilgi için profilinize giriş yapabilirsiniz. Başarılar!${SMS_FOOTER}`;
            sendSMS([{tel: [finalUserObj.phone], msg: updateMsg}]);
         }
       } else {
@@ -160,13 +159,13 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
         finalUserObj = { firebaseId: docRef.id, ...newStudent };
         setCurrentUser(finalUserObj);
 
-        // Yeni Kayıt Mesajı (Şifreli)
+        // DÜZELTME: Yeni Kayıt Mesajının en başına İsim eklendi
         if (withoutExam) {
-           sendSMS([{tel: [finalUserObj.phone], msg: `odullusinav.net basvurunuz alinmistir.\nGiris Sifreniz: ${finalPassword}.\nBolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`}]);
+           sendSMS([{tel: [finalUserObj.phone], msg: `Sayın ${finalUserObj.fullName},\nodullusinav.net basvurunuz alinmistir.\nGiris Sifreniz: ${finalPassword}.\nBolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`}]);
         } else if (finalUserObj.selectedDate) {
            const centerInfo = getNeighborhoodDetails(matchedZone, finalUserObj.district, finalUserObj.neighborhood, finalUserObj.gender, finalUserObj.grade);
            const contactPhone = centerInfo.phone || "0553 973 54 40";
-           const regMsg = `odullusinav.net başvurunuz alınmıştır.\n\nGiris Sifreniz: ${finalPassword}.\n\nSınav Merkeziniz ${finalUserObj.district} ilçesi ${finalUserObj.neighborhood} mahallesindedir.\n\nOturum: ${finalUserObj.selectedDate} - ${finalUserObj.selectedTime}\nKonum: ${centerInfo.mapLink || 'Belirtilmedi'}\nİletişim: ${contactPhone}${SMS_FOOTER}`;
+           const regMsg = `Sayın ${finalUserObj.fullName},\nodullusinav.net başvurunuz alınmıştır.\n\nGiris Sifreniz: ${finalPassword}.\n\nSınav Merkeziniz ${finalUserObj.district} ilçesi ${finalUserObj.neighborhood} mahallesindedir.\n\nOturum: ${finalUserObj.selectedDate} - ${finalUserObj.selectedTime}\nKonum: ${centerInfo.mapLink || 'Belirtilmedi'}\nİletişim: ${contactPhone}${SMS_FOOTER}`;
            sendSMS([{tel: [finalUserObj.phone], msg: regMsg}]);
         }
       }
@@ -174,7 +173,6 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
     } catch (error) { alert("İşlem sırasında bir hata oluştu."); } 
     finally { setIsSubmitting(false); }
   };
-
   const availableDistricts = formData.province && LOCATIONS[formData.province] ? Object.keys(LOCATIONS[formData.province]) : [];
   const availableNeighborhoods = formData.province && formData.district && LOCATIONS[formData.province][formData.district] ? LOCATIONS[formData.province][formData.district] : [];
 
@@ -249,7 +247,7 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
                             <div className="space-y-6">
                               {examSessions.map((session, sIdx) => (
                                 <div key={sIdx} className="pt-4 border-t-2 border-indigo-200/50">
-                                  <span className="text-lg font-black text-slate-700 mb-4 flex items-center"><CalendarIcon className="w-6 h-6 mr-3 text-indigo-500"/> {session.date} Tarihli Oturumlar:</span>
+                                  <span className="text-lg font-black text-slate-700 mb-4 flex items-center"><CalendarIcon className="w-6 h-6 mr-3 text-indigo-500"/> {formatToTurkishDate(session.date)} Tarihli Oturumlar:</span>
                                   <div className="flex flex-wrap gap-4 mt-4">
                                     {session.slots && session.slots.map(slot => {
                                       const isSelected = selectedExam && (selectedExam.firebaseId === exam.firebaseId || selectedExam.id === exam.id) && selectedSlot?.date === session.date && selectedSlot?.time === slot;
