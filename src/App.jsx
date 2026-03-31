@@ -198,24 +198,26 @@ export default function App() {
           <ThemeSelector />
         </div>
 
+       // ... (üst kısımlar aynı)
+
         <div className="w-full mx-auto px-4 sm:px-8 mt-4 z-40 sticky top-4">
-          <nav className="transition-colors w-full" style={mirrorFrameStyle}>
-            <div className="flex flex-col lg:flex-row justify-between items-center py-3 lg:h-24 gap-4 lg:gap-0 w-full px-6 md:px-10">
+          <nav className="w-full transition-all duration-300" style={mirrorFrameStyle}>
+            <div className="flex flex-col lg:flex-row justify-between items-center py-3 lg:h-24 gap-4 lg:gap-0 w-full px-4 md:px-8">
               
-              <div className="flex items-center flex-1 justify-start gap-8 lg:gap-12">
+              <div className="flex items-center flex-1 justify-start gap-6 lg:gap-12 w-full lg:w-auto">
                  <div className="flex items-center cursor-pointer hover:scale-105 transition-transform flex-shrink-0" onClick={() => navigateTo('landing')}>
-                   <div className="w-14 h-14 md:w-16 md:h-16 mr-4 bg-contain bg-center bg-no-repeat drop-shadow-md transition-all duration-300" style={{ backgroundImage: 'var(--logo-url)' }}></div>
+                   <div className="w-12 h-12 md:w-16 md:h-16 mr-3 bg-contain bg-center bg-no-repeat drop-shadow-md transition-all duration-300" style={{ backgroundImage: 'var(--logo-url)' }}></div>
                    <div>
                       <div className="flex items-center gap-1.5">
-                         <span className="text-xl md:text-2xl font-black tracking-tight leading-none" style={{ color: 'var(--color-main)' }}>ÖDÜLLÜ</span>
-                         <span className="text-xl md:text-2xl font-black tracking-tight leading-none" style={{ color: 'var(--color-contrast)' }}>SINAV</span>
+                         <span className="text-xl md:text-3xl font-black tracking-tight leading-none" style={{ color: 'var(--color-main)' }}>ÖDÜLLÜ</span>
+                         <span className="text-xl md:text-3xl font-black tracking-tight leading-none" style={{ color: 'var(--color-contrast)' }}>SINAV</span>
                       </div>
-                      <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] mt-1" style={{ color: 'color-mix(in srgb, var(--color-main) 40%, var(--color-contrast) 60%)' }}>LGS Prova Merkezi</p>
+                      <p className="text-[9px] md:text-[13px] font-bold uppercase tracking-[0.15em] mt-1" style={{ color: 'color-mix(in srgb, var(--color-main) 40%, var(--color-contrast) 60%)' }}>LGS Prova Merkezi</p>
                    </div>
                  </div>
                  
                  <div className="hidden lg:flex space-x-6 items-center">
-                    <style>{`.nav-btn { position: relative; padding-bottom: 4px; color: var(--color-contrast); font-weight: 900; font-size: 1rem; text-shadow: 0 1px 1px rgba(255,255,255,0.5); } .nav-btn::after { content: ''; position: absolute; bottom: 0; left: 0; width: 0%; height: 2px; background-color: var(--color-main); transition: width 0.3s ease; } .nav-btn:hover::after { width: 100%; } .nav-btn:hover { color: var(--color-main); }`}</style>
+                    <style>{`.nav-btn { position: relative; padding-bottom: 4px; color: var(--color-main); font-weight: 900; font-size: 1.125rem; text-shadow: 0 1px 2px rgba(255,255,255,0.8); } .nav-btn::after { content: ''; position: absolute; bottom: 0; left: 0; width: 0%; height: 2px; background-color: var(--color-main); transition: width 0.3s ease; } .nav-btn:hover::after { width: 100%; }`}</style>
                    <button onClick={() => scrollToSection('hero')} className="nav-btn tracking-wide transition">Ana Sayfa</button>
                    <button onClick={() => scrollToSection('tanitim')} className="nav-btn tracking-wide transition">Deneme Tanıtımı</button>
                    <button onClick={() => scrollToSection('oduller')} className="nav-btn tracking-wide transition">Ödüller</button>
@@ -223,21 +225,37 @@ export default function App() {
                  </div>
               </div>
 
-              <div className="flex flex-wrap lg:flex-nowrap justify-start sm:justify-end gap-3 md:gap-4 items-center flex-shrink-0 mt-3 lg:mt-0">
+              {/* DÜZELTME: Mobilde Davet Et yazısı gizlendi, gap daraltıldı ve hepsi tek satıra sığdırıldı */}
+              <div className="flex flex-row justify-center sm:justify-end gap-2 sm:gap-3 w-full lg:w-auto mt-2 lg:mt-0">
                 {currentUser ? (
                   <>
-                    <button onClick={copyInviteLink} className="flex items-center border border-transparent shadow-sm font-black px-4 py-2 rounded-xl text-sm hover:bg-white/10" style={{ color: 'var(--color-contrast)' }}><UserPlus className="w-5 h-5 mr-1.5"/> Davet Et</button>
-                    <button onClick={() => navigateTo('profile')} className="text-white px-5 py-2.5 rounded-xl font-black shadow-lg flex items-center text-sm hover:scale-105 transition-transform" style={{ backgroundColor: 'var(--color-main)' }}><Users className="w-5 h-5 mr-2" /> Panelim</button>
-                    <button onClick={() => { setCurrentUser(null); navigateTo('landing'); }} className="text-red-500 p-2.5 rounded-xl border border-red-100 hover:bg-red-50"><LogOut className="w-5 h-5" /></button>
+                    <button onClick={copyInviteLink} className="flex items-center justify-center border border-transparent shadow-sm font-black px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl text-[11px] sm:text-base hover:bg-white/10" style={{ color: 'var(--color-contrast)' }}>
+                       <UserPlus className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-1.5"/> 
+                       <span className="hidden sm:inline">Davet Et</span>
+                    </button>
+                    <button onClick={() => navigateTo('profile')} className="text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl font-black shadow-lg flex items-center justify-center text-[11px] sm:text-base hover:scale-105 transition-transform whitespace-nowrap" style={{ backgroundColor: 'var(--color-main)' }}>
+                       <Users className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-1" /> Panel
+                    </button>
+                    <button onClick={() => { setCurrentUser(null); navigateTo('landing'); }} className="flex-none text-red-500 p-2 sm:p-2.5 rounded-xl border border-red-100 hover:bg-red-50">
+                       <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </button>
                   </>
                 ) : (
                   <>
-                    <button onClick={copyInviteLink} className="flex items-center border border-transparent shadow-sm font-black px-4 py-2 rounded-xl text-sm hover:bg-white/10" style={{ color: 'var(--color-contrast)' }}><UserPlus className="w-5 h-5 mr-1.5"/> Davet Et</button>
-                    <button onClick={() => navigateTo('login')} className="bg-white border text-slate-700 font-black px-5 py-2.5 rounded-xl text-sm shadow-sm hover:bg-slate-50">Giriş Yap</button>
-                    <button onClick={() => navigateTo('register')} className="text-white px-6 py-2.5 rounded-xl font-black shadow-lg text-sm hover:scale-105 transition-transform" style={{ backgroundColor: 'var(--color-main)' }}>Kayıt Ol</button>
+                    <button onClick={copyInviteLink} className="flex items-center justify-center border border-transparent shadow-sm font-black px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl text-[11px] sm:text-base hover:bg-white/10" style={{ color: 'var(--color-contrast)' }}>
+                       <UserPlus className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-1.5"/> 
+                       <span className="hidden sm:inline">Davet Et</span>
+                    </button>
+                    <button onClick={() => navigateTo('login')} className="bg-white border text-slate-700 font-black px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl text-[11px] sm:text-base shadow-sm hover:bg-slate-50 flex items-center justify-center whitespace-nowrap">
+                       Giriş Yap
+                    </button>
+                    <button onClick={() => navigateTo('register')} className="text-white px-4 py-2 sm:px-6 sm:py-2.5 rounded-xl font-black shadow-lg text-[11px] sm:text-base hover:scale-105 transition-transform flex items-center justify-center whitespace-nowrap" style={{ backgroundColor: 'var(--color-main)' }}>
+                       Kayıt Ol
+                    </button>
                   </>
                 )}
               </div>
+
             </div>
           </nav>
         </div>

@@ -7,7 +7,6 @@ import { sendSMS, SMS_FOOTER } from '../../services/smsService';
 import { DEFAULT_PRIZE_OBJ, INITIAL_ZONES } from '../../data/constants';
 import { getNeighborhoodDetails, normalizeForSearch, parsePrizeArray } from '../../utils/helpers';
 
-// Bölünmüş Alt Sekmeler
 import SettingsTab from './SettingsTab';
 import CentersTab from './CentersTab';
 import StudentsTab from './StudentsTab';
@@ -76,21 +75,25 @@ export function AdminLogin({ setAdminAuth, zones }) {
   );
 }
 
-// DÜZELTME: students parametresi kaldırıldı, veriler içeride On-Demand çekilecek
 export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones, exams }) {
   const [activeTab, setActiveTab] = useState('ayarlar'); 
   const [isSyncing, setIsSyncing] = useState(false); 
   const [hasMadeChanges, setHasMadeChanges] = useState(false);
   
-  // DÜZELTME: İndirilen öğrenciler ve toplam sayılar için state'ler
   const [fetchedStudents, setFetchedStudents] = useState([]);
   const [totalStudentsCount, setTotalStudentsCount] = useState(0);
   const [myZoneCount, setMyZoneCount] = useState(0);
   
-  // DÜZELTME: Kota Onay Modalı İçin State'ler
+  // DÜZELTME: GELİŞMİŞ ÖĞRENCİ FİLTRE VE İNDİRME STATELERİ
+  const [filterZone, setFilterZone] = useState('');
+  const [filterCenter, setFilterCenter] = useState('');
+  const [chk8Erkek, setCheck8Erkek] = useState(true);
+  const [chkOtherErkek, setCheckOtherErkek] = useState(true);
+  const [chkKiz, setCheckKiz] = useState(true);
+
   const [showQuotaWarning, setShowQuotaWarning] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
-  const [pendingQuery, setPendingQuery] = useState(null);
+  const [pendingQuery, setPendingQuery] = useState([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
 
   const adminZoneData = isSuperAdmin 
@@ -99,16 +102,20 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
      
   const filteredExams = isSuperAdmin ? exams : exams.filter(e => e.zoneId === adminZoneId);
 
-  // 1. ADIM: SİSTEMDEKİ TOPLAM SAYILARI HESAPLA (VERİ İNDİRME)
+  // Mıntıka Admini ise Filtreyi otomatik kendi mıntıkasına kilitle
+  useEffect(() => {
+    if (!isSuperAdmin && adminZoneId) {
+        setFilterZone(adminZoneId.toString());
+    }
+  }, [isSuperAdmin, adminZoneId]);
+
   useEffect(() => {
     const fetchCounts = async () => {
       try {
         const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'students');
-        // Toplam sayıyı bul
         const totalSnap = await getCountFromServer(collRef);
         setTotalStudentsCount(totalSnap.data().count);
 
-        // Kendi bölgemin sayısını bul
         if (!isSuperAdmin && adminZoneId) {
             const zoneQ = query(collRef, where("zone.id", "==", adminZoneId));
             const zoneSnap = await getCountFromServer(zoneQ);
@@ -121,30 +128,77 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
 
   if (!adminZoneData) return <div>Erişim Hatası. Mıntıka bulunamadı.</div>;
 
-  // 2. ADIM: ÖĞRENCİ SEKMESİNDE "VERİLERİ İNDİR" BUTONUNA BASILINCA KOTAYI HESAPLA
-  const calculateQuotaForStudents = async () => {
+  // SEÇİLİ MINTIKAYA AİT KURUMLARI (MERKEZLERİ) BUL
+  const selectedZoneObj = zones.find(z => z.id.toString() === filterZone);
+  let availableCenters = [];
+  if (selectedZoneObj) {
+      const cNames = new Set();
+      if (selectedZoneObj.centers) selectedZoneObj.centers.forEach(c => cNames.add(c.name));
+      if (selectedZoneObj.specialBoysCenters) Object.values(selectedZoneObj.specialBoysCenters).forEach(c => cNames.add(c.centerName));
+      availableCenters = [...cNames].sort();
+  }
+
+  // AŞAMA 1: FİLTRELERE GÖRE HESAPLA
+  const handleCalculateQuery = async () => {
+      if (!chk8Erkek && !chkOtherErkek && !chkKiz) return alert("Lütfen en az bir öğrenci grubu seçiniz.");
       setIsFetchingData(true);
       try {
-          let q = collection(db, 'artifacts', appId, 'public', 'data', 'students');
-          if (!isSuperAdmin) q = query(q, where("zone.id", "==", adminZoneId));
+          let queriesToRun = [];
+          const baseConstraints = [];
+          if (filterZone) baseConstraints.push(where("zone.id", "==", parseInt(filterZone)));
+
+          const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'students');
+
+          // Grupların hepsi işaretliyse veritabanını tek seferde çek (Kotayı korur)
+          if (chk8Erkek && chkOtherErkek && chkKiz) {
+              queriesToRun.push(query(collRef, ...baseConstraints));
+          } else {
+              if (chk8Erkek) queriesToRun.push(query(collRef, ...baseConstraints, where("gender", "==", "Erkek"), where("grade", "==", "8")));
+              if (chkOtherErkek) queriesToRun.push(query(collRef, ...baseConstraints, where("gender", "==", "Erkek"), where("grade", "in", ["3","4","5","6","7"])));
+              if (chkKiz) queriesToRun.push(query(collRef, ...baseConstraints, where("gender", "==", "Kız")));
+          }
+
+          let tCount = 0;
+          for (let q of queriesToRun) {
+              const s = await getCountFromServer(q);
+              tCount += s.data().count;
+          }
           
-          const snap = await getCountFromServer(q);
-          const count = snap.data().count;
-          
-          setPendingCount(count);
-          setPendingQuery(q);
+          setPendingCount(tCount);
+          setPendingQuery(queriesToRun);
           setShowQuotaWarning(true);
       } catch(e) { alert("Hesaplama hatası."); }
       setIsFetchingData(false);
   };
 
-  // 3. ADIM: ONAY VERİLDİĞİNDE VERİLERİ GERÇEKTEN İNDİR
+  // AŞAMA 2: ONAYLADIKTAN SONRA İNDİR VE (VARSA) KURUMA GÖRE SÜZ
   const executeStudentFetch = async () => {
       setShowQuotaWarning(false);
       setIsFetchingData(true);
       try {
-          const snap = await getDocs(pendingQuery);
-          setFetchedStudents(snap.docs.map(doc => ({ firebaseId: doc.id, ...doc.data() })));
+          let allStudents = [];
+          for (let q of pendingQuery) {
+              const snap = await getDocs(q);
+              allStudents = [...allStudents, ...snap.docs.map(doc => ({ firebaseId: doc.id, ...doc.data() }))];
+          }
+
+          // Çift kayıtları (Mükerrerleri) temizle
+          const uniqueMap = new Map();
+          allStudents.forEach(s => uniqueMap.set(s.firebaseId, s));
+          let finalStudents = Array.from(uniqueMap.values());
+
+          // EĞER ÖZEL BİR KURUM SEÇİLDİYSE SADECE O KURUMDAKİLERİ EKRANDA BIRAK
+          if (filterCenter) {
+              finalStudents = finalStudents.filter(s => {
+                  const z = zones.find(zn => zn.id === s.zone?.id);
+                  if (!z) return false;
+                  const centerInfo = getNeighborhoodDetails(z, s.district, s.neighborhood, s.gender, s.grade);
+                  return centerInfo.centerName === filterCenter;
+              });
+          }
+
+          setFetchedStudents(finalStudents);
+          if (finalStudents.length === 0) alert("Seçtiğiniz kuruma/filtreye uyan öğrenci bulunamadı.");
       } catch(e) { alert("Veriler indirilemedi."); }
       setIsFetchingData(false);
   };
@@ -154,13 +208,11 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
        onLogout();
        return;
     }
-
     setIsSyncing(true);
     try {
       let dbUpdates = [];
       let smsQueue = [];
 
-      // DÜZELTME: Sadece indirdiğimiz (üzerinde işlem yaptığımız) öğrenciler için çalıştır
       for (let student of fetchedStudents) {
         const zone = zones.find(z => z.id === student.zone?.id) || student.zone;
         if (!zone) continue;
@@ -187,7 +239,6 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
                  validSlot = true;
               }
            }
-
            if (!validSlot && student.selectedDate && student.selectedTime) {
               updates.selectedDate = null;
               updates.selectedTime = null;
@@ -239,17 +290,24 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
   return (
     <div className="max-w-[1400px] mx-auto px-4 py-16 relative">
       
-      {/* DÜZELTME: KOTA UYARI MODALI */}
+      {/* KOTA UYARI MODALI */}
       {showQuotaWarning && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl text-center border-4 border-amber-400">
             <AlertTriangle className="w-20 h-20 text-amber-500 mx-auto mb-6 animate-pulse" />
             <h3 className="text-2xl font-black text-slate-800 mb-4">Veri İndirme Onayı</h3>
             <p className="text-slate-600 font-medium mb-6 text-lg">
-              Öğrenci listesini görüntülemek için veritabanından <span className="font-black text-indigo-600 text-xl">{pendingCount}</span> adet kayıt çekilecektir.
+              Seçtiğiniz gruplardaki öğrencileri görüntülemek için veritabanına bağlanılacaktır.
             </p>
-            <div className="bg-amber-50 text-amber-800 p-4 rounded-xl font-bold border border-amber-200 mb-8 text-sm">
-              Günlük 50.000 olan ücretsiz Firebase sınırınızdan <br/><span className="text-xl text-amber-600">{pendingCount} okuma kotası</span> eksilecektir. Onaylıyor musunuz?
+            
+            <div className="bg-amber-50 text-amber-800 p-5 rounded-xl font-bold border border-amber-200 mb-8 text-sm">
+              <span className="block text-lg mb-2">Günlük 50.000 işlem kotanızdan</span>
+              <span className="text-3xl text-amber-600 block mb-2">{pendingCount} okuma eksilecektir.</span>
+              {filterCenter && (
+                 <span className="block text-xs opacity-80 mt-2 text-indigo-700">
+                    (Not: Seçtiğiniz <b>"{filterCenter}"</b> kurumunun öğrencilerini ayıklamak için bölgedeki {pendingCount} kişinin tamamı taranıp sizin için süzülecektir.)
+                 </span>
+              )}
             </div>
             
             <div className="flex gap-4">
@@ -308,20 +366,57 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
         {activeTab === 'ayarlar' && <SettingsTab adminZoneData={adminZoneData} isSuperAdmin={isSuperAdmin} adminZoneId={adminZoneId} setHasMadeChanges={setHasMadeChanges} filteredExams={filteredExams} zones={zones} />}
         {activeTab === 'merkezler' && !isSuperAdmin && <CentersTab adminZoneData={adminZoneData} adminZoneId={adminZoneId} setHasMadeChanges={setHasMadeChanges} />}
         
-        {/* DÜZELTME: Öğrenci sekmesi için buton mantığı */}
+        {/* ÖĞRENCİ LİSTESİ VE KOTA DOSTU FİLTRE EKRANI */}
         {activeTab === 'ogrenci' && (
            <>
-             {fetchedStudents.length === 0 ? (
-                <div className="bg-white border-4 border-slate-100 rounded-[3rem] p-16 text-center shadow-xl">
-                   <Search className="w-24 h-24 text-indigo-200 mx-auto mb-6" />
-                   <h3 className="text-3xl font-black text-slate-800 mb-4">Öğrenci Verileri Gizli</h3>
-                   <p className="text-lg text-slate-500 mb-8 font-medium max-w-2xl mx-auto">Kota tasarrufu sağlamak için öğrenciler otomatik indirilmez. İşlem yapmak için verileri manuel olarak çekmeniz gerekmektedir.</p>
-                   <button onClick={calculateQuotaForStudents} disabled={isFetchingData} className="bg-indigo-600 text-white font-black text-xl py-5 px-10 rounded-2xl hover:bg-indigo-700 transition shadow-xl disabled:opacity-50">
-                      {isFetchingData ? "Hesaplanıyor..." : "Verileri İndir ve Göster"}
-                   </button>
+             <div className="bg-white border-4 border-slate-100 rounded-[3rem] p-8 md:p-12 shadow-xl mb-8">
+                <h3 className="text-2xl font-black text-slate-800 mb-6 border-b-2 border-slate-100 pb-4 flex items-center"><Search className="w-6 h-6 mr-3 text-indigo-500"/> Öğrenci Verilerini İndir & Filtrele</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-500 mb-2 uppercase tracking-wider">Mıntıka / Bölge</label>
+                      <select value={filterZone} onChange={(e) => {setFilterZone(e.target.value); setFilterCenter('');}} disabled={!isSuperAdmin} className="w-full border-2 border-slate-200 rounded-xl px-4 py-4 font-bold text-lg focus:border-indigo-500 outline-none bg-slate-50 disabled:opacity-70">
+                         <option value="">Tüm Mıntıkalar (Genel Merkez)</option>
+                         {zones.filter(z=>z.active).map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-bold text-slate-500 mb-2 uppercase tracking-wider">Kurum (Sınav Merkezi) Seçimi</label>
+                      <select value={filterCenter} onChange={(e) => setFilterCenter(e.target.value)} disabled={!filterZone} className="w-full border-2 border-slate-200 rounded-xl px-4 py-4 font-bold text-lg focus:border-indigo-500 outline-none bg-slate-50 disabled:opacity-70">
+                         <option value="">Tüm Kurumları Getir</option>
+                         {availableCenters.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
                 </div>
-             ) : (
+
+                <div className="mb-10">
+                    <label className="block text-sm font-bold text-slate-500 mb-3 uppercase tracking-wider">İndirilecek Öğrenci Grupları</label>
+                    <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
+                        <label className="flex items-center gap-3 cursor-pointer p-4 rounded-2xl border-2 border-slate-100 hover:bg-indigo-50 hover:border-indigo-200 transition select-none flex-1">
+                            <input type="checkbox" checked={chk8Erkek} onChange={e=>setCheck8Erkek(e.target.checked)} className="w-6 h-6 accent-indigo-600 rounded cursor-pointer" />
+                            <span className="font-bold text-slate-700 text-lg">8. Sınıf Erkekler</span>
+                        </label>
+                        <label className="flex items-center gap-3 cursor-pointer p-4 rounded-2xl border-2 border-slate-100 hover:bg-indigo-50 hover:border-indigo-200 transition select-none flex-1">
+                            <input type="checkbox" checked={chkOtherErkek} onChange={e=>setCheckOtherErkek(e.target.checked)} className="w-6 h-6 accent-indigo-600 rounded cursor-pointer" />
+                            <span className="font-bold text-slate-700 text-lg">3-7. Sınıf Erkekler</span>
+                        </label>
+                        <label className="flex items-center gap-3 cursor-pointer p-4 rounded-2xl border-2 border-slate-100 hover:bg-pink-50 hover:border-pink-200 transition select-none flex-1">
+                            <input type="checkbox" checked={chkKiz} onChange={e=>setCheckKiz(e.target.checked)} className="w-6 h-6 accent-pink-600 rounded cursor-pointer" />
+                            <span className="font-bold text-slate-700 text-lg">Tüm Kızlar (3-8. Sınıf)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <button onClick={handleCalculateQuery} disabled={isFetchingData} className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 transition shadow-xl disabled:opacity-50 flex items-center justify-center">
+                   {isFetchingData ? "Maliyet Hesaplanıyor..." : <><Download className="w-6 h-6 mr-3"/> Kriterlere Uyan Verileri İndir</>}
+                </button>
+             </div>
+
+             {fetchedStudents.length > 0 ? (
                 <StudentsTab students={fetchedStudents} isSuperAdmin={isSuperAdmin} adminZoneData={adminZoneData} zones={zones} setHasMadeChanges={setHasMadeChanges} />
+             ) : (
+                <div className="text-center font-bold text-slate-400 py-10 bg-white rounded-3xl border-4 border-slate-50">Lütfen yukarıdan kriterleri seçip "Verileri İndir" butonuna tıklayın.</div>
              )}
            </>
         )}
