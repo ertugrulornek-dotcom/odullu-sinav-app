@@ -95,16 +95,17 @@ export default function App() {
     } else document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  // DÜZELTME: Link güncellendi ve Emojilerin Web'de () olmasını engelleyen %100 güvenli URL-Encoded metin kullanıldı.
+  // DÜZELTME: WHATSAPP WEB SORUNUNU %100 ÇÖZEN YAPI
   const copyInviteLink = () => {
     const currentTheme = localStorage.getItem('os_theme') || 'watergreen';
     const link = `https://www.odullusinav.net/?theme=${currentTheme}#register`;
     
-    // Mesaj metni doğrudan URL formatına çevrilmiş haldedir. Dosya kodlaması bozulsa bile mesaj bozulmaz.
-    const part1 = "%C3%96d%C3%BCll%C3%BC%20Akademik%20Yeterlilik%20S%C4%B1nav%C4%B1na%20beraber%20kat%C4%B1lal%C4%B1m%20m%C4%B1%3F%20%F0%9F%A4%A9%0A%0A%F0%9F%97%93%EF%B8%8F%20S%C4%B1nav%C4%B1%2029%20Ekim%2C%201%20ve%202%20Kas%C4%B1m%20tarihlerinde%20yapacaklar.%0A%0A%F0%9F%8E%81%20S%C4%B1nava%20kat%C4%B1lan%20herkese%20hediye%20veriliyor.%0A%0A%F0%9F%8F%86%20Ayr%C4%B1ca%20%2510'luk%20dilime%20girdi%C4%9Finde%20diledi%C4%9Fin%20derece%20%C3%B6d%C3%BCl%C3%BC%20hediye!%0A%0A%F0%9F%9A%80%20Kendine%20g%C3%BCveniyorsan%20bu%20linke%20t%C4%B1kla%20ve%20hemen%20Ba%C5%9Fvur%20%F0%9F%91%87%F0%9F%8F%BB%0A";
+    // Mesaj kırılamaz şekilde URL formunda kodlandı
+    const part1 = "%C3%96d%C3%BCll%C3%BC%20Akademik%20Yeterlilik%20S%C4%B1nav%C4%B1na%20beraber%20kat%C4%B1lal%C4%B1m%20m%C4%B1%3F%20%F0%9F%A4%A9%0A%0A%F0%9F%97%93%EF%B8%8F%20S%C4%B1nav%C4%B1%2029%20Ekim%2C%201%20ve%202%20Kas%C4%B1m%20tarihlerinde%20yapacaklar.%0A%0A%F0%9F%8E%81%20S%C4%B1nava%20kat%C4%B1lan%20herkese%20hediye%20veriliyor.%0A%0A%F0%9F%8F%86%20Ayr%C4%B1ca%20%2510'luk%20dilime%20girdi%C4%9Finde%20diledi%C4%9Fin%20derece%20%C3%B6d%C3%BCl%C3%BC%20hediye!%0A%0A%F0%9F%9A%80%20Kendine%20g%C3%BCveniyorsan%20bu%20linke%20t%C4%B1kla%20ve%20hemen%20Ba%C5%9Fvur%20%F0%9F%91%87%F0%9F%8F%BB%0A%0A";
     const part2 = "%0A%0A%F0%9F%A4%9D%20Kim%20kazanacak%20g%C3%B6relim!%20%F0%9F%92%AB";
     
-    const finalUrl = `https://wa.me/?text=${part1}${encodeURIComponent(link)}${part2}`;
+    // Web ve Mobil uyumlu API kullanımı
+    const finalUrl = `https://api.whatsapp.com/send?text=${part1}${encodeURIComponent(link)}${part2}`;
     window.open(finalUrl, '_blank');
   };
 
@@ -212,6 +213,7 @@ export default function App() {
                    </div>
                  </div>
                  
+                 {/* DÜZELTME: Sıralama: Deneme Tanıtımı, Birebir Analiz, Etüt Desteği, Ödüller, Sınav Takvimi */}
                  <div className="hidden xl:flex space-x-5 items-center">
                     <style>{`.nav-btn { position: relative; padding-bottom: 4px; color: var(--color-main); font-weight: 900; font-size: 1rem; text-shadow: 0 1px 2px rgba(255,255,255,0.8); } .nav-btn::after { content: ''; position: absolute; bottom: 0; left: 0; width: 0%; height: 2px; background-color: var(--color-main); transition: width 0.3s ease; } .nav-btn:hover::after { width: 100%; }`}</style>
                    <button onClick={() => scrollToSection('tanitim')} className="nav-btn tracking-wide transition">Deneme Tanıtımı</button>

@@ -76,6 +76,9 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
       <section className="pb-24 relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-32">
           
+          {/* DÜZELTME: ÖDÜLLER BÖLÜMÜ YUKARI ALINDI */}
+          <div id="oduller" className="pt-10"><CombinedPrizeSection displayPrizes={displayPrizes} currentUser={currentUser} /></div>
+
           <div id="tanitim" className="flex flex-col items-center gap-10 pt-10">
             <div className="w-full max-w-4xl text-center">
               <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6 leading-tight">Deneme <span style={{ color: 'var(--color-main)' }}>Tanıtımı</span></h2>
@@ -101,7 +104,6 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
                      <img src="/2.png" alt="Birebir Analiz" className="w-full h-full object-contain" />
                   </div>
                   <div className="flex-1 max-w-2xl text-center md:text-left">
-                     {/* DÜZELTME: Sadece tek bir devasa başlık */}
                      <h3 className="text-3xl md:text-5xl font-black drop-shadow-sm leading-tight mb-6" style={{ color: 'var(--color-main)' }}>Birebir Analiz</h3>
                      <p className="text-slate-600 font-bold text-lg md:text-xl mb-8 leading-relaxed">
                         Sadece puanınızı değil, hangi konularda eksiğiniz olduğunu detaylı karne ile sunuyoruz. Uzman öğretmen kadromuz eşliğinde zayıf noktalarınızı keşfedip, gerçek LGS öncesi tam donanımlı hale gelin.
@@ -110,11 +112,12 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
                      <ul className="flex flex-col gap-4 text-left ml-4 md:ml-0">
                         <li className="flex items-start gap-3">
                            <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
-                           <span className="font-black text-white text-xl md:text-2xl drop-shadow-md">Konu Bazlı Performans Karnesi</span>
+                           {/* DÜZELTME: Tema ile uyumlu açık/beyaz pastel renk karışımı */}
+                           <span className="font-black text-xl md:text-2xl drop-shadow-md" style={{ color: 'color-mix(in srgb, white 85%, var(--color-contrast))' }}>Konu Bazlı Performans Karnesi</span>
                         </li>
                         <li className="flex items-start gap-3">
                            <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
-                           <span className="font-black text-white text-xl md:text-2xl drop-shadow-md">Türkiye ve İl Geneli Yüzdelik Dilim</span>
+                           <span className="font-black text-xl md:text-2xl drop-shadow-md" style={{ color: 'color-mix(in srgb, white 85%, var(--color-contrast))' }}>Türkiye ve İl Geneli Yüzdelik Dilim</span>
                         </li>
                      </ul>
                   </div>
@@ -126,17 +129,17 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
                      <img src="/3.png" alt="Etüt Desteği" className="w-full h-full object-contain" />
                   </div>
                   <div className="flex-1 max-w-2xl text-center md:text-left">
-                     {/* DÜZELTME: Sadece tek bir devasa başlık */}
                      <h3 className="text-3xl md:text-5xl font-black drop-shadow-sm leading-tight mb-8" style={{ color: 'var(--color-main)' }}>Etüt Desteği</h3>
                      
                      <ul className="flex flex-col gap-5 text-left ml-4 md:ml-0">
                         <li className="flex items-start gap-3">
                            <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
-                           <span className="font-black text-white text-lg md:text-xl uppercase tracking-wide drop-shadow-md">DERECEYE GİRENLERE EĞİTİM BURSU!</span>
+                           {/* DÜZELTME: Tema ile uyumlu açık/beyaz pastel renk karışımı */}
+                           <span className="font-black text-lg md:text-xl uppercase tracking-wide drop-shadow-md" style={{ color: 'color-mix(in srgb, white 85%, var(--color-contrast))' }}>DERECEYE GİRENLERE EĞİTİM BURSU!</span>
                         </li>
                         <li className="flex items-start gap-3">
                            <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
-                           <span className="font-black text-white text-lg md:text-xl uppercase tracking-wide drop-shadow-md">DETAYLI ANALİZ SONUCU EKSİK OLDUĞUN KONULARDA EĞİTİM DESTEĞİ!</span>
+                           <span className="font-black text-lg md:text-xl uppercase tracking-wide drop-shadow-md" style={{ color: 'color-mix(in srgb, white 85%, var(--color-contrast))' }}>DETAYLI ANALİZ SONUCU EKSİK OLDUĞUN KONULARDA EĞİTİM DESTEĞİ!</span>
                         </li>
                      </ul>
                   </div>
@@ -145,7 +148,6 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
             </div>
           </div>
 
-          <div id="oduller" className="pt-10"><CombinedPrizeSection displayPrizes={displayPrizes} currentUser={currentUser} /></div>
           <div id="takvim" className="pt-10"><TimelineCalendar zoneExams={displayExams} currentUser={currentUser} defaultContact={publicZone.mappings?.[0]} /></div>
         </div>
       </section>
