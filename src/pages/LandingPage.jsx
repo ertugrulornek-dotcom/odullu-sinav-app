@@ -76,7 +76,6 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
       <section className="pb-24 relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-32">
           
-          {/* DÜZELTME: ÖDÜLLER BÖLÜMÜ YUKARI ALINDI */}
           <div id="oduller" className="pt-10"><CombinedPrizeSection displayPrizes={displayPrizes} currentUser={currentUser} /></div>
 
           <div id="tanitim" className="flex flex-col items-center gap-10 pt-10">
@@ -98,7 +97,6 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
             
             <div className="w-full pt-16 mt-10 border-t-2 border-slate-100/50 flex flex-col gap-24">
                
-               {/* 1. Birebir Analiz */}
                <div id="analiz" className="flex flex-col md:flex-row items-center justify-center gap-10 md:gap-16 w-full group pt-8">
                   <div className="w-64 h-64 md:w-80 md:h-80 flex-shrink-0 drop-shadow-2xl transition-transform duration-500 group-hover:scale-105 bg-transparent overflow-hidden">
                      <img src="/2.png" alt="Birebir Analiz" className="w-full h-full object-contain" />
@@ -112,18 +110,17 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
                      <ul className="flex flex-col gap-4 text-left ml-4 md:ml-0">
                         <li className="flex items-start gap-3">
                            <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
-                           {/* DÜZELTME: Tema ile uyumlu açık/beyaz pastel renk karışımı */}
-                           <span className="font-black text-xl md:text-2xl drop-shadow-md" style={{ color: 'color-mix(in srgb, white 85%, var(--color-contrast))' }}>Konu Bazlı Performans Karnesi</span>
+                           {/* DÜZELTME: 2. Renk (Contrast) yapıldı */}
+                           <span className="font-black text-xl md:text-2xl drop-shadow-md" style={{ color: 'var(--color-contrast)' }}>Konu Bazlı Performans Karnesi</span>
                         </li>
                         <li className="flex items-start gap-3">
                            <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
-                           <span className="font-black text-xl md:text-2xl drop-shadow-md" style={{ color: 'color-mix(in srgb, white 85%, var(--color-contrast))' }}>Türkiye ve İl Geneli Yüzdelik Dilim</span>
+                           <span className="font-black text-xl md:text-2xl drop-shadow-md" style={{ color: 'var(--color-contrast)' }}>Türkiye ve İl Geneli Yüzdelik Dilim</span>
                         </li>
                      </ul>
                   </div>
                </div>
 
-               {/* 2. Etüt Desteği */}
                <div id="etut" className="flex flex-col md:flex-row items-center justify-center gap-10 md:gap-16 w-full group pt-8">
                   <div className="w-64 h-64 md:w-80 md:h-80 flex-shrink-0 drop-shadow-2xl transition-transform duration-500 group-hover:scale-105 bg-transparent overflow-hidden">
                      <img src="/3.png" alt="Etüt Desteği" className="w-full h-full object-contain" />
@@ -134,12 +131,12 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
                      <ul className="flex flex-col gap-5 text-left ml-4 md:ml-0">
                         <li className="flex items-start gap-3">
                            <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
-                           {/* DÜZELTME: Tema ile uyumlu açık/beyaz pastel renk karışımı */}
-                           <span className="font-black text-lg md:text-xl uppercase tracking-wide drop-shadow-md" style={{ color: 'color-mix(in srgb, white 85%, var(--color-contrast))' }}>DERECEYE GİRENLERE EĞİTİM BURSU!</span>
+                           {/* DÜZELTME: 2. Renk (Contrast) yapıldı */}
+                           <span className="font-black text-lg md:text-xl uppercase tracking-wide drop-shadow-md" style={{ color: 'var(--color-contrast)' }}>DERECEYE GİRENLERE EĞİTİM BURSU!</span>
                         </li>
                         <li className="flex items-start gap-3">
                            <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
-                           <span className="font-black text-lg md:text-xl uppercase tracking-wide drop-shadow-md" style={{ color: 'color-mix(in srgb, white 85%, var(--color-contrast))' }}>DETAYLI ANALİZ SONUCU EKSİK OLDUĞUN KONULARDA EĞİTİM DESTEĞİ!</span>
+                           <span className="font-black text-lg md:text-xl uppercase tracking-wide drop-shadow-md" style={{ color: 'var(--color-contrast)' }}>DETAYLI ANALİZ SONUCU EKSİK OLDUĞUN KONULARDA EĞİTİM DESTEĞİ!</span>
                         </li>
                      </ul>
                   </div>
