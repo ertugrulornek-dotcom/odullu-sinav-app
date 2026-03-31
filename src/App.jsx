@@ -95,24 +95,17 @@ export default function App() {
     } else document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  // DÜZELTME: Emojilerin bozulmasını KESİN olarak engelleyen yapı (String.fromCodePoint)
+  // DÜZELTME: Link güncellendi ve Emojilerin Web'de () olmasını engelleyen %100 güvenli URL-Encoded metin kullanıldı.
   const copyInviteLink = () => {
     const currentTheme = localStorage.getItem('os_theme') || 'watergreen';
-    const link = `https://odulludeneme.com/?theme=${currentTheme}#register`;
+    const link = `https://www.odullusinav.net/?theme=${currentTheme}#register`;
     
-    // Emojiler kodlarla oluşturulur, dosya bozulsa bile bunlar bozulmaz.
-    const e1 = String.fromCodePoint(0x1F929); // 🤩
-    const e2 = String.fromCodePoint(0x1F5D3, 0xFE0F); // 🗓️
-    const e3 = String.fromCodePoint(0x1F381); // 🎁
-    const e4 = String.fromCodePoint(0x1F3C6); // 🏆
-    const e5 = String.fromCodePoint(0x1F680); // 🚀
-    const e6 = String.fromCodePoint(0x1F447, 0x1F3FB); // 👇🏻
-    const e7 = String.fromCodePoint(0x1F91D); // 🤝
-    const e8 = String.fromCodePoint(0x1F4AB); // 💫
-
-    const text = `Ödüllü Akademik Yeterlilik Sınavına beraber katılalım mı? ${e1}\n\n${e2} Sınavı 29 Ekim, 1 ve 2 Kasım tarihlerinde yapacaklar.\n\n${e3} Sınava katılan herkese hediye veriliyor.\n\n${e4} Ayrıca %10'luk dilime girdiğinde dilediğin derece ödülü hediye!\n\n${e5} Kendine güveniyorsan bu linke tıkla ve hemen Başvur ${e6}\n${link}\n\n${e7} Kim kazanacak görelim! ${e8}`;
+    // Mesaj metni doğrudan URL formatına çevrilmiş haldedir. Dosya kodlaması bozulsa bile mesaj bozulmaz.
+    const part1 = "%C3%96d%C3%BCll%C3%BC%20Akademik%20Yeterlilik%20S%C4%B1nav%C4%B1na%20beraber%20kat%C4%B1lal%C4%B1m%20m%C4%B1%3F%20%F0%9F%A4%A9%0A%0A%F0%9F%97%93%EF%B8%8F%20S%C4%B1nav%C4%B1%2029%20Ekim%2C%201%20ve%202%20Kas%C4%B1m%20tarihlerinde%20yapacaklar.%0A%0A%F0%9F%8E%81%20S%C4%B1nava%20kat%C4%B1lan%20herkese%20hediye%20veriliyor.%0A%0A%F0%9F%8F%86%20Ayr%C4%B1ca%20%2510'luk%20dilime%20girdi%C4%9Finde%20diledi%C4%9Fin%20derece%20%C3%B6d%C3%BCl%C3%BC%20hediye!%0A%0A%F0%9F%9A%80%20Kendine%20g%C3%BCveniyorsan%20bu%20linke%20t%C4%B1kla%20ve%20hemen%20Ba%C5%9Fvur%20%F0%9F%91%87%F0%9F%8F%BB%0A";
+    const part2 = "%0A%0A%F0%9F%A4%9D%20Kim%20kazanacak%20g%C3%B6relim!%20%F0%9F%92%AB";
     
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    const finalUrl = `https://wa.me/?text=${part1}${encodeURIComponent(link)}${part2}`;
+    window.open(finalUrl, '_blank');
   };
 
   let targetCountdownDate = null;
@@ -219,7 +212,6 @@ export default function App() {
                    </div>
                  </div>
                  
-                 {/* DÜZELTME: İstenilen sekme isimleri ve sırası eklendi */}
                  <div className="hidden xl:flex space-x-5 items-center">
                     <style>{`.nav-btn { position: relative; padding-bottom: 4px; color: var(--color-main); font-weight: 900; font-size: 1rem; text-shadow: 0 1px 2px rgba(255,255,255,0.8); } .nav-btn::after { content: ''; position: absolute; bottom: 0; left: 0; width: 0%; height: 2px; background-color: var(--color-main); transition: width 0.3s ease; } .nav-btn:hover::after { width: 100%; }`}</style>
                    <button onClick={() => scrollToSection('tanitim')} className="nav-btn tracking-wide transition">Deneme Tanıtımı</button>
