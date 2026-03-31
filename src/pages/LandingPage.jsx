@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import TimelineCalendar from '../components/TimelineCalendar';
 import CombinedPrizeSection from '../components/CombinedPrizeSection';
 import { ThemeContext } from '../components/ThemeSelector';
@@ -23,7 +23,6 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
       <section id="hero" className="pt-10 md:pt-20 pb-20 relative z-10 overflow-hidden">
         <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8">
            
-           {/* DÜZELTME: MOBİL İÇİN ÜST BANT (Sadece mobilde Logonun üstünde yer alır ve tek satıra sığar) */}
            <div className="flex justify-center lg:hidden w-full mb-8 relative z-20">
               <div className="inline-block px-4 sm:px-6 py-2.5 rounded-full text-white font-black text-[11px] sm:text-sm tracking-[0.15em] shadow-lg uppercase whitespace-nowrap"
                    style={{ backgroundColor: 'var(--color-main)' }}>
@@ -35,13 +34,11 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
                
                <div className="w-full lg:w-3/5 flex flex-col items-start text-left mt-6 lg:mt-0 relative z-20">
                   
-                  {/* DÜZELTME: MASAÜSTÜ İÇİN ÜST BANT (Sadece geniş ekranda başlığın üstünde yer alır) */}
                   <div className="hidden lg:inline-block px-6 md:px-8 py-2 md:py-3 rounded-full text-white font-black text-sm sm:text-lg md:text-xl tracking-[0.2em] mb-8 shadow-lg uppercase"
                        style={{ backgroundColor: 'var(--color-main)' }}>
                      KOCAELİ • SAKARYA • YALOVA
                   </div>
                   
-                  {/* DÜZELTME: Yeni Slogan (Aynı devasa ve ferah stille iki satır) */}
                   <div className="flex flex-col text-left font-black uppercase transition-colors drop-shadow-lg mb-8 space-y-2 w-full" 
                        style={{ color: 'var(--color-contrast)', fontFamily: "'Fredoka One', 'Baloo 2', 'Comic Sans MS', 'Nunito', sans-serif", textShadow: '2px 4px 0px rgba(0,0,0,0.1)' }}>
                       
@@ -54,7 +51,7 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
                   </div>
                   
                   <p className="text-lg md:text-2xl mb-12 font-bold leading-relaxed max-w-2xl drop-shadow-sm" style={{ color: 'color-mix(in srgb, var(--color-main) 60%, var(--color-contrast) 40%)' }}>
-                     Ortaokul Öğrencilerine Özel Ödüllü<br/>Sınav ve LGS Provaları Burada.
+                     3, 4, 5, 6, 7 ve 8. Sınıf Öğrencilerine Özel Ödüllü<br/>Sınav ve LGS Provaları Burada.
                   </p>
 
                   {!currentUser ? (
@@ -94,6 +91,57 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
                     Not: 8. sınıflarımız için doğrudan <span className="text-amber-600 font-black">LGS formatında hazırlanmış özel bir deneme</span> yapılacaktır.
                  </p>
               </div>
+            </div>
+            
+            <div className="w-full pt-16 mt-10 border-t-2 border-slate-100/50 flex flex-col gap-24">
+               
+               {/* 1. Birebir Analiz */}
+               <div id="analiz" className="flex flex-col md:flex-row items-center justify-center gap-10 md:gap-16 w-full group pt-8">
+                  <div className="w-64 h-64 md:w-80 md:h-80 flex-shrink-0 drop-shadow-2xl transition-transform duration-500 group-hover:scale-105 bg-transparent overflow-hidden">
+                     <img src="/2.png" alt="Birebir Analiz" className="w-full h-full object-contain" />
+                  </div>
+                  <div className="flex-1 max-w-2xl text-center md:text-left">
+                     {/* DÜZELTME: Sadece tek bir devasa başlık */}
+                     <h3 className="text-3xl md:text-5xl font-black drop-shadow-sm leading-tight mb-6" style={{ color: 'var(--color-main)' }}>Birebir Analiz</h3>
+                     <p className="text-slate-600 font-bold text-lg md:text-xl mb-8 leading-relaxed">
+                        Sadece puanınızı değil, hangi konularda eksiğiniz olduğunu detaylı karne ile sunuyoruz. Uzman öğretmen kadromuz eşliğinde zayıf noktalarınızı keşfedip, gerçek LGS öncesi tam donanımlı hale gelin.
+                     </p>
+                     
+                     <ul className="flex flex-col gap-4 text-left ml-4 md:ml-0">
+                        <li className="flex items-start gap-3">
+                           <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
+                           <span className="font-black text-white text-xl md:text-2xl drop-shadow-md">Konu Bazlı Performans Karnesi</span>
+                        </li>
+                        <li className="flex items-start gap-3">
+                           <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
+                           <span className="font-black text-white text-xl md:text-2xl drop-shadow-md">Türkiye ve İl Geneli Yüzdelik Dilim</span>
+                        </li>
+                     </ul>
+                  </div>
+               </div>
+
+               {/* 2. Etüt Desteği */}
+               <div id="etut" className="flex flex-col md:flex-row items-center justify-center gap-10 md:gap-16 w-full group pt-8">
+                  <div className="w-64 h-64 md:w-80 md:h-80 flex-shrink-0 drop-shadow-2xl transition-transform duration-500 group-hover:scale-105 bg-transparent overflow-hidden">
+                     <img src="/3.png" alt="Etüt Desteği" className="w-full h-full object-contain" />
+                  </div>
+                  <div className="flex-1 max-w-2xl text-center md:text-left">
+                     {/* DÜZELTME: Sadece tek bir devasa başlık */}
+                     <h3 className="text-3xl md:text-5xl font-black drop-shadow-sm leading-tight mb-8" style={{ color: 'var(--color-main)' }}>Etüt Desteği</h3>
+                     
+                     <ul className="flex flex-col gap-5 text-left ml-4 md:ml-0">
+                        <li className="flex items-start gap-3">
+                           <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
+                           <span className="font-black text-white text-lg md:text-xl uppercase tracking-wide drop-shadow-md">DERECEYE GİRENLERE EĞİTİM BURSU!</span>
+                        </li>
+                        <li className="flex items-start gap-3">
+                           <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
+                           <span className="font-black text-white text-lg md:text-xl uppercase tracking-wide drop-shadow-md">DETAYLI ANALİZ SONUCU EKSİK OLDUĞUN KONULARDA EĞİTİM DESTEĞİ!</span>
+                        </li>
+                     </ul>
+                  </div>
+               </div>
+
             </div>
           </div>
 

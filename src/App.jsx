@@ -16,12 +16,12 @@ import { ThemeProvider, ThemeSelector } from './components/ThemeSelector';
 import CountdownTimer from './components/CountdownTimer';
 
 const mirrorFrameStyle = {
-  border: '4px solid rgba(255, 255, 255, 0.15)',
-  boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.1), inset 0 2px 4px 0 rgba(255, 255, 255, 0.3), inset 0 -2px 4px 0 rgba(0, 0, 0, 0.1)',
-  backdropFilter: 'blur(6px)',
-  WebkitBackdropFilter: 'blur(6px)',
+  border: '1px solid rgba(255, 255, 255, 0.4)',
+  boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.1), inset 0 2px 4px 0 rgba(255, 255, 255, 0.3)',
+  backdropFilter: 'blur(10px)',
+  WebkitBackdropFilter: 'blur(10px)',
   borderRadius: '2rem',
-  background: 'rgba(255, 255, 255, 0.05)',
+  background: 'rgba(255, 255, 255, 0.15)',
 };
 
 export default function App() {
@@ -56,7 +56,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // DEV OPTİMİZASYON: Sadece Mıntıka ve Sınavlar çekilir, tüm öğrenciler DEĞİL!
   const fetchInitialData = async () => {
     setLoading(true);
     try {
@@ -74,9 +73,7 @@ export default function App() {
         setZones(zonesData.sort((a, b) => a.id - b.id)); 
       }
       setExams(examsSnap.docs.map(d => ({ firebaseId: d.id, ...d.data() })));
-    } catch(e) {
-      console.error("Veri çekme hatası: ", e);
-    }
+    } catch(e) { console.error("Veri çekme hatası: ", e); }
     setLoading(false);
   };
 
@@ -98,11 +95,24 @@ export default function App() {
     } else document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  // DÜZELTME: Emojilerin bozulmasını KESİN olarak engelleyen yapı (String.fromCodePoint)
   const copyInviteLink = () => {
     const currentTheme = localStorage.getItem('os_theme') || 'watergreen';
-    const link = `https://odullusinav.net/?theme=${currentTheme}#register`;
-    const text = encodeURIComponent(`Merhaba arkadaşım, ben odullusinav.net'e katılıyorum. Gel beraber katılıp büyük ödülleri kazanalım!\n\nHaydi gel sen de hemen kayıt ol:\n${link}`);
-    window.open(`https://wa.me/?text=${text}`, '_blank');
+    const link = `https://odulludeneme.com/?theme=${currentTheme}#register`;
+    
+    // Emojiler kodlarla oluşturulur, dosya bozulsa bile bunlar bozulmaz.
+    const e1 = String.fromCodePoint(0x1F929); // 🤩
+    const e2 = String.fromCodePoint(0x1F5D3, 0xFE0F); // 🗓️
+    const e3 = String.fromCodePoint(0x1F381); // 🎁
+    const e4 = String.fromCodePoint(0x1F3C6); // 🏆
+    const e5 = String.fromCodePoint(0x1F680); // 🚀
+    const e6 = String.fromCodePoint(0x1F447, 0x1F3FB); // 👇🏻
+    const e7 = String.fromCodePoint(0x1F91D); // 🤝
+    const e8 = String.fromCodePoint(0x1F4AB); // 💫
+
+    const text = `Ödüllü Akademik Yeterlilik Sınavına beraber katılalım mı? ${e1}\n\n${e2} Sınavı 29 Ekim, 1 ve 2 Kasım tarihlerinde yapacaklar.\n\n${e3} Sınava katılan herkese hediye veriliyor.\n\n${e4} Ayrıca %10'luk dilime girdiğinde dilediğin derece ödülü hediye!\n\n${e5} Kendine güveniyorsan bu linke tıkla ve hemen Başvur ${e6}\n${link}\n\n${e7} Kim kazanacak görelim! ${e8}`;
+    
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   let targetCountdownDate = null;
@@ -173,19 +183,12 @@ export default function App() {
   const userLocDetails = currentUser ? getNeighborhoodDetails(liveZone, currentUser.district, currentUser.neighborhood, currentUser.gender, currentUser.grade) : null;
   let headerPhone = userLocDetails?.phone || "0553 973 54 40";
 
- return (
+  return (
     <ThemeProvider>
-      
-      {/* DÜZELTME: DAHA GÜÇLÜ VE GÖRÜNÜR BOYA SIÇRAMASI ARKA PLANI */}
-      <div className="fixed inset-0 z-[-1] bg-white pointer-events-none overflow-hidden">
-         {/* Sol Üst Köşe Sıçrama */}
-         <div className="absolute -top-40 -left-40 w-[500px] md:w-[700px] h-[500px] md:h-[700px] rounded-full opacity-80 blur-[80px] md:blur-[120px] transition-colors duration-1000" style={{ backgroundColor: 'var(--color-light-bg)' }}></div>
-         
-         {/* Sağ Orta Sıçrama */}
-         <div className="absolute top-1/4 -right-40 w-[400px] md:w-[600px] h-[400px] md:h-[600px] rounded-full opacity-70 blur-[80px] md:blur-[120px] transition-colors duration-1000" style={{ backgroundColor: 'var(--color-light-bg)' }}></div>
-         
-         {/* Sol Alt Köşe Sıçrama */}
-         <div className="absolute -bottom-40 left-1/4 w-[500px] md:w-[800px] h-[500px] md:h-[800px] rounded-full opacity-80 blur-[80px] md:blur-[120px] transition-colors duration-1000" style={{ backgroundColor: 'var(--color-light-bg)' }}></div>
+      <div className="fixed inset-0 z-[-1] bg-slate-50 pointer-events-none overflow-hidden transition-colors duration-500">
+         <div className="absolute -top-40 -left-40 w-[500px] md:w-[700px] h-[500px] md:h-[700px] rounded-full opacity-100 blur-[80px] md:blur-[120px] transition-colors duration-1000 mix-blend-multiply" style={{ backgroundColor: 'var(--color-light-bg)' }}></div>
+         <div className="absolute top-1/4 -right-40 w-[400px] md:w-[600px] h-[400px] md:h-[600px] rounded-full opacity-100 blur-[80px] md:blur-[120px] transition-colors duration-1000 mix-blend-multiply" style={{ backgroundColor: 'var(--color-light-bg)' }}></div>
+         <div className="absolute -bottom-40 left-1/4 w-[500px] md:w-[800px] h-[500px] md:h-[800px] rounded-full opacity-100 blur-[80px] md:blur-[120px] transition-colors duration-1000 mix-blend-multiply" style={{ backgroundColor: 'var(--color-light-bg)' }}></div>
       </div>
 
       <div className="min-h-screen font-sans text-slate-800 transition-colors duration-300 bg-transparent relative z-10">
@@ -198,13 +201,11 @@ export default function App() {
           <ThemeSelector />
         </div>
 
-       // ... (üst kısımlar aynı)
-
         <div className="w-full mx-auto px-4 sm:px-8 mt-4 z-40 sticky top-4">
           <nav className="w-full transition-all duration-300" style={mirrorFrameStyle}>
             <div className="flex flex-col lg:flex-row justify-between items-center py-3 lg:h-24 gap-4 lg:gap-0 w-full px-4 md:px-8">
               
-              <div className="flex items-center flex-1 justify-start gap-6 lg:gap-12 w-full lg:w-auto">
+              <div className="flex items-center flex-1 justify-start gap-4 lg:gap-8 w-full lg:w-auto">
                  <div className="flex items-center cursor-pointer hover:scale-105 transition-transform flex-shrink-0" onClick={() => navigateTo('landing')}>
                    <div className="w-12 h-12 md:w-16 md:h-16 mr-3 bg-contain bg-center bg-no-repeat drop-shadow-md transition-all duration-300" style={{ backgroundImage: 'var(--logo-url)' }}></div>
                    <div>
@@ -212,20 +213,23 @@ export default function App() {
                          <span className="text-xl md:text-3xl font-black tracking-tight leading-none" style={{ color: 'var(--color-main)' }}>ÖDÜLLÜ</span>
                          <span className="text-xl md:text-3xl font-black tracking-tight leading-none" style={{ color: 'var(--color-contrast)' }}>SINAV</span>
                       </div>
-                      <p className="text-[9px] md:text-[13px] font-bold uppercase tracking-[0.15em] mt-1" style={{ color: 'color-mix(in srgb, var(--color-main) 40%, var(--color-contrast) 60%)' }}>LGS Prova Merkezi</p>
+                      <p className="text-[9px] md:text-[13px] font-bold uppercase tracking-[0.15em] mt-1" style={{ color: 'color-mix(in srgb, var(--color-main) 40%, var(--color-contrast) 60%)' }}>
+                         İlkokul • Ortaokul • LGS
+                      </p>
                    </div>
                  </div>
                  
-                 <div className="hidden lg:flex space-x-6 items-center">
-                    <style>{`.nav-btn { position: relative; padding-bottom: 4px; color: var(--color-main); font-weight: 900; font-size: 1.125rem; text-shadow: 0 1px 2px rgba(255,255,255,0.8); } .nav-btn::after { content: ''; position: absolute; bottom: 0; left: 0; width: 0%; height: 2px; background-color: var(--color-main); transition: width 0.3s ease; } .nav-btn:hover::after { width: 100%; }`}</style>
-                   <button onClick={() => scrollToSection('hero')} className="nav-btn tracking-wide transition">Ana Sayfa</button>
+                 {/* DÜZELTME: İstenilen sekme isimleri ve sırası eklendi */}
+                 <div className="hidden xl:flex space-x-5 items-center">
+                    <style>{`.nav-btn { position: relative; padding-bottom: 4px; color: var(--color-main); font-weight: 900; font-size: 1rem; text-shadow: 0 1px 2px rgba(255,255,255,0.8); } .nav-btn::after { content: ''; position: absolute; bottom: 0; left: 0; width: 0%; height: 2px; background-color: var(--color-main); transition: width 0.3s ease; } .nav-btn:hover::after { width: 100%; }`}</style>
                    <button onClick={() => scrollToSection('tanitim')} className="nav-btn tracking-wide transition">Deneme Tanıtımı</button>
+                   <button onClick={() => scrollToSection('analiz')} className="nav-btn tracking-wide transition">Birebir Analiz</button>
+                   <button onClick={() => scrollToSection('etut')} className="nav-btn tracking-wide transition">Etüt Desteği</button>
                    <button onClick={() => scrollToSection('oduller')} className="nav-btn tracking-wide transition">Ödüller</button>
                    <button onClick={() => scrollToSection('takvim')} className="nav-btn tracking-wide transition">Sınav Takvimi</button>
                  </div>
               </div>
 
-              {/* DÜZELTME: Mobilde Davet Et yazısı gizlendi, gap daraltıldı ve hepsi tek satıra sığdırıldı */}
               <div className="flex flex-row justify-center sm:justify-end gap-2 sm:gap-3 w-full lg:w-auto mt-2 lg:mt-0">
                 {currentUser ? (
                   <>
@@ -262,11 +266,11 @@ export default function App() {
 
         <main className="pb-0 animate-in fade-in duration-500 mt-10">
           {currentView === 'landing' && <LandingPage navigateTo={navigateTo} currentUser={currentUser} scrollToSection={scrollToSection} exams={exams} zones={zones} />}
-          {currentView === 'register' && <RegistrationProcess navigateTo={navigateTo} currentUser={currentUser} setCurrentUser={setCurrentUser} zones={zones} exams={exams} />}
+          {currentView === 'register' && <RegistrationProcess navigateTo={navigateTo} currentUser={currentUser} setCurrentUser={setCurrentUser} zones={zones} exams={exams} refreshData={fetchInitialData} />}
           {currentView === 'login' && <LoginPage setCurrentUser={setCurrentUser} navigateTo={navigateTo} />}
           {currentView === 'profile' && <StudentProfile currentUser={currentUser} exams={exams} navigateTo={navigateTo} setCurrentUser={setCurrentUser} zones={zones} />}
           {currentView === 'admin' && !adminAuth.isAuthenticated && <AdminLogin setAdminAuth={setAdminAuth} zones={zones} />}
-          {currentView === 'admin' && adminAuth.isAuthenticated && <AdminPanel students={registeredStudents} adminZoneId={adminAuth.zoneId} isSuperAdmin={adminAuth.isSuperAdmin} onLogout={() => setAdminAuth({ isAuthenticated: false, zoneId: null, isSuperAdmin: false })} zones={zones} exams={exams} />}
+          {currentView === 'admin' && adminAuth.isAuthenticated && <AdminPanel adminZoneId={adminAuth.zoneId} isSuperAdmin={adminAuth.isSuperAdmin} onLogout={() => setAdminAuth({ isAuthenticated: false, zoneId: null, isSuperAdmin: false })} zones={zones} exams={exams} />}
         </main>
 
         {currentView === 'landing' && <CountdownTimer examDate={targetCountdownDate} mode={countdownMode} />}
@@ -274,7 +278,7 @@ export default function App() {
         <footer className="bg-slate-950 text-slate-400 py-16 text-sm text-center border-t-4 transition-colors" style={{ borderTopColor: 'var(--color-main)' }}>
           <div className="max-w-4xl mx-auto px-6">
             <div className="w-20 h-20 mx-auto mb-6 bg-contain bg-center bg-no-repeat drop-shadow-xl transition-all duration-300 filter grayscale brightness-200 opacity-60" style={{ backgroundImage: 'var(--logo-url)' }}></div>
-            <p className="mb-2 text-lg font-bold text-slate-200">Sakarya, Kocaeli ve Yalova'nın En Prestijli LGS Provası</p>
+            <p className="mb-2 text-lg font-bold text-slate-200">İlkokul, Ortaokul ve LGS Prova Sınavı Merkezi</p>
             <p className="mb-8">Gerçek Sınav Deneyimi ve Büyük Ödüller Bir Arada</p>
             <p>© 2026 Ödüllü Sınav Merkezi. Tüm hakları saklıdır.</p>
           </div>
