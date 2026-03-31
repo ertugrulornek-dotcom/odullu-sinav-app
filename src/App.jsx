@@ -85,17 +85,6 @@ export default function App() {
     fetchInitialData();
   }, [authUser]);
 
-  // DEV OPTİMİZASYON: Sadece Admin giriş yaparsa tüm öğrenciler indirilir!
-  useEffect(() => {
-    if (adminAuth.isAuthenticated) {
-      const fetchStudentsForAdmin = async () => {
-        const studentsSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'students'));
-        setRegisteredStudents(studentsSnap.docs.map(d => ({ firebaseId: d.id, ...d.data() })));
-      };
-      fetchStudentsForAdmin();
-    }
-  }, [adminAuth.isAuthenticated]);
-
   const navigateTo = (view) => { 
       window.scrollTo({ top: 0, behavior: 'smooth' }); 
       setCurrentView(view);

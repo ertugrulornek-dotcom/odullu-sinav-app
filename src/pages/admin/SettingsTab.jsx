@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Gift, Trophy, Award, Plus, Trash2, CalendarIcon, CheckCircle2, Edit } from 'lucide-react';
 import { db, appId } from '../../services/firebase';
-import { updateDoc, doc, addDoc, collection, deleteDoc, getDocs } from "firebase/firestore";
+// DÜZELTME: query ve where eklendi
+import { updateDoc, doc, addDoc, collection, deleteDoc, getDocs, query, where } from "firebase/firestore";
 import { INITIAL_ZONES } from '../../data/constants';
 import { parsePrizeArray } from '../../utils/helpers';
-import { sendSMS, SMS_FOOTER } from '../../services/smsService'; // DÜZELTME: SMS servisi eklendi
+import { sendSMS, SMS_FOOTER } from '../../services/smsService'; 
 
 export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, setHasMadeChanges, filteredExams, zones }) {
   const [localPrizes, setLocalPrizes] = useState({ grand: { title: '', desc: '', img: '' }, degree: [{ title: '', desc: '', img: '' }], participation: [{ title: '', desc: '', img: '' }] });
@@ -50,7 +51,6 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
      window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // DÜZELTME: SINAV GÜNCELLENİNCE ÖĞRENCİLERE OTOMATİK SMS GİDER
   const handleAddOrUpdateExam = async () => {
     if(!examData.title) return alert("Sınav Adı boş bırakılamaz.");
     const formattedSessions = examSessions
@@ -67,23 +67,25 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
             title: examData.title, sessions: formattedSessions, updatedAt: new Date().getTime(), active: true
          });
          
-         // Öğrencileri Tarama ve SMS Gönderme İşlemi
-         const studentsSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'students'));
+         // DEV OPTİMİZASYON: Sadece bu sınava kayıtlı öğrencileri getir
+         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'students'), where("examId", "==", editingExamId));
+         const studentsSnap = await getDocs(q);
+         
          let smsQueue = [];
          let updatePromises = [];
+         
          studentsSnap.docs.forEach(d => {
              const s = { firebaseId: d.id, ...d.data() };
-             if (s.examId === editingExamId || s.exam?.firebaseId === editingExamId) {
-                 let stillValid = false;
-                 for (let sess of formattedSessions) {
-                     if (sess.date === s.selectedDate && sess.slots.includes(s.selectedTime)) { stillValid = true; break; }
-                 }
-                 if (!stillValid && s.selectedDate && s.selectedTime) {
-                     updatePromises.push(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', s.firebaseId), { examId: null, examTitle: null, selectedDate: null, selectedTime: null, isWaitingPool: true }));
-                     if (s.phone) smsQueue.push({ tel: [s.phone], msg: `Önemli: Sınav oturumunuzda saat/tarih değişikliği olmuştur. Lütfen odullusinav.net adresinden profilinize girerek yeni oturumunuzu seçiniz.${SMS_FOOTER}` });
-                 }
+             let stillValid = false;
+             for (let sess of formattedSessions) {
+                 if (sess.date === s.selectedDate && sess.slots.includes(s.selectedTime)) { stillValid = true; break; }
+             }
+             if (!stillValid && s.selectedDate && s.selectedTime) {
+                 updatePromises.push(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', s.firebaseId), { examId: null, examTitle: null, selectedDate: null, selectedTime: null, isWaitingPool: true }));
+                 if (s.phone) smsQueue.push({ tel: [s.phone], msg: `Önemli: Sınav oturumunuzda saat/tarih değişikliği olmuştur. Lütfen odullusinav.net adresinden profilinize girerek yeni oturumunuzu seçiniz.${SMS_FOOTER}` });
              }
          });
+         
          await Promise.all(updatePromises);
          if (smsQueue.length > 0) { await sendSMS(smsQueue); alert(`Oturumu kaldırılan ${smsQueue.length} öğrenciye SMS gönderildi.`); }
          else { alert("Sınav oturumu başarıyla güncellendi!"); }
@@ -100,24 +102,25 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
     } catch (e) { console.error(e); }
   };
 
-  // DÜZELTME: SINAV SİLİNİNCE ÖĞRENCİLERE OTOMATİK SMS GİDER
   const handleDeleteExam = async (examId) => {
       if(!window.confirm("Bu sınav oturumunu tamamen iptal etmek istediğinize emin misiniz?")) return;
       try {
           setHasMadeChanges(true);
           await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'exams', examId));
           
-          // Öğrencileri Tarama ve SMS Gönderme İşlemi
-          const studentsSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'students'));
+          // DEV OPTİMİZASYON: Sadece silinen sınava kayıtlı öğrencileri getir
+          const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'students'), where("examId", "==", examId));
+          const studentsSnap = await getDocs(q);
+          
           let smsQueue = [];
           let updatePromises = [];
+          
           studentsSnap.docs.forEach(d => {
               const s = { firebaseId: d.id, ...d.data() };
-              if (s.examId === examId || s.exam?.firebaseId === examId) {
-                  updatePromises.push(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', s.firebaseId), { examId: null, examTitle: null, selectedDate: null, selectedTime: null, isWaitingPool: true }));
-                  if (s.phone) smsQueue.push({ tel: [s.phone], msg: `Önemli: Kayıtlı olduğunuz sınav oturumu iptal edilmiştir. Lütfen odullusinav.net adresinden profilinize girerek yeni bir oturum seçiniz.${SMS_FOOTER}` });
-              }
+              updatePromises.push(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', s.firebaseId), { examId: null, examTitle: null, selectedDate: null, selectedTime: null, isWaitingPool: true }));
+              if (s.phone) smsQueue.push({ tel: [s.phone], msg: `Önemli: Kayıtlı olduğunuz sınav oturumu iptal edilmiştir. Lütfen odullusinav.net adresinden profilinize girerek yeni bir oturum seçiniz.${SMS_FOOTER}` });
           });
+          
           await Promise.all(updatePromises);
           if (smsQueue.length > 0) { await sendSMS(smsQueue); alert(`${smsQueue.length} etkilenen öğrenciye SMS ile haber verildi ve profilleri güncellendi.`); }
       } catch(e) { console.error(e); }

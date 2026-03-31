@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Settings, Building2, Users, Map, ShieldAlert, LogOut, KeyRound } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Settings, Building2, Users, Map, ShieldAlert, LogOut, KeyRound, AlertTriangle, Download, Search } from 'lucide-react';
+import { collection, query, where, getDocs, getCountFromServer } from "firebase/firestore"; 
 import { db, appId } from "../../services/firebase"; 
 import { doc, updateDoc } from "firebase/firestore";
 import { sendSMS, SMS_FOOTER } from '../../services/smsService';
@@ -12,7 +13,6 @@ import CentersTab from './CentersTab';
 import StudentsTab from './StudentsTab';
 import StatsTab from './StatsTab';
 import BlacklistTab from './BlacklistTab';
-// DÜZELTME: 8. Sınıf Erkek İstisnası İçin Yeni Sekme Eklendi
 import SpecialBoysCentersTab from './SpecialBoysCentersTab';
 
 export function AdminLogin({ setAdminAuth, zones }) {
@@ -76,19 +76,78 @@ export function AdminLogin({ setAdminAuth, zones }) {
   );
 }
 
-export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogout, zones, exams }) {
+// DÜZELTME: students parametresi kaldırıldı, veriler içeride On-Demand çekilecek
+export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones, exams }) {
   const [activeTab, setActiveTab] = useState('ayarlar'); 
   const [isSyncing, setIsSyncing] = useState(false); 
   const [hasMadeChanges, setHasMadeChanges] = useState(false);
   
+  // DÜZELTME: İndirilen öğrenciler ve toplam sayılar için state'ler
+  const [fetchedStudents, setFetchedStudents] = useState([]);
+  const [totalStudentsCount, setTotalStudentsCount] = useState(0);
+  const [myZoneCount, setMyZoneCount] = useState(0);
+  
+  // DÜZELTME: Kota Onay Modalı İçin State'ler
+  const [showQuotaWarning, setShowQuotaWarning] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [pendingQuery, setPendingQuery] = useState(null);
+  const [isFetchingData, setIsFetchingData] = useState(false);
+
   const adminZoneData = isSuperAdmin 
      ? { id: 'ALL', name: "Genel Merkez (Tüm Mıntıkalar)", active: true, districts: [], prizes: {grand: DEFAULT_PRIZE_OBJ, degree: [], participation: []}, centers: [], mappings: [] } 
      : zones.find(z => z.id === adminZoneId);
      
-  const filteredStudents = isSuperAdmin ? students : students.filter(s => s.zone?.id === adminZoneId);
   const filteredExams = isSuperAdmin ? exams : exams.filter(e => e.zoneId === adminZoneId);
 
+  // 1. ADIM: SİSTEMDEKİ TOPLAM SAYILARI HESAPLA (VERİ İNDİRME)
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'students');
+        // Toplam sayıyı bul
+        const totalSnap = await getCountFromServer(collRef);
+        setTotalStudentsCount(totalSnap.data().count);
+
+        // Kendi bölgemin sayısını bul
+        if (!isSuperAdmin && adminZoneId) {
+            const zoneQ = query(collRef, where("zone.id", "==", adminZoneId));
+            const zoneSnap = await getCountFromServer(zoneQ);
+            setMyZoneCount(zoneSnap.data().count);
+        }
+      } catch(e) { console.error("Sayaç hatası:", e); }
+    };
+    fetchCounts();
+  }, [adminZoneId, isSuperAdmin]);
+
   if (!adminZoneData) return <div>Erişim Hatası. Mıntıka bulunamadı.</div>;
+
+  // 2. ADIM: ÖĞRENCİ SEKMESİNDE "VERİLERİ İNDİR" BUTONUNA BASILINCA KOTAYI HESAPLA
+  const calculateQuotaForStudents = async () => {
+      setIsFetchingData(true);
+      try {
+          let q = collection(db, 'artifacts', appId, 'public', 'data', 'students');
+          if (!isSuperAdmin) q = query(q, where("zone.id", "==", adminZoneId));
+          
+          const snap = await getCountFromServer(q);
+          const count = snap.data().count;
+          
+          setPendingCount(count);
+          setPendingQuery(q);
+          setShowQuotaWarning(true);
+      } catch(e) { alert("Hesaplama hatası."); }
+      setIsFetchingData(false);
+  };
+
+  // 3. ADIM: ONAY VERİLDİĞİNDE VERİLERİ GERÇEKTEN İNDİR
+  const executeStudentFetch = async () => {
+      setShowQuotaWarning(false);
+      setIsFetchingData(true);
+      try {
+          const snap = await getDocs(pendingQuery);
+          setFetchedStudents(snap.docs.map(doc => ({ firebaseId: doc.id, ...doc.data() })));
+      } catch(e) { alert("Veriler indirilemedi."); }
+      setIsFetchingData(false);
+  };
 
   const handleLogoutWithSync = async () => {
     if (!hasMadeChanges) {
@@ -101,7 +160,8 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
       let dbUpdates = [];
       let smsQueue = [];
 
-      for (let student of students) {
+      // DÜZELTME: Sadece indirdiğimiz (üzerinde işlem yaptığımız) öğrenciler için çalıştır
+      for (let student of fetchedStudents) {
         const zone = zones.find(z => z.id === student.zone?.id) || student.zone;
         if (!zone) continue;
 
@@ -174,8 +234,34 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
     }
   };
 
+  const displayCount = isSuperAdmin ? totalStudentsCount : myZoneCount;
+
   return (
     <div className="max-w-[1400px] mx-auto px-4 py-16 relative">
+      
+      {/* DÜZELTME: KOTA UYARI MODALI */}
+      {showQuotaWarning && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl text-center border-4 border-amber-400">
+            <AlertTriangle className="w-20 h-20 text-amber-500 mx-auto mb-6 animate-pulse" />
+            <h3 className="text-2xl font-black text-slate-800 mb-4">Veri İndirme Onayı</h3>
+            <p className="text-slate-600 font-medium mb-6 text-lg">
+              Öğrenci listesini görüntülemek için veritabanından <span className="font-black text-indigo-600 text-xl">{pendingCount}</span> adet kayıt çekilecektir.
+            </p>
+            <div className="bg-amber-50 text-amber-800 p-4 rounded-xl font-bold border border-amber-200 mb-8 text-sm">
+              Günlük 50.000 olan ücretsiz Firebase sınırınızdan <br/><span className="text-xl text-amber-600">{pendingCount} okuma kotası</span> eksilecektir. Onaylıyor musunuz?
+            </div>
+            
+            <div className="flex gap-4">
+              <button onClick={() => setShowQuotaWarning(false)} className="flex-1 bg-slate-200 text-slate-700 font-black py-4 rounded-xl hover:bg-slate-300 transition">Vazgeç</button>
+              <button onClick={executeStudentFetch} className="flex-1 bg-amber-500 text-white font-black py-4 rounded-xl hover:bg-amber-600 transition flex justify-center items-center">
+                 Onaylıyorum <Download className="w-5 h-5 ml-2" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mb-10 border-b-2 border-slate-100 pb-6 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 animate-in fade-in duration-500">
         <div>
           <div className="inline-flex items-center px-4 py-1.5 rounded-lg bg-indigo-100 text-indigo-800 text-sm font-black mb-3 uppercase tracking-wider">
@@ -184,36 +270,35 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
           <h1 className="text-4xl font-black text-slate-900">Mıntıka Paneli</h1>
           <p className="text-slate-500 mt-2 font-bold text-lg">Bölgenize ait ayarlar, sınav planlaması, kurum eşleştirmeleri ve kayıtlı öğrenciler.</p>
         </div>
-        <button onClick={handleLogoutWithSync} disabled={isSyncing} className="flex items-center text-red-600 bg-red-50 hover:bg-red-100 px-5 py-2.5 rounded-xl font-bold transition">
+        <button onClick={handleLogoutWithSync} disabled={isSyncing} className="flex items-center text-red-600 bg-red-50 hover:bg-red-100 px-5 py-2.5 rounded-xl font-bold transition border border-red-200 shadow-sm">
           {isSyncing ? "Senkronize Ediliyor..." : <><LogOut className="w-5 h-5 mr-2"/> Güvenli Çıkış</>}
         </button>
       </div>
 
       <div className="flex flex-wrap gap-4 mb-10 border-b-2 border-slate-100 pb-6">
-        <button onClick={() => setActiveTab('ayarlar')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'ayarlar' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
+        <button onClick={() => setActiveTab('ayarlar')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'ayarlar' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}>
           <Settings className="w-5 h-5 inline mr-2"/> Sınav & Ödül Ayarları
         </button>
         {!isSuperAdmin && (
-          <button onClick={() => setActiveTab('merkezler')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'merkezler' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
+          <button onClick={() => setActiveTab('merkezler')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'merkezler' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}>
             <Building2 className="w-5 h-5 inline mr-2"/> Sınav Yerleri & Atamalar
           </button>
         )}
-        <button onClick={() => setActiveTab('ogrenci')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'ogrenci' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
-          <Users className="w-5 h-5 inline mr-2"/> Öğrenci Listesi ({filteredStudents.length})
+        <button onClick={() => setActiveTab('ogrenci')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'ogrenci' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}>
+          <Users className="w-5 h-5 inline mr-2"/> Öğrenci Listesi ({displayCount})
         </button>
         {isSuperAdmin && (
-           <button onClick={() => setActiveTab('mahalleler')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'mahalleler' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 border border-slate-100 hover:bg-slate-50'}`}>
+           <button onClick={() => setActiveTab('mahalleler')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'mahalleler' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>
              <Map className="w-5 h-5 inline mr-2"/> Mahalle İstatistikleri
            </button>
         )}
         {isSuperAdmin && (
-           <button onClick={() => setActiveTab('karaliste')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'karaliste' ? 'bg-red-600 text-white shadow-lg' : 'bg-white text-red-600 border border-red-100 hover:bg-red-50'}`}>
+           <button onClick={() => setActiveTab('karaliste')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'karaliste' ? 'bg-red-600 text-white shadow-lg' : 'bg-white text-red-600 border border-red-200 hover:bg-red-50'}`}>
              <ShieldAlert className="w-5 h-5 inline mr-2"/> Kara Liste Yönetimi
            </button>
         )}
-        {/* DÜZELTME: 8. Sınıf Erkek Özel Merkezler Sekmesi */}
         {isSuperAdmin && (
-           <button onClick={() => setActiveTab('erkekler')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'erkekler' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-blue-600 border border-blue-100 hover:bg-blue-50'}`}>
+           <button onClick={() => setActiveTab('erkekler')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'erkekler' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-blue-600 border border-blue-200 hover:bg-blue-50'}`}>
              <Building2 className="w-5 h-5 inline mr-2"/> 8. Sınıf Erkek (Özel)
            </button>
         )}
@@ -222,10 +307,27 @@ export default function AdminPanel({ students, adminZoneId, isSuperAdmin, onLogo
       <div className="mt-8 animate-in fade-in duration-300">
         {activeTab === 'ayarlar' && <SettingsTab adminZoneData={adminZoneData} isSuperAdmin={isSuperAdmin} adminZoneId={adminZoneId} setHasMadeChanges={setHasMadeChanges} filteredExams={filteredExams} zones={zones} />}
         {activeTab === 'merkezler' && !isSuperAdmin && <CentersTab adminZoneData={adminZoneData} adminZoneId={adminZoneId} setHasMadeChanges={setHasMadeChanges} />}
-        {activeTab === 'ogrenci' && <StudentsTab students={filteredStudents} isSuperAdmin={isSuperAdmin} adminZoneData={adminZoneData} zones={zones} setHasMadeChanges={setHasMadeChanges} />}
+        
+        {/* DÜZELTME: Öğrenci sekmesi için buton mantığı */}
+        {activeTab === 'ogrenci' && (
+           <>
+             {fetchedStudents.length === 0 ? (
+                <div className="bg-white border-4 border-slate-100 rounded-[3rem] p-16 text-center shadow-xl">
+                   <Search className="w-24 h-24 text-indigo-200 mx-auto mb-6" />
+                   <h3 className="text-3xl font-black text-slate-800 mb-4">Öğrenci Verileri Gizli</h3>
+                   <p className="text-lg text-slate-500 mb-8 font-medium max-w-2xl mx-auto">Kota tasarrufu sağlamak için öğrenciler otomatik indirilmez. İşlem yapmak için verileri manuel olarak çekmeniz gerekmektedir.</p>
+                   <button onClick={calculateQuotaForStudents} disabled={isFetchingData} className="bg-indigo-600 text-white font-black text-xl py-5 px-10 rounded-2xl hover:bg-indigo-700 transition shadow-xl disabled:opacity-50">
+                      {isFetchingData ? "Hesaplanıyor..." : "Verileri İndir ve Göster"}
+                   </button>
+                </div>
+             ) : (
+                <StudentsTab students={fetchedStudents} isSuperAdmin={isSuperAdmin} adminZoneData={adminZoneData} zones={zones} setHasMadeChanges={setHasMadeChanges} />
+             )}
+           </>
+        )}
+
         {activeTab === 'mahalleler' && isSuperAdmin && <StatsTab zones={zones} setHasMadeChanges={setHasMadeChanges} />}
         {activeTab === 'karaliste' && isSuperAdmin && <BlacklistTab setHasMadeChanges={setHasMadeChanges} />}
-        {/* DÜZELTME: Yeni Bileşen Çağrıldı */}
         {activeTab === 'erkekler' && isSuperAdmin && <SpecialBoysCentersTab zones={zones} setHasMadeChanges={setHasMadeChanges} />}
       </div>
     </div>
