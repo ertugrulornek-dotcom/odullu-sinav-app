@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, FileText, Edit3, Trash2, MapPin, Users, Save, X } from 'lucide-react';
+import { Building2, FileText, Edit3, Trash2, MapPin, Users, Save, X, Filter } from 'lucide-react';
 import { db, appId } from '../../services/firebase';
 import { updateDoc, doc } from "firebase/firestore";
 import { LOCATIONS } from '../../data/constants';
@@ -13,6 +13,9 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
   const [mappingData, setMappingData] = useState({ district: '', neighborhood: '', centerId: '', gender: '', contactName: '', phone: '' });
   const [bulkExcelData, setBulkExcelData] = useState("");
   const [editingCenter, setEditingCenter] = useState(null);
+  
+  // DÜZELTME: Sınav Merkezlerini Listelemek İçin Filtre
+  const [displayFilter, setDisplayFilter] = useState('All');
 
   const getAdminDistricts = () => {
     const dists = [...(adminZoneData.districts || [])];
@@ -133,7 +136,6 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
            rawNeighborhood = parts[1].trim();
        }
 
-       // DÜZELTME: Sütun Kaymasını Engellemek İçin Kırılmaz Cinsiyet Motoru
        let rawGender = "Tümü";
        let colOffset = 2; 
        
@@ -236,6 +238,13 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
     } catch (e) { console.error(e); }
   };
 
+  // FİLTRELENMİŞ MERKEZLERİ HESAPLA
+  const filteredCenters = adminCenters.filter(center => {
+      if (displayFilter === 'All') return true;
+      // İlgili kurumda seçilen cinsiyetten atama var mı kontrol et
+      return adminMappings.some(m => m.centerId === center.id && (m.gender === displayFilter || (!m.gender && displayFilter === 'Tümü')));
+  });
+
   return (
     <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12 animate-in fade-in zoom-in-95 duration-300">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b-2 border-slate-100 pb-8 gap-4">
@@ -301,26 +310,46 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
              <div>
                 <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider flex items-center"><FileText className="w-6 h-6 mr-2"/> Toplu Ekle (Excel'den Yapıştır)</div>
                 <div className="space-y-4 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
-                   <p className="text-xs font-bold text-slate-500 mb-2">Sütunlar:<br/><b>İlçe | Mahalle | Cinsiyet (Kız/Erkek/8. Sınıf Erkek) | Kurum | Sorumlu | Tel | Adres | Harita</b></p>
+                   <p className="text-xs font-bold text-slate-500 mb-2">Sütunlar:<br/><b>İlçe | Mahalle | Cinsiyet (Kız/Erkek/8. Sınıf Erkek/Tümü) | Kurum | Sorumlu | Tel | Adres | Harita</b></p>
                    <textarea 
                      rows="5" 
                      value={bulkExcelData}
                      onChange={e => setBulkExcelData(e.target.value)}
                      className="w-full text-xs font-mono p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 resize-none whitespace-pre" 
-                     placeholder="Gebze	Akarçeşme	8.sınıf	Şekerpınar Eğitim..."/>
+                     placeholder="Gebze	Akarçeşme	8. Sınıf Erkek	Şekerpınar Eğitim..."/>
                    <button onClick={handleBulkUploadExcel} className="bg-slate-800 hover:bg-slate-900 text-white text-base font-black py-4 px-4 rounded-xl transition w-full shadow-lg">Excel Verilerini İçe Aktar</button>
                 </div>
              </div>
           </div>
 
-          <div className="lg:col-span-2 space-y-8">
-            {adminCenters.length === 0 ? (
+          <div className="lg:col-span-2 space-y-6">
+            
+            {/* DÜZELTME: Sınav Merkezleri Listesine Filtre Eklendi */}
+            <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-2xl border-2 border-slate-100 shadow-sm gap-4">
+               <h4 className="font-black text-slate-800 text-lg flex items-center"><MapPin className="w-5 h-5 mr-2 text-indigo-500"/> Kayıtlı Merkezler</h4>
+               <div className="flex items-center">
+                  <Filter className="w-5 h-5 mr-2 text-slate-400" />
+                  <select value={displayFilter} onChange={e => setDisplayFilter(e.target.value)} className="p-2 border-2 border-indigo-100 rounded-xl text-sm font-bold outline-none focus:border-indigo-500 bg-indigo-50 text-indigo-800">
+                     <option value="All">Tüm Atamaları Göster</option>
+                     <option value="Tümü">Sadece Karma (Tümü) Olanlar</option>
+                     <option value="Erkek">Sadece Erkek Ataması Olanlar</option>
+                     <option value="Kız">Sadece Kız Ataması Olanlar</option>
+                     <option value="8. Sınıf Erkek">Sadece 8. Sınıf Erkek Olanlar</option>
+                  </select>
+               </div>
+            </div>
+
+            {filteredCenters.length === 0 ? (
               <div className="bg-amber-50 border-4 border-amber-100 rounded-3xl p-10 text-center font-bold text-amber-800">
-                Henüz tanımlanmış bir kurum bulunmuyor. Sol taraftan bir Sınav Yeri ekleyin veya Excel'den toplu içe aktarın.
+                Seçili filtreye uygun atanmış bir kurum bulunmuyor.
               </div>
             ) : (
-              adminCenters.map(center => {
-                const mappedHoods = adminMappings.filter(m => m.centerId === center.id);
+              filteredCenters.map(center => {
+                // Kurumun içindeki mahalleleri de filtreye göre süz
+                let mappedHoods = adminMappings.filter(m => m.centerId === center.id);
+                if (displayFilter !== 'All') {
+                   mappedHoods = mappedHoods.filter(m => m.gender === displayFilter || (!m.gender && displayFilter === 'Tümü'));
+                }
                 
                 if (editingCenter?.id === center.id) {
                    return (
@@ -360,7 +389,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
                               <button onClick={() => handleDeleteMapping(m.district, m.neighborhood, m.gender)} className="absolute top-1/2 right-3 transform -translate-y-1/2 text-slate-300 hover:text-red-500 transition opacity-0 group-hover/item:opacity-100"><Trash2 className="w-5 h-5"/></button>
                            </div>
                         )) : (
-                           <span className="text-sm font-medium text-slate-400 italic">Henüz hiç mahalle bağlanmamış.</span>
+                           <span className="text-sm font-medium text-slate-400 italic">Seçili filtreye uygun mahalle ataması yok.</span>
                         )}
                       </div>
                     </div>

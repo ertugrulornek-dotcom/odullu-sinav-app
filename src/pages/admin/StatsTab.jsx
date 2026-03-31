@@ -126,7 +126,7 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
   let missingListRaw = getMissingMappings();
   if (missingFilterZone !== 'All') missingListRaw = missingListRaw.filter(m => m.zone === missingFilterZone);
   
-  // DÜZELTME: Eksikler filtresi akıllı arama yapıyor
+  // DÜZELTME: Filtreleme mantığı kusursuzlaştırıldı
   if (missingFilterStatus === 'Hiç Tanımlanmamış') {
       missingListRaw = missingListRaw.filter(m => m.status === 'Hiç Tanımlanmamış');
   } else if (missingFilterStatus !== 'All') {
@@ -244,13 +244,13 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
                <option value="All">Tüm Mıntıkalar</option>
                {zones.map(z => <option key={z.id} value={z.name}>{z.name}</option>)}
             </select>
-            {/* DÜZELTME: Tüm filtreleme seçenekleri geri geldi */}
+            {/* DÜZELTME: Filtreleme seçenekleri düzeltildi */}
             <select value={missingFilterStatus} onChange={e=>setMissingFilterStatus(e.target.value)} className="p-3 border-2 border-slate-200 rounded-xl font-bold text-sm outline-none focus:border-indigo-500">
                <option value="All">Tüm Durumlar (Tüm Eksikler)</option>
                <option value="Hiç Tanımlanmamış">Hiç Atama Yapılmamış Olanlar</option>
-               <option value="Erkek">Sadece Erkek Ataması Eksik Olanlar</option>
-               <option value="Kız">Sadece Kız Ataması Eksik Olanlar</option>
-               <option value="8. Sınıf Erkek">Sadece 8. Sınıf Erkek Ataması Eksik Olanlar</option>
+               <option value="Erkek">Erkek Ataması Eksik Olanlar</option>
+               <option value="Kız">Kız Ataması Eksik Olanlar</option>
+               <option value="8. Sınıf Erkek">8. Sınıf Erkek Ataması Eksik Olanlar</option>
             </select>
          </div>
       </div>

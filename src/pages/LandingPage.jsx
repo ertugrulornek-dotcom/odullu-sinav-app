@@ -76,9 +76,10 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
       <section className="pb-24 relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-32">
           
-          <div id="oduller" className="pt-10"><CombinedPrizeSection displayPrizes={displayPrizes} currentUser={currentUser} /></div>
+          {/* ÖDÜLLER BÖLÜMÜ YUKARIDA */}
+          <div id="oduller" className="pt-10 scroll-mt-24"><CombinedPrizeSection displayPrizes={displayPrizes} currentUser={currentUser} /></div>
 
-          <div id="tanitim" className="flex flex-col items-center gap-10 pt-10">
+          <div id="tanitim" className="flex flex-col items-center gap-10 pt-10 scroll-mt-24">
             <div className="w-full max-w-4xl text-center">
               <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6 leading-tight">Deneme <span style={{ color: 'var(--color-main)' }}>Tanıtımı</span></h2>
               <div className="w-full rounded-[2rem] shadow-2xl relative overflow-hidden bg-black border-4 border-slate-100">
@@ -97,7 +98,8 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
             
             <div className="w-full pt-16 mt-10 border-t-2 border-slate-100/50 flex flex-col gap-24">
                
-               <div id="analiz" className="flex flex-col md:flex-row items-center justify-center gap-10 md:gap-16 w-full group pt-8">
+               {/* 1. Birebir Analiz (DÜZELTME: scroll-mt-32 Eklendi ve Buton Geldi) */}
+               <div id="analiz" className="flex flex-col md:flex-row items-center justify-center gap-10 md:gap-16 w-full group pt-8 scroll-mt-32">
                   <div className="w-64 h-64 md:w-80 md:h-80 flex-shrink-0 drop-shadow-2xl transition-transform duration-500 group-hover:scale-105 bg-transparent overflow-hidden">
                      <img src="/2.png" alt="Birebir Analiz" className="w-full h-full object-contain" />
                   </div>
@@ -107,10 +109,9 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
                         Sadece puanınızı değil, hangi konularda eksiğiniz olduğunu detaylı karne ile sunuyoruz. Uzman öğretmen kadromuz eşliğinde zayıf noktalarınızı keşfedip, gerçek LGS öncesi tam donanımlı hale gelin.
                      </p>
                      
-                     <ul className="flex flex-col gap-4 text-left ml-4 md:ml-0">
+                     <ul className="flex flex-col gap-4 text-left ml-4 md:ml-0 mb-8">
                         <li className="flex items-start gap-3">
                            <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
-                           {/* DÜZELTME: 2. Renk (Contrast) yapıldı */}
                            <span className="font-black text-xl md:text-2xl drop-shadow-md" style={{ color: 'var(--color-contrast)' }}>Konu Bazlı Performans Karnesi</span>
                         </li>
                         <li className="flex items-start gap-3">
@@ -118,20 +119,25 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
                            <span className="font-black text-xl md:text-2xl drop-shadow-md" style={{ color: 'var(--color-contrast)' }}>Türkiye ve İl Geneli Yüzdelik Dilim</span>
                         </li>
                      </ul>
+                     
+                     {/* ANIMASYONLU CTA BUTONU */}
+                     <button onClick={() => navigateTo('register')} className="px-10 py-4 rounded-full font-black text-white text-xl shadow-lg hover:scale-110 hover:-translate-y-1 transition-all duration-300 animate-pulse" style={{ backgroundColor: 'var(--color-main)', boxShadow: '0 10px 25px -5px var(--color-main)' }}>
+                        Hemen Başvur
+                     </button>
                   </div>
                </div>
 
-               <div id="etut" className="flex flex-col md:flex-row items-center justify-center gap-10 md:gap-16 w-full group pt-8">
+               {/* 2. Etüt Desteği (DÜZELTME: scroll-mt-32 Eklendi ve Buton Geldi) */}
+               <div id="etut" className="flex flex-col md:flex-row items-center justify-center gap-10 md:gap-16 w-full group pt-8 scroll-mt-32">
                   <div className="w-64 h-64 md:w-80 md:h-80 flex-shrink-0 drop-shadow-2xl transition-transform duration-500 group-hover:scale-105 bg-transparent overflow-hidden">
                      <img src="/3.png" alt="Etüt Desteği" className="w-full h-full object-contain" />
                   </div>
                   <div className="flex-1 max-w-2xl text-center md:text-left">
                      <h3 className="text-3xl md:text-5xl font-black drop-shadow-sm leading-tight mb-8" style={{ color: 'var(--color-main)' }}>Etüt Desteği</h3>
                      
-                     <ul className="flex flex-col gap-5 text-left ml-4 md:ml-0">
+                     <ul className="flex flex-col gap-5 text-left ml-4 md:ml-0 mb-8">
                         <li className="flex items-start gap-3">
                            <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
-                           {/* DÜZELTME: 2. Renk (Contrast) yapıldı */}
                            <span className="font-black text-lg md:text-xl uppercase tracking-wide drop-shadow-md" style={{ color: 'var(--color-contrast)' }}>DERECEYE GİRENLERE EĞİTİM BURSU!</span>
                         </li>
                         <li className="flex items-start gap-3">
@@ -139,13 +145,18 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
                            <span className="font-black text-lg md:text-xl uppercase tracking-wide drop-shadow-md" style={{ color: 'var(--color-contrast)' }}>DETAYLI ANALİZ SONUCU EKSİK OLDUĞUN KONULARDA EĞİTİM DESTEĞİ!</span>
                         </li>
                      </ul>
+
+                     {/* ANIMASYONLU CTA BUTONU */}
+                     <button onClick={() => navigateTo('register')} className="px-10 py-4 rounded-full font-black text-white text-xl shadow-lg hover:scale-110 hover:-translate-y-1 transition-all duration-300 animate-pulse" style={{ backgroundColor: 'var(--color-main)', boxShadow: '0 10px 25px -5px var(--color-main)' }}>
+                        Hemen Başvur
+                     </button>
                   </div>
                </div>
 
             </div>
           </div>
 
-          <div id="takvim" className="pt-10"><TimelineCalendar zoneExams={displayExams} currentUser={currentUser} defaultContact={publicZone.mappings?.[0]} /></div>
+          <div id="takvim" className="pt-10 scroll-mt-24"><TimelineCalendar zoneExams={displayExams} currentUser={currentUser} defaultContact={publicZone.mappings?.[0]} /></div>
         </div>
       </section>
     </div>

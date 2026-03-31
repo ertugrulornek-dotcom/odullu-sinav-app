@@ -68,7 +68,7 @@ export default function App() {
         const zonesData = zonesSnap.docs.map(d => {
           const dbZone = d.data();
           const baseZone = INITIAL_ZONES.find(z => z.id === parseInt(d.id)) || {};
-          return { ...dbZone, id: parseInt(d.id), name: baseZone.name, districts: baseZone.districts || [], partialDistricts: baseZone.partialDistricts || {}, prizes: dbZone.prizes || baseZone.prizes, centers: dbZone.centers || [], mappings: dbZone.mappings || [] };
+          return { ...dbZone, id: parseInt(d.id), name: baseZone.name, districts: baseZone.districts || [], partialDistricts: baseZone.partialDistricts || {}, prizes: dbZone.prizes || baseZone.prizes, centers: dbZone.centers || [], mappings: dbZone.mappings || [], specialBoysCenters: dbZone.specialBoysCenters || {}, specialBoysCentersData: dbZone.specialBoysCentersData || { centers: [], mappings: [] } };
         });
         setZones(zonesData.sort((a, b) => a.id - b.id)); 
       }
@@ -95,14 +95,15 @@ export default function App() {
     } else document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  // DÜZELTME: Unicode Escapes ile Emojiler Asla Bozulmaz!
+  // DÜZELTME: Emojilerin Windows/Mac'te bozulmasını engelleyen evrensel yapı
   const copyInviteLink = () => {
     const currentTheme = localStorage.getItem('os_theme') || 'watergreen';
     const link = `https://www.odullusinav.net/?theme=${currentTheme}#register`;
     
-    const text = "Ödüllü Akademik Yeterlilik Sınavına beraber katılalım mı? \uD83E\uDD29\n\n\uD83D\uDCC5 Sınavı 29 Ekim, 1 ve 2 Kasım tarihlerinde yapacaklar.\n\n\uD83C\uDF81 Sınava katılan herkese hediye veriliyor.\n\n\uD83C\uDFC6 Ayrıca %10'luk dilime girdiğinde dilediğin derece ödülü hediye!\n\n\uD83D\uDE80 Kendine güveniyorsan bu linke tıkla ve hemen Başvur \uD83D\uDC47\n" + link + "\n\n\uD83E\uDD1D Kim kazanacak görelim! \u2728";
+    const text = `Ödüllü Akademik Yeterlilik Sınavına beraber katılalım mı? 🤩\n\n🗓️ Sınavı 29 Ekim, 1 ve 2 Kasım tarihlerinde yapacaklar.\n\n🎁 Sınava katılan herkese hediye veriliyor.\n\n🏆 Ayrıca %10'luk dilime girdiğinde dilediğin derece ödülü hediye!\n\n🚀 Kendine güveniyorsan bu linke tıkla ve hemen Başvur 👇🏻\n${link}\n\n🤝 Kim kazanacak görelim! 💫`;
     
-    const finalUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    // api.whatsapp.com URL'leri bilgisayarlarda daha iyi çalışır
+    const finalUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     window.open(finalUrl, '_blank');
   };
 
@@ -210,12 +211,13 @@ export default function App() {
                    </div>
                  </div>
                  
+                 {/* DÜZELTME: Menü Sırası -> Ödüller, Deneme Tanıtımı, Birebir Analiz, Etüt Desteği, Takvim */}
                  <div className="hidden xl:flex space-x-5 items-center">
                     <style>{`.nav-btn { position: relative; padding-bottom: 4px; color: var(--color-main); font-weight: 900; font-size: 1rem; text-shadow: 0 1px 2px rgba(255,255,255,0.8); } .nav-btn::after { content: ''; position: absolute; bottom: 0; left: 0; width: 0%; height: 2px; background-color: var(--color-main); transition: width 0.3s ease; } .nav-btn:hover::after { width: 100%; }`}</style>
+                   <button onClick={() => scrollToSection('oduller')} className="nav-btn tracking-wide transition">Ödüller</button>
                    <button onClick={() => scrollToSection('tanitim')} className="nav-btn tracking-wide transition">Deneme Tanıtımı</button>
                    <button onClick={() => scrollToSection('analiz')} className="nav-btn tracking-wide transition">Birebir Analiz</button>
                    <button onClick={() => scrollToSection('etut')} className="nav-btn tracking-wide transition">Etüt Desteği</button>
-                   <button onClick={() => scrollToSection('oduller')} className="nav-btn tracking-wide transition">Ödüller</button>
                    <button onClick={() => scrollToSection('takvim')} className="nav-btn tracking-wide transition">Sınav Takvimi</button>
                  </div>
               </div>
