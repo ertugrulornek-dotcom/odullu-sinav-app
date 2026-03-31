@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Building2, FileText, Edit3, Trash2, MapPin, Users, Save, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Building2, FileText, Trash2, MapPin, Users } from 'lucide-react';
 import { db, appId } from '../../services/firebase';
 import { updateDoc, doc } from "firebase/firestore";
 import { LOCATIONS } from '../../data/constants';
@@ -7,15 +7,26 @@ import { LOCATIONS } from '../../data/constants';
 export default function SpecialBoysCentersTab({ zones, setHasMadeChanges }) {
   const [selectedZoneId, setSelectedZoneId] = useState("");
   
+  // DÜZELTME: Eklenen verilerin ekranda anında görünmesi için "İç Hafıza (Local State)" oluşturuldu
+  const [adminCenters, setAdminCenters] = useState([]);
+  const [adminMappings, setAdminMappings] = useState([]);
+
   const selectedZoneData = zones.find(z => z.id.toString() === selectedZoneId) || null;
-  const specialData = selectedZoneData?.specialBoysCentersData || { centers: [], mappings: [] };
-  const adminCenters = specialData.centers || [];
-  const adminMappings = specialData.mappings || [];
+
+  // Mıntıka değiştiğinde o mıntıkanın verilerini İç Hafızaya al
+  useEffect(() => {
+    if (selectedZoneData && selectedZoneData.specialBoysCentersData) {
+        setAdminCenters(selectedZoneData.specialBoysCentersData.centers || []);
+        setAdminMappings(selectedZoneData.specialBoysCentersData.mappings || []);
+    } else {
+        setAdminCenters([]);
+        setAdminMappings([]);
+    }
+  }, [selectedZoneId, selectedZoneData]);
   
   const [newCenter, setNewCenter] = useState({ name: '', address: '', mapLink: '' });
-  const [mappingData, setMappingData] = useState({ district: '', neighborhood: '', centerId: '', gender: 'Erkek', contactName: '', phone: '' });
+  const [mappingData, setMappingData] = useState({ district: '', neighborhood: '', centerId: '', contactName: '', phone: '' });
   const [bulkExcelData, setBulkExcelData] = useState("");
-  const [editingCenter, setEditingCenter] = useState(null);
 
   const getAdminDistricts = () => {
     if (!selectedZoneData) return [];
@@ -44,6 +55,7 @@ export default function SpecialBoysCentersTab({ zones, setHasMadeChanges }) {
     return allHoods.filter(h => !mappedHoods.includes(h)).sort();
   };
 
+  // 1. Yeni Kurum Ekleme
   const handleAddCenter = async () => {
     if(!newCenter.name) return alert("Sınav Merkezi (Kurum) adı zorunludur.");
     const cId = "C-" + Math.random().toString(36).substr(2, 9);
@@ -53,11 +65,13 @@ export default function SpecialBoysCentersTab({ zones, setHasMadeChanges }) {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', selectedZoneId), {
             specialBoysCentersData: { centers: updatedCenters, mappings: adminMappings }
         });
+        setAdminCenters(updatedCenters); // Ekranda anında göster
         setHasMadeChanges(true);
         setNewCenter({ name: '', address: '', mapLink: '' });
     } catch(e) { alert("Kurum eklenirken hata oluştu."); }
   };
 
+  // 2. Kurum Silme
   const handleDeleteCenter = async (id) => {
     if(!window.confirm("Bu kurumu ve ona bağlı TÜM mahalle eşleşmelerini silmek istiyor musunuz?")) return;
     const updatedCenters = adminCenters.filter(c => c.id !== id);
@@ -67,33 +81,41 @@ export default function SpecialBoysCentersTab({ zones, setHasMadeChanges }) {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', selectedZoneId), {
             specialBoysCentersData: { centers: updatedCenters, mappings: updatedMappings }
         });
+        setAdminCenters(updatedCenters); // Ekranda anında sil
+        setAdminMappings(updatedMappings);
         setHasMadeChanges(true);
     } catch(e) { alert("Kurum silinirken hata oluştu."); }
   };
 
+  // 3. Kuruma Mahalle Atama
   const handleAddMapping = async () => {
     if(!mappingData.district || !mappingData.neighborhood || !mappingData.centerId) return alert("İlçe, Mahalle ve Kurum seçimi zorunludur.");
+    // Cinsiyet girmeye gerek yok, 8. Sınıf Özel sekmesi olduğu için doğrudan Erkek olarak kaydedilir.
     const updatedMappings = [...adminMappings, { ...mappingData, gender: 'Erkek' }];
     
     try {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', selectedZoneId), {
             specialBoysCentersData: { centers: adminCenters, mappings: updatedMappings }
         });
+        setAdminMappings(updatedMappings); // Ekranda anında göster
         setHasMadeChanges(true);
         setMappingData({...mappingData, neighborhood: ''});
     } catch(e) { alert("Eşleştirme sırasında hata oluştu."); }
   };
 
+  // 4. Mahalle Ataması Silme
   const handleDeleteMapping = async (district, neighborhood) => {
     const updatedMappings = adminMappings.filter(m => !(m.district === district && m.neighborhood === neighborhood));
     try {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', selectedZoneId), {
             specialBoysCentersData: { centers: adminCenters, mappings: updatedMappings }
         });
+        setAdminMappings(updatedMappings); // Ekranda anında sil
         setHasMadeChanges(true);
     } catch(e) { alert("Eşleştirme silinirken hata oluştu."); }
   };
 
+  // 5. Excel'den Toplu Yükleme (Cinsiyetsiz Yeni Format)
   const handleBulkUpload = async () => {
     if(!bulkExcelData.trim()) return alert("Lütfen veri girin.");
     const lines = bulkExcelData.trim().split('\n');
@@ -102,17 +124,29 @@ export default function SpecialBoysCentersTab({ zones, setHasMadeChanges }) {
     
     lines.forEach(line => {
         const parts = line.split('\t').map(p => p.trim());
-        if(parts.length >= 6) {
-            const [district, neighborhood, genderRaw, centerName, contactName, phone, address, mapLink] = parts;
-            let cId = updatedCenters.find(c => c.name === centerName)?.id;
-            if(!cId) {
-                cId = "C-" + Math.random().toString(36).substr(2, 9);
-                updatedCenters.push({ id: cId, name: centerName, address: address || '', mapLink: mapLink || '' });
+        
+        // YENİ FORMAT: İlçe | Mahalle | Kurum Adı | Sorumlu Hoca | Telefon | Açık Adres | Harita Linki
+        if(parts.length >= 3) {
+            const district = parts[0];
+            const neighborhood = parts[1];
+            const centerName = parts[2];
+            const contactName = parts[3] || '';
+            const phone = parts[4] || '';
+            const address = parts[5] || '';
+            const mapLink = parts[6] || '';
+
+            if (district && neighborhood && centerName) {
+                let cId = updatedCenters.find(c => c.name === centerName)?.id;
+                if(!cId) {
+                    cId = "C-" + Math.random().toString(36).substr(2, 9);
+                    updatedCenters.push({ id: cId, name: centerName, address: address, mapLink: mapLink });
+                }
+                const existingMapIndex = updatedMappings.findIndex(m => m.district === district && m.neighborhood === neighborhood);
+                const newMap = { district, neighborhood, centerId: cId, gender: 'Erkek', contactName, phone };
+                
+                if(existingMapIndex >= 0) updatedMappings[existingMapIndex] = newMap;
+                else updatedMappings.push(newMap);
             }
-            const existingMapIndex = updatedMappings.findIndex(m => m.district === district && m.neighborhood === neighborhood);
-            const newMap = { district, neighborhood, centerId: cId, gender: 'Erkek', contactName: contactName || '', phone: phone || '' };
-            if(existingMapIndex >= 0) updatedMappings[existingMapIndex] = newMap;
-            else updatedMappings.push(newMap);
         }
     });
     
@@ -120,6 +154,8 @@ export default function SpecialBoysCentersTab({ zones, setHasMadeChanges }) {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', selectedZoneId), {
             specialBoysCentersData: { centers: updatedCenters, mappings: updatedMappings }
         });
+        setAdminCenters(updatedCenters); // Ekranı anında güncelle
+        setAdminMappings(updatedMappings);
         setHasMadeChanges(true);
         alert("Toplu veriler başarıyla eklendi!");
         setBulkExcelData("");
@@ -147,13 +183,13 @@ export default function SpecialBoysCentersTab({ zones, setHasMadeChanges }) {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
             {/* SOL KOLON - FORMLAR */}
             <div className="space-y-8">
-              {/* Kurum Ekleme */}
+              {/* Kurum Ekleme (DÜZELTME: Sadece 3 Alan) */}
               <div className="bg-blue-50 p-6 rounded-3xl border-2 border-blue-100">
                 <h4 className="font-black text-blue-900 text-lg mb-4 flex items-center"><Building2 className="w-5 h-5 mr-2"/> Yeni Kurum / Sınav Yeri Ekle</h4>
                 <div className="space-y-3">
                   <input type="text" value={newCenter.name} onChange={e=>setNewCenter({...newCenter, name: e.target.value})} className="w-full text-sm font-bold p-3 rounded-xl border border-blue-200 outline-none focus:border-blue-500 bg-white" placeholder="Kurum Adı (Örn: Barış Ortaokulu)"/>
                   <textarea rows="2" value={newCenter.address} onChange={e=>setNewCenter({...newCenter, address: e.target.value})} className="w-full text-sm font-medium p-3 rounded-xl border border-blue-200 outline-none focus:border-blue-500 resize-none bg-white" placeholder="Açık Adres"/>
-                  <input type="text" value={newCenter.mapLink} onChange={e=>setNewCenter({...newCenter, mapLink: e.target.value})} className="w-full text-sm font-bold p-3 rounded-xl border border-blue-200 outline-none focus:border-blue-500 bg-white" placeholder="Harita Linki"/>
+                  <input type="text" value={newCenter.mapLink} onChange={e=>setNewCenter({...newCenter, mapLink: e.target.value})} className="w-full text-sm font-bold p-3 rounded-xl border border-blue-200 outline-none focus:border-blue-500 bg-white" placeholder="Google Harita Linki"/>
                   <button onClick={handleAddCenter} className="w-full bg-blue-600 text-white font-black py-3 rounded-xl hover:bg-blue-700 transition shadow-md">Kurumu Sisteme Ekle</button>
                 </div>
               </div>
@@ -184,16 +220,16 @@ export default function SpecialBoysCentersTab({ zones, setHasMadeChanges }) {
                 </div>
               </div>
 
-              {/* Toplu Excel */}
+              {/* Toplu Excel (DÜZELTME: Cinsiyetsiz 7 Sütunlu Yapı) */}
               <div className="bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
                  <h4 className="font-black text-slate-800 text-lg mb-4 flex items-center"><FileText className="w-5 h-5 mr-2 text-indigo-500"/> Toplu Ekle (Excel'den)</h4>
-                 <p className="text-xs font-bold text-slate-500 mb-2">Format: İlçe | Mahalle | Cinsiyet | Kurum Adı | Sorumlu | Tel | Adres | Harita</p>
-                 <textarea rows="4" value={bulkExcelData} onChange={e=>setBulkExcelData(e.target.value)} className="w-full text-sm font-medium p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 resize-none mb-3" placeholder="Excel verisini buraya yapıştırın..."/>
+                 <p className="text-xs font-bold text-slate-500 mb-2">Format: İlçe | Mahalle | Kurum Adı | Sorumlu | Tel | Adres | Harita</p>
+                 <textarea rows=\"4\" value={bulkExcelData} onChange={e=>setBulkExcelData(e.target.value)} className="w-full text-sm font-medium p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 resize-none mb-3" placeholder="Excel verisini buraya yapıştırın..."/>
                  <button onClick={handleBulkUpload} className="w-full bg-slate-800 text-white font-black py-3 rounded-xl hover:bg-slate-900 transition shadow-md">Toplu Yükle</button>
               </div>
             </div>
 
-            {/* SAĞ KOLON - LİSTELER */}
+            {/* SAĞ KOLON - LİSTELER (DÜZELTME: İç Hafızadan Çekiliyor) */}
             <div>
               <div className="bg-slate-50 p-6 rounded-3xl border-2 border-slate-100 h-full">
                 <h4 className="font-black text-slate-800 text-xl mb-6 flex items-center"><MapPin className="w-6 h-6 mr-2 text-indigo-500"/> Kayıtlı Merkezler ve Atamalar</h4>
@@ -221,7 +257,7 @@ export default function SpecialBoysCentersTab({ zones, setHasMadeChanges }) {
                       </div>
                     )
                   }) : (
-                    <div className="text-center font-bold text-slate-400 p-8">Henüz sınav merkezi eklenmemiş.</div>
+                    <div className="text-center font-bold text-slate-400 p-8 border-4 border-dashed border-slate-200 rounded-2xl">Henüz sınav merkezi eklenmemiş.</div>
                   )}
                 </div>
               </div>
