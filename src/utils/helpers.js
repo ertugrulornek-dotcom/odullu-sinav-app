@@ -26,15 +26,35 @@ export const determineZoneName = (province, district, neighborhood) => {
   return null;
 };
 
-  // 8. SINIF ERKEK İSTİSNASI EKLENMİŞ LOKASYON BULUCU
+// 8. SINIF ERKEK İSTİSNASI EKLENMİŞ LOKASYON BULUCU
 export const getNeighborhoodDetails = (zone, district, neighborhood, gender, grade) => {
     const defaultFallback = { phone: "0553 973 54 40", contactName: "", mapLink: null, centerName: "Sınav Merkezi Bekleniyor", address: "" };
     if (!zone || !district || !neighborhood) return defaultFallback;
 
-    // 1. ÖZEL 8. SINIF ERKEK MERKEZİ KONTROLÜ
-    if (String(grade) === '8' && gender === 'Erkek') {
+    let mapping = null;
+    let centerObj = null;
+
+    if (zone.mappings) {
+        // 1. Önce 8. Sınıf Erkek kontrolü
+        if (String(grade) === '8' && gender === 'Erkek') {
+            mapping = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood && m.gender === '8. Sınıf Erkek');
+        }
+        
+        // 2. Kendi Cinsiyetine Göre Ara
+        if (!mapping) {
+            mapping = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood && m.gender === gender);
+        }
+        
+        // 3. Bulamazsa 'Tümü' (Karma) ataması ara
+        if (!mapping) {
+            mapping = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood && (m.gender === 'Tümü' || !m.gender));
+        }
+    }
+
+    // 4. ESKİ YAPI İÇİN GERİYE DÖNÜK DESTEK (Kullanıcının eski specialBoysCenters verisi boşa gitmesin diye)
+    if (!mapping && String(grade) === '8' && gender === 'Erkek' && zone.specialBoysCenters) {
         const specialKey = `${district}-${neighborhood}`;
-        if (zone.specialBoysCenters && zone.specialBoysCenters[specialKey]) {
+        if (zone.specialBoysCenters[specialKey]) {
             const sp = zone.specialBoysCenters[specialKey];
             return {
                 phone: sp.contactPhone || defaultFallback.phone,
@@ -46,28 +66,12 @@ export const getNeighborhoodDetails = (zone, district, neighborhood, gender, gra
         }
     }
 
-    // 2. DİĞER ATAMALAR (Kızlar 4-8 ve Erkekler 4-7)
-    let mapping = null;
-    let centerObj = null;
-
-    if (zone.mappings) {
-        // A. Önce tam cinsiyet eşleşmesi ara (Sadece 'Kız' veya sadece 'Erkek' ataması)
-        mapping = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood && m.gender === gender);
-        
-        // B. Bulamazsa 'Tümü' (Karma) ataması ara
-        if (!mapping) {
-            mapping = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood && (m.gender === 'Tümü' || !m.gender));
-        }
-    }
-
-    // 3. Eşleşen atamanın KURUM detaylarını çek (Adres ve Harita Linki buradan gelir!)
     if (mapping && zone.centers) {
         centerObj = zone.centers.find(c => c.id === mapping.centerId);
     }
 
     if (!mapping || !centerObj) return defaultFallback;
 
-    // Adres ve Harita Linkini Center objesinden garantili şekilde al
     const finalMapLink = centerObj.mapLink || centerObj.mapUrl || centerObj.googleMaps || centerObj.link || null;
     const finalAddress = centerObj.address || centerObj.openAddress || centerObj.acikAdres || centerObj.fullAddress || "Açık adres bilgisi girilmemiş.";
     const finalCenterName = centerObj.name || centerObj.centerName || centerObj.schoolName || `${district} Sınav Merkezi`;
@@ -80,6 +84,7 @@ export const getNeighborhoodDetails = (zone, district, neighborhood, gender, gra
         address: finalAddress
     };
 };
+
 // GÜN-AY-HANGİ GÜN Formatına Çeviren Fonksiyon
 export const formatToTurkishDate = (dateStr) => {
     if (!dateStr) return '';

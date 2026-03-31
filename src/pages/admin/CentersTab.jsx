@@ -40,12 +40,14 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
        const hasTumu = hoodMappings.some(m => m.gender === 'Tümü' || !m.gender);
        const hasErkek = hoodMappings.some(m => m.gender === 'Erkek');
        const hasKiz = hoodMappings.some(m => m.gender === 'Kız');
+       const has8Erkek = hoodMappings.some(m => m.gender === '8. Sınıf Erkek');
 
        if (hasTumu) return false; 
        
-       if (gender === 'Tümü') return !(hasErkek || hasKiz);
+       if (gender === 'Tümü') return !(hasErkek || hasKiz || has8Erkek);
        if (gender === 'Erkek') return !hasErkek;
        if (gender === 'Kız') return !hasKiz;
+       if (gender === '8. Sınıf Erkek') return !has8Erkek;
        
        return true;
     }).sort();
@@ -135,9 +137,10 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
        let colOffset = 2; 
        
        const potentialGender = cols[2]?.trim().toLowerCase();
-       if (['erkek', 'kız', 'kiz', 'tümü', 'tumu', 'karma'].includes(potentialGender)) {
+       if (['erkek', 'kız', 'kiz', 'tümü', 'tumu', 'karma', '8. sınıf erkek', '8.sinif erkek'].includes(potentialGender) || potentialGender.includes('8')) {
            if (potentialGender === 'erkek') rawGender = 'Erkek';
            else if (potentialGender === 'kız' || potentialGender === 'kiz') rawGender = 'Kız';
+           else if (potentialGender.includes('8')) rawGender = '8. Sınıf Erkek';
            else rawGender = 'Tümü';
            colOffset = 3; 
        }
@@ -230,7 +233,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b-2 border-slate-100 pb-8 gap-4">
           <div>
             <h3 className="font-black text-3xl text-slate-900 mb-2">Sınav Yerleri ve Atamalar</h3>
-            <p className="text-base font-bold text-slate-500">Mıntıkaya yeni kurumlar ekleyin ve mahalleleri bu kurumlara bağlarken ÖNCE CİNSİYET (Erkek/Kız/Tümü) seçin.</p>
+            <p className="text-base font-bold text-slate-500">Mıntıkaya yeni kurumlar ekleyin ve mahalleleri bu kurumlara bağlarken ÖNCE CİNSİYET seçin.</p>
           </div>
         </div>
 
@@ -249,23 +252,55 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Google Harita Linki</label>
-                    <input type="url" value={newCenter.mapLink} onChange={e=>setNewCenter({...newCenter, mapLink: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="https://maps.app.goo.gl/..."/>
+                    <input type="url" value={newCenter.mapLink} onChange={e=>setNewCenter({...newCenter, mapLink: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="http://maps.google.com/0..."/>
                   </div>
                   <button onClick={handleAddCenter} className="bg-slate-800 hover:bg-slate-900 text-white text-base font-black py-4 px-4 rounded-xl transition w-full shadow-lg">Kurumu Ekle</button>
                 </div>
              </div>
 
              <div>
-                <div className="text-sm font-black text-emerald-600 uppercase mb-4 tracking-wider flex items-center"><FileText className="w-6 h-6 mr-2"/> Toplu Ekle (Excel'den Yapıştır)</div>
-                <div className="space-y-4 bg-emerald-50/50 p-6 rounded-3xl border-2 border-emerald-100">
-                   <p className="text-xs font-bold text-emerald-800 mb-2">Excel tablonuzdaki şu sütunları seçip kopyalayın ve aşağıdaki alana yapıştırın:<br/><br/><b>İlçe | Mahalle | Cinsiyet (İsteğe Bağlı) | Kurum Adı | Sorumlu Hoca | Telefon | Açık Adres | Harita Linki</b></p>
+                <div className="text-sm font-black text-emerald-600 uppercase mb-4 tracking-wider flex items-center"><MapPin className="w-6 h-6 mr-2"/> Kuruma Mahalle Ata</div>
+                <div className="space-y-3 bg-emerald-50 p-6 rounded-3xl border-2 border-emerald-100">
+                  <select value={mappingData.centerId} onChange={e=>setMappingData({...mappingData, centerId: e.target.value})} className="w-full text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white">
+                    <option value="">Önce Kurum Seçin</option>
+                    {adminCenters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <select value={mappingData.gender} onChange={e=>setMappingData({...mappingData, gender: e.target.value, neighborhood: ''})} className="w-full text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white">
+                    <option value="">Cinsiyet Seçin</option>
+                    <option value="Tümü">Tümü (Karma)</option>
+                    <option value="Erkek">Sadece Erkek (3-7. Sınıf)</option>
+                    <option value="Kız">Sadece Kız (Tüm Sınıflar)</option>
+                    <option value="8. Sınıf Erkek">8. Sınıf Erkek (Özel)</option>
+                  </select>
+                  <div className="flex gap-2">
+                    <select value={mappingData.district} onChange={e=>setMappingData({...mappingData, district: e.target.value, neighborhood: ''})} className="flex-1 text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white">
+                      <option value="">İlçe Seçin</option>
+                      {adminDistricts.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                    <select value={mappingData.neighborhood} onChange={e=>setMappingData({...mappingData, neighborhood: e.target.value})} disabled={!mappingData.district || !mappingData.gender} className="flex-1 text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white">
+                      <option value="">Mahalle Seçin</option>
+                      {getAdminUnmappedNeighborhoods(mappingData.district, mappingData.gender).map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    <input type="text" value={mappingData.contactName} onChange={e=>setMappingData({...mappingData, contactName: e.target.value})} className="w-1/2 text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white" placeholder="Sorumlu İsim"/>
+                    <input type="tel" value={mappingData.phone} onChange={e=>setMappingData({...mappingData, phone: e.target.value})} className="w-1/2 text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white" placeholder="Sorumlu Tel"/>
+                  </div>
+                  <button onClick={handleAddMapping} disabled={!mappingData.centerId || !mappingData.neighborhood || !mappingData.gender} className="w-full bg-emerald-600 text-white font-black py-3 rounded-xl hover:bg-emerald-700 transition shadow-md disabled:opacity-50">Mahalleyi Kuruma Ata</button>
+                </div>
+             </div>
+
+             <div>
+                <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider flex items-center"><FileText className="w-6 h-6 mr-2"/> Toplu Ekle (Excel'den Yapıştır)</div>
+                <div className="space-y-4 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
+                   <p className="text-xs font-bold text-slate-500 mb-2">Sütunlar:<br/><b>İlçe | Mahalle | Cinsiyet (Kız/Erkek/8. Sınıf Erkek) | Kurum | Sorumlu | Tel | Adres | Harita</b></p>
                    <textarea 
                      rows="5" 
                      value={bulkExcelData}
                      onChange={e => setBulkExcelData(e.target.value)}
-                     className="w-full text-xs font-mono p-4 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 resize-none whitespace-pre" 
-                     placeholder="Gebze&#9;Akarçeşme&#9;Erkek&#9;Şekerpınar Eğitim...&#9;Ahmet Hoca&#9;0532..."/>
-                   <button onClick={handleBulkUploadExcel} className="bg-emerald-600 hover:bg-emerald-700 text-white text-base font-black py-4 px-4 rounded-xl transition w-full shadow-lg">Excel Verilerini İçe Aktar</button>
+                     className="w-full text-xs font-mono p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 resize-none whitespace-pre" 
+                     placeholder="Gebze	Akarçeşme	8. Sınıf Erkek	Şekerpınar Eğitim..."/>
+                   <button onClick={handleBulkUploadExcel} className="bg-slate-800 hover:bg-slate-900 text-white text-base font-black py-4 px-4 rounded-xl transition w-full shadow-lg">Excel Verilerini İçe Aktar</button>
                 </div>
              </div>
           </div>
@@ -307,53 +342,14 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
                       <MapPin className="w-4 h-4 mr-1 flex-shrink-0 text-slate-400 mt-0.5"/> {center.address}
                     </div>
 
-                    <div className="bg-indigo-50/50 p-5 rounded-2xl border-2 border-indigo-100 mb-6">
-                       <h5 className="text-xs font-black text-indigo-500 uppercase tracking-widest mb-3">Cinsiyete Göre Mahalle Bağla</h5>
-                       <div className="flex flex-col sm:flex-row gap-3">
-                          <select 
-                            className="w-full sm:w-1/6 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white"
-                            value={mappingData.gender}
-                            onChange={e => setMappingData({...mappingData, gender: e.target.value, district: '', neighborhood: '', centerId: center.id})}>
-                            <option value="">Cinsiyet Seç</option>
-                            <option value="Tümü">Tümü (Karma)</option>
-                            <option value="Erkek">Erkek</option>
-                            <option value="Kız">Kız</option>
-                          </select>
-
-                          <select 
-                            className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white disabled:opacity-50"
-                            disabled={!mappingData.gender}
-                            value={mappingData.district}
-                            onChange={e => setMappingData({...mappingData, district: e.target.value, neighborhood: '', centerId: center.id})}>
-                            <option value="">İlçe Seç</option>
-                            {adminDistricts.map(d => <option key={d} value={d}>{d}</option>)}
-                          </select>
-
-                          <select 
-                            className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white disabled:opacity-50"
-                            disabled={!mappingData.district || !mappingData.gender}
-                            value={mappingData.neighborhood}
-                            onChange={e => setMappingData({...mappingData, neighborhood: e.target.value, centerId: center.id})}>
-                            <option value="">Atanmamış Mahalle Seç</option>
-                            {getAdminUnmappedNeighborhoods(mappingData.district, mappingData.gender).map(hood => (
-                              <option key={hood} value={hood}>{hood} Mah.</option>
-                            ))}
-                          </select>
-                          
-                          <input type="text" value={mappingData.contactName} onChange={e=>setMappingData({...mappingData, contactName: e.target.value, centerId: center.id})} className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white" placeholder="Sorumlu İsim"/>
-                          <input type="tel" value={mappingData.phone} onChange={e=>setMappingData({...mappingData, phone: e.target.value, centerId: center.id})} className="w-full sm:w-1/4 text-sm font-bold p-3 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white" placeholder="Sorumlu Tel"/>
-                          <button onClick={handleAddMapping} disabled={!mappingData.centerId || !mappingData.gender || !mappingData.district || !mappingData.neighborhood} className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-black p-3 px-6 rounded-xl transition disabled:opacity-50">Ekle</button>
-                       </div>
-                    </div>
-
                     <div>
                       <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Bağlı Olan Mahalleler ({mappedHoods.length})</h5>
                       <div className="flex flex-wrap gap-3">
                         {mappedHoods.length > 0 ? mappedHoods.map((m, i) => (
-                           <div key={i} className="flex flex-col bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm relative group pr-10 hover:shadow-md transition">
+                           <div key={i} className="flex flex-col bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm relative group/item hover:shadow-md transition">
                               <span className="font-black text-slate-800 mb-1">{m.district} / {m.neighborhood} <span className="text-xs ml-1 text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-md">{m.gender || 'Tümü'}</span></span>
                               <span className="text-slate-500 font-medium text-xs"><Users className="w-3 h-3 inline mr-1"/>{m.contactName || 'İsimsiz'} - {m.phone}</span>
-                              <button onClick={() => handleDeleteMapping(m.district, m.neighborhood, m.gender)} className="absolute top-1/2 right-3 transform -translate-y-1/2 text-slate-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100"><Trash2 className="w-5 h-5"/></button>
+                              <button onClick={() => handleDeleteMapping(m.district, m.neighborhood, m.gender)} className="absolute top-1/2 right-3 transform -translate-y-1/2 text-slate-300 hover:text-red-500 transition opacity-0 group-hover/item:opacity-100"><Trash2 className="w-5 h-5"/></button>
                            </div>
                         )) : (
                            <span className="text-sm font-medium text-slate-400 italic">Henüz hiç mahalle bağlanmamış.</span>

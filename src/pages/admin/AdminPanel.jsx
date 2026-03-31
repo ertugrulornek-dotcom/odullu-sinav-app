@@ -12,7 +12,6 @@ import CentersTab from './CentersTab';
 import StudentsTab from './StudentsTab';
 import StatsTab from './StatsTab';
 import BlacklistTab from './BlacklistTab';
-import SpecialBoysCentersTab from './SpecialBoysCentersTab';
 
 export function AdminLogin({ setAdminAuth, zones }) {
   const [username, setUsername] = useState('');
@@ -84,7 +83,6 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
   const [totalStudentsCount, setTotalStudentsCount] = useState(0);
   const [myZoneCount, setMyZoneCount] = useState(0);
   
-  // DÜZELTME: GELİŞMİŞ ÖĞRENCİ FİLTRE VE İNDİRME STATELERİ
   const [filterZone, setFilterZone] = useState('');
   const [filterCenter, setFilterCenter] = useState('');
   const [chk8Erkek, setCheck8Erkek] = useState(true);
@@ -102,7 +100,6 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
      
   const filteredExams = isSuperAdmin ? exams : exams.filter(e => e.zoneId === adminZoneId);
 
-  // Mıntıka Admini ise Filtreyi otomatik kendi mıntıkasına kilitle
   useEffect(() => {
     if (!isSuperAdmin && adminZoneId) {
         setFilterZone(adminZoneId.toString());
@@ -128,17 +125,14 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
 
   if (!adminZoneData) return <div>Erişim Hatası. Mıntıka bulunamadı.</div>;
 
-  // SEÇİLİ MINTIKAYA AİT KURUMLARI (MERKEZLERİ) BUL
   const selectedZoneObj = zones.find(z => z.id.toString() === filterZone);
   let availableCenters = [];
   if (selectedZoneObj) {
       const cNames = new Set();
       if (selectedZoneObj.centers) selectedZoneObj.centers.forEach(c => cNames.add(c.name));
-      if (selectedZoneObj.specialBoysCenters) Object.values(selectedZoneObj.specialBoysCenters).forEach(c => cNames.add(c.centerName));
       availableCenters = [...cNames].sort();
   }
 
-  // AŞAMA 1: FİLTRELERE GÖRE HESAPLA
   const handleCalculateQuery = async () => {
       if (!chk8Erkek && !chkOtherErkek && !chkKiz) return alert("Lütfen en az bir öğrenci grubu seçiniz.");
       setIsFetchingData(true);
@@ -149,7 +143,6 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
 
           const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'students');
 
-          // Grupların hepsi işaretliyse veritabanını tek seferde çek (Kotayı korur)
           if (chk8Erkek && chkOtherErkek && chkKiz) {
               queriesToRun.push(query(collRef, ...baseConstraints));
           } else {
@@ -171,7 +164,6 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
       setIsFetchingData(false);
   };
 
-  // AŞAMA 2: ONAYLADIKTAN SONRA İNDİR VE (VARSA) KURUMA GÖRE SÜZ
   const executeStudentFetch = async () => {
       setShowQuotaWarning(false);
       setIsFetchingData(true);
@@ -182,12 +174,10 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
               allStudents = [...allStudents, ...snap.docs.map(doc => ({ firebaseId: doc.id, ...doc.data() }))];
           }
 
-          // Çift kayıtları (Mükerrerleri) temizle
           const uniqueMap = new Map();
           allStudents.forEach(s => uniqueMap.set(s.firebaseId, s));
           let finalStudents = Array.from(uniqueMap.values());
 
-          // EĞER ÖZEL BİR KURUM SEÇİLDİYSE SADECE O KURUMDAKİLERİ EKRANDA BIRAK
           if (filterCenter) {
               finalStudents = finalStudents.filter(s => {
                   const z = zones.find(zn => zn.id === s.zone?.id);
@@ -290,7 +280,6 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
   return (
     <div className="max-w-[1400px] mx-auto px-4 py-16 relative">
       
-      {/* KOTA UYARI MODALI */}
       {showQuotaWarning && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl text-center border-4 border-amber-400">
@@ -355,18 +344,14 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
              <ShieldAlert className="w-5 h-5 inline mr-2"/> Kara Liste Yönetimi
            </button>
         )}
-        {isSuperAdmin && (
-           <button onClick={() => setActiveTab('erkekler')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'erkekler' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-blue-600 border border-blue-200 hover:bg-blue-50'}`}>
-             <Building2 className="w-5 h-5 inline mr-2"/> 8. Sınıf Erkek (Özel)
-           </button>
-        )}
       </div>
 
       <div className="mt-8 animate-in fade-in duration-300">
         {activeTab === 'ayarlar' && <SettingsTab adminZoneData={adminZoneData} isSuperAdmin={isSuperAdmin} adminZoneId={adminZoneId} setHasMadeChanges={setHasMadeChanges} filteredExams={filteredExams} zones={zones} />}
+        
+        {/* DÜZELTME: Sınav Yerleri ve Atamalar Sekmesi Çağrıldı */}
         {activeTab === 'merkezler' && !isSuperAdmin && <CentersTab adminZoneData={adminZoneData} adminZoneId={adminZoneId} setHasMadeChanges={setHasMadeChanges} />}
         
-        {/* ÖĞRENCİ LİSTESİ VE KOTA DOSTU FİLTRE EKRANI */}
         {activeTab === 'ogrenci' && (
            <>
              <div className="bg-white border-4 border-slate-100 rounded-[3rem] p-8 md:p-12 shadow-xl mb-8">
@@ -421,9 +406,9 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
            </>
         )}
 
+        {/* DÜZELTME: İstatistikler Sekmesi Çağrıldı */}
         {activeTab === 'mahalleler' && isSuperAdmin && <StatsTab zones={zones} setHasMadeChanges={setHasMadeChanges} />}
         {activeTab === 'karaliste' && isSuperAdmin && <BlacklistTab setHasMadeChanges={setHasMadeChanges} />}
-        {activeTab === 'erkekler' && isSuperAdmin && <SpecialBoysCentersTab zones={zones} setHasMadeChanges={setHasMadeChanges} />}
       </div>
     </div>
   );

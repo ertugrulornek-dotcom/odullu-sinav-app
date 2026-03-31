@@ -37,16 +37,22 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
            const hasTumu = hoodMappings.some(m => m.gender === 'Tümü' || !m.gender);
            const hasErkek = hoodMappings.some(m => m.gender === 'Erkek');
            const hasKiz = hoodMappings.some(m => m.gender === 'Kız');
+           const has8Erkek = hoodMappings.some(m => m.gender === '8. Sınıf Erkek');
 
            if (hasTumu) return; 
-           if (hasErkek && hasKiz) return; 
+           if (hasErkek && hasKiz && has8Erkek) return; 
            
            if (hoodMappings.length === 0) {
-              missing.push({ zone: z.name, district: dist, neighborhood: hood, status: 'Hiç Tanımlanmamış' });
-           } else if (hasErkek && !hasKiz) {
-              missing.push({ zone: z.name, district: dist, neighborhood: hood, status: 'Sadece Erkek (Kız Eksik)' });
-           } else if (!hasErkek && hasKiz) {
-              missing.push({ zone: z.name, district: dist, neighborhood: hood, status: 'Sadece Kız (Erkek Eksik)' });
+              missing.push({ zone: z.name, district: dist, neighborhood: hood, status: 'Hiç Tanımlanmamış', missingGenders: ['Erkek', 'Kız', '8. Sınıf Erkek'] });
+           } else {
+              let missingGenders = [];
+              if (!hasKiz) missingGenders.push('Kız');
+              if (!hasErkek) missingGenders.push('Erkek');
+              if (!has8Erkek) missingGenders.push('8. Sınıf Erkek');
+              
+              if (missingGenders.length > 0) {
+                 missing.push({ zone: z.name, district: dist, neighborhood: hood, status: `Eksik: ${missingGenders.join(', ')}`, missingGenders });
+              }
            }
         };
 
@@ -70,8 +76,7 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
      const missing = getMissingMappings();
      let filtered = missing;
      if (gender === 'Tümü') filtered = missing.filter(m => m.status === 'Hiç Tanımlanmamış');
-     if (gender === 'Erkek') filtered = missing.filter(m => m.status === 'Hiç Tanımlanmamış' || m.status === 'Sadece Kız (Erkek Eksik)');
-     if (gender === 'Kız') filtered = missing.filter(m => m.status === 'Hiç Tanımlanmamış' || m.status === 'Sadece Erkek (Kız Eksik)');
+     else filtered = missing.filter(m => m.missingGenders && m.missingGenders.includes(gender));
      return [...new Set(filtered.map(m => m.district))].sort();
   };
 
@@ -79,9 +84,10 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
      if(!district) return [];
      const missing = getMissingMappings();
      let filtered = missing.filter(m => m.district === district);
+     
      if (gender === 'Tümü') filtered = filtered.filter(m => m.status === 'Hiç Tanımlanmamış');
-     if (gender === 'Erkek') filtered = filtered.filter(m => m.status === 'Hiç Tanımlanmamış' || m.status === 'Sadece Kız (Erkek Eksik)');
-     if (gender === 'Kız') filtered = filtered.filter(m => m.status === 'Hiç Tanımlanmamış' || m.status === 'Sadece Erkek (Kız Eksik)');
+     else filtered = filtered.filter(m => m.missingGenders && m.missingGenders.includes(gender));
+     
      return filtered.map(m => m.neighborhood).sort();
   };
 
@@ -139,6 +145,7 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
               <th className="p-4 font-black text-center">Sorumlu Mah.</th>
               <th className="p-4 font-black text-center text-indigo-600">Atanan Mah.</th>
               <th className="p-4 font-black text-center text-blue-600">Erkek S.Yeri</th>
+              <th className="p-4 font-black text-center text-orange-600">8. Sınıf Erkek S.Yeri</th>
               <th className="p-4 font-black text-center text-pink-600">Kız S.Yeri</th>
               <th className="p-4 font-black text-center text-emerald-600">Karma (Tümü)</th>
             </tr>
@@ -150,6 +157,7 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
               const atananHoods = new Set(mappings.map(m => `${m.district}-${m.neighborhood}`)).size;
 
               const erkekCenters = new Set(mappings.filter(m => m.gender === 'Erkek').map(m => m.centerId)).size;
+              const erkek8Centers = new Set(mappings.filter(m => m.gender === '8. Sınıf Erkek').map(m => m.centerId)).size;
               const kizCenters = new Set(mappings.filter(m => m.gender === 'Kız').map(m => m.centerId)).size;
               const tumuCenters = new Set(mappings.filter(m => m.gender === 'Tümü' || !m.gender).map(m => m.centerId)).size;
 
@@ -164,12 +172,13 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
                     <td className="p-4 font-bold text-slate-600 text-center">{totalHoods}</td>
                     <td className="p-4 font-black text-indigo-600 text-center">{atananHoods}</td>
                     <td className="p-4 font-black text-blue-600 text-center">{erkekCenters}</td>
+                    <td className="p-4 font-black text-orange-600 text-center">{erkek8Centers}</td>
                     <td className="p-4 font-black text-pink-600 text-center">{kizCenters}</td>
                     <td className="p-4 font-black text-emerald-600 text-center">{tumuCenters}</td>
                   </tr>
                   {isExpanded && (
                     <tr>
-                      <td colSpan="6" className="bg-slate-50/50 p-6 border-b-4 border-slate-100">
+                      <td colSpan="7" className="bg-slate-50/50 p-6 border-b-4 border-slate-100">
                         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
                            <h4 className="font-black text-xl mb-4 text-slate-800">{z.name} - Kurum İstatislikleri</h4>
                            {z.centers?.length > 0 ? (
@@ -178,6 +187,7 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
                                     <tr className="text-slate-500 uppercase tracking-wider border-b-2 border-slate-100">
                                        <th className="py-3 font-black">Kurum Adı</th>
                                        <th className="py-3 font-black text-center text-blue-600">Erkek Ataması</th>
+                                       <th className="py-3 font-black text-center text-orange-600">8. Sınıf Erkek</th>
                                        <th className="py-3 font-black text-center text-pink-600">Kız Ataması</th>
                                        <th className="py-3 font-black text-center text-emerald-600">Karma Ataması</th>
                                        <th className="py-3 font-black text-right">İşlem</th>
@@ -187,12 +197,14 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
                                     {z.centers.map(c => {
                                        const cMap = mappings.filter(m => m.centerId === c.id);
                                        const cErkek = cMap.filter(m => m.gender === 'Erkek').length;
+                                       const cErkek8 = cMap.filter(m => m.gender === '8. Sınıf Erkek').length;
                                        const cKiz = cMap.filter(m => m.gender === 'Kız').length;
                                        const cTumu = cMap.filter(m => m.gender === 'Tümü' || !m.gender).length;
                                        return (
                                           <tr key={c.id} className="hover:bg-slate-50">
                                              <td className="py-3 font-bold text-slate-700">{c.name}</td>
                                              <td className="py-3 text-center font-black text-blue-600">{cErkek}</td>
+                                             <td className="py-3 text-center font-black text-orange-600">{cErkek8}</td>
                                              <td className="py-3 text-center font-black text-pink-600">{cKiz}</td>
                                              <td className="py-3 text-center font-black text-emerald-600">{cTumu}</td>
                                              <td className="py-3 text-right">
@@ -229,8 +241,6 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
             <select value={missingFilterStatus} onChange={e=>setMissingFilterStatus(e.target.value)} className="p-3 border-2 border-slate-200 rounded-xl font-bold text-sm outline-none focus:border-indigo-500">
                <option value="All">Tüm Durumlar</option>
                <option value="Hiç Tanımlanmamış">Hiç Tanımlanmamış</option>
-               <option value="Sadece Erkek (Kız Eksik)">Sadece Erkek (Kız Eksik)</option>
-               <option value="Sadece Kız (Erkek Eksik)">Sadece Kız (Erkek Eksik)</option>
             </select>
          </div>
       </div>
@@ -251,7 +261,7 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
          ))
       ) : (
          <div className="text-center py-10 font-bold text-emerald-500 bg-emerald-50 rounded-2xl border border-emerald-100">
-           Bu filtreye uygun eksik mahalle bulunamadı!
+            Bu filtreye uygun eksik mahalle bulunamadı!
          </div>
       )}
 
@@ -273,6 +283,7 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
                  <option value="Tümü">Tümü (Karma)</option>
                  <option value="Erkek">Erkek</option>
                  <option value="Kız">Kız</option>
+                 <option value="8. Sınıf Erkek">8. Sınıf Erkek</option>
                </select>
 
                <select 
