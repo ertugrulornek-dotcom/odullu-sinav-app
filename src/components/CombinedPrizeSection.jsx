@@ -6,11 +6,11 @@ import { parsePrizeArray } from '../utils/helpers';
 export default function CombinedPrizeSection({ displayPrizes, currentUser }) {
   const { currentTheme } = useContext(ThemeContext);
 
-  // DÜZELTME: Tüm kategoriler tek sayfada alt alta sıralanacak
+  // DÜZELTME: Katılım Ödülleri, Derece Ödüllerinin Üstüne Alındı
   const categories = [
     { title: "Büyük Ödüller", data: displayPrizes?.grand, type: "grand" },
-    { title: "Derece Ödülleri", data: displayPrizes?.degree, type: "degree" },
-    { title: "Katılım Ödülleri", data: displayPrizes?.participation, type: "participation" }
+    { title: "Katılım Ödülleri", data: displayPrizes?.participation, type: "participation" },
+    { title: "Derece Ödülleri", data: displayPrizes?.degree, type: "degree" }
   ];
 
   const userSelectedPrize = currentUser?.selectedParticipationPrize;
@@ -25,7 +25,6 @@ export default function CombinedPrizeSection({ displayPrizes, currentUser }) {
            <div key={index} className="w-full animate-in fade-in duration-500">
               
               <div className="flex flex-col items-center mb-12">
-                 {/* DÜZELTME: Yeni yaldızlı ve eğlenceli liste başlığı */}
                  <h2 className="text-4xl md:text-6xl font-black text-center uppercase tracking-wider drop-shadow-lg" 
                      style={{ color: currentTheme.contrast, fontFamily: "'Fredoka One', 'Baloo 2', 'Comic Sans MS', 'Nunito', sans-serif", textShadow: '2px 4px 0px rgba(0,0,0,0.1)' }}>
                     {cat.title}

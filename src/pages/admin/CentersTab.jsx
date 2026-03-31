@@ -133,16 +133,24 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
            rawNeighborhood = parts[1].trim();
        }
 
+       // DÜZELTME: Sütun Kaymasını Engellemek İçin Kırılmaz Cinsiyet Motoru
        let rawGender = "Tümü";
        let colOffset = 2; 
        
-       const potentialGender = cols[2]?.trim().toLowerCase();
-       if (['erkek', 'kız', 'kiz', 'tümü', 'tumu', 'karma', '8. sınıf erkek', '8.sinif erkek'].includes(potentialGender) || potentialGender.includes('8')) {
-           if (potentialGender === 'erkek') rawGender = 'Erkek';
-           else if (potentialGender === 'kız' || potentialGender === 'kiz') rawGender = 'Kız';
-           else if (potentialGender.includes('8')) rawGender = '8. Sınıf Erkek';
-           else rawGender = 'Tümü';
-           colOffset = 3; 
+       if (cols.length > 3) {
+           const potentialGender = String(cols[2] || '').trim().toLowerCase();
+           
+           if (potentialGender === 'erkek' || potentialGender === 'sadece erkek') {
+               rawGender = 'Erkek'; colOffset = 3;
+           } else if (potentialGender === 'kız' || potentialGender === 'kiz' || potentialGender === 'sadece kız') {
+               rawGender = 'Kız'; colOffset = 3;
+           } else if (['tümü', 'tumu', 'karma'].includes(potentialGender)) {
+               rawGender = 'Tümü'; colOffset = 3;
+           } else if (potentialGender.includes('8') && (potentialGender.includes('sınıf') || potentialGender.includes('sinif') || potentialGender.includes('erkek'))) {
+               rawGender = '8. Sınıf Erkek'; colOffset = 3;
+           } else if (potentialGender === '8' || potentialGender === '8.') {
+               rawGender = '8. Sınıf Erkek'; colOffset = 3;
+           }
        }
 
        let centerName = cols[colOffset]?.trim();
@@ -299,7 +307,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
                      value={bulkExcelData}
                      onChange={e => setBulkExcelData(e.target.value)}
                      className="w-full text-xs font-mono p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 resize-none whitespace-pre" 
-                     placeholder="Gebze	Akarçeşme	8. Sınıf Erkek	Şekerpınar Eğitim..."/>
+                     placeholder="Gebze	Akarçeşme	8.sınıf	Şekerpınar Eğitim..."/>
                    <button onClick={handleBulkUploadExcel} className="bg-slate-800 hover:bg-slate-900 text-white text-base font-black py-4 px-4 rounded-xl transition w-full shadow-lg">Excel Verilerini İçe Aktar</button>
                 </div>
              </div>
