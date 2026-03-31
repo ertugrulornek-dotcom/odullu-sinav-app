@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Phone, Plus, MapPin, AlertCircle, CalendarIcon, Clock, CheckCircle2, Gift, ChevronRight, School } from 'lucide-react';
 import { Image as ImageIcon } from 'lucide-react';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, onSnapshot } from "firebase/firestore";
 import { db, appId } from '../services/firebase';
-import { collection, addDoc, updateDoc, doc, onSnapshot } from "firebase/firestore";
 import { sendSMS, SMS_FOOTER } from '../services/smsService';
 import { LOCATIONS } from '../data/constants';
 import { SCHOOLS } from '../data/schools'; 
-import { determineZoneName, findZoneByName, parsePrizeArray, getNeighborhoodDetails,formatToTurkishDate } from '../utils/helpers';
+import { determineZoneName, findZoneByName, parsePrizeArray, getNeighborhoodDetails, formatToTurkishDate } from '../utils/helpers';
 
 const RegistrationPrizeSelector = ({ type, prizes, selectedPrize, onSelect }) => {
   if (!prizes || prizes.length === 0) return null;
@@ -32,7 +32,7 @@ const RegistrationPrizeSelector = ({ type, prizes, selectedPrize, onSelect }) =>
   )
 };
 
-export default function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, exams, students }) {
+export default function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, exams }) {
   const [step, setStep] = useState(1); 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({ fullName: '', phone: '', grade: '8', parentName: '', gender: '', email: '', province: '', district: '', neighborhood: '', schoolName: '' });
@@ -74,12 +74,22 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
     setFormData({ ...formData, phone: val });
   };
 
+  // OPTİMİZASYON: Sadece girilen numarayı sorgulayıp mükerrer kontrolü yapar
   const handleStep1Submit = async () => {
     if (blacklist.includes(formData.phone)) return alert("Bu numara personel numarasıdır. Lütfen veli numarası giriniz.");
+    
     if(!currentUser) {
-      const isDuplicate = students.some(s => s.fullName?.trim().toLowerCase() === formData.fullName.trim().toLowerCase() && s.phone === formData.phone);
-      if(isDuplicate) return alert("Bu isim ve telefon numarası ile sistemde zaten bir profil bulunuyor. Lütfen 'Giriş Yap' menüsünü kullanın.");
+      try {
+          const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'students'), where("phone", "==", formData.phone));
+          const querySnapshot = await getDocs(q);
+          const isDuplicate = querySnapshot.docs.some(doc => doc.data().fullName?.trim().toLowerCase() === formData.fullName.trim().toLowerCase());
+          
+          if(isDuplicate) return alert("Bu isim ve telefon numarası ile sistemde zaten bir profil bulunuyor. Lütfen 'Giriş Yap' menüsünü kullanın.");
+      } catch(e) {
+          console.error("Doğrulama hatası:", e);
+      }
     }
+
     const code = Math.floor(1000 + Math.random() * 9000).toString();
     setVerificationCode(code);
     setShowVerification(true);
@@ -125,7 +135,7 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
 
   const isFormValid = selectedSlot !== null && (!needsPartSelection || selectedParticipationPrize !== '');
 
-const handleComplete = async (withoutExam = false) => {
+  const handleComplete = async (withoutExam = false) => {
     setIsSubmitting(true);
     const finalSchoolName = isCustomSchool ? customSchoolName : formData.schoolName;
     const finalPartPrize = withoutExam ? '' : (selectedParticipationPrize || (partPrizesList.length === 1 ? partPrizesList[0].title : ''));
@@ -145,7 +155,6 @@ const handleComplete = async (withoutExam = false) => {
         finalUserObj = { ...currentUser, ...updatedData };
         setCurrentUser(finalUserObj);
 
-        // DÜZELTME: Güncelleme Mesajının en başına İsim eklendi
         if (!withoutExam && finalUserObj.selectedDate) {
            const centerInfo = getNeighborhoodDetails(matchedZone, finalUserObj.district, finalUserObj.neighborhood, finalUserObj.gender, finalUserObj.grade);
            const contactPhone = centerInfo.phone || "0553 973 54 40";
@@ -159,7 +168,6 @@ const handleComplete = async (withoutExam = false) => {
         finalUserObj = { firebaseId: docRef.id, ...newStudent };
         setCurrentUser(finalUserObj);
 
-        // DÜZELTME: Yeni Kayıt Mesajının en başına İsim eklendi
         if (withoutExam) {
            sendSMS([{tel: [finalUserObj.phone], msg: `Sayın ${finalUserObj.fullName},\nodullusinav.net basvurunuz alinmistir.\nGiris Sifreniz: ${finalPassword}.\nBolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`}]);
         } else if (finalUserObj.selectedDate) {
@@ -173,6 +181,7 @@ const handleComplete = async (withoutExam = false) => {
     } catch (error) { alert("İşlem sırasında bir hata oluştu."); } 
     finally { setIsSubmitting(false); }
   };
+
   const availableDistricts = formData.province && LOCATIONS[formData.province] ? Object.keys(LOCATIONS[formData.province]) : [];
   const availableNeighborhoods = formData.province && formData.district && LOCATIONS[formData.province][formData.district] ? LOCATIONS[formData.province][formData.district] : [];
 
@@ -201,7 +210,6 @@ const handleComplete = async (withoutExam = false) => {
               <div><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Cinsiyet <span className="text-red-500">*</span></label><select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold" value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})}><option value="">Seçiniz</option><option value="Erkek">Erkek</option><option value="Kız">Kız</option></select></div>
               <div><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Veli Ad Soyad <span className="text-red-500">*</span></label><input type="text" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold" value={formData.parentName} onChange={e => setFormData({...formData, parentName: e.target.value})} placeholder="Örn: Ayşe Yılmaz"/></div>
               
-              {/* DÜZELTME: Okul Bilgisi silindi, E-Posta tüm satırı kaplıyor */}
               <div className="md:col-span-2"><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">E-Posta Adresi <span className="text-slate-400 font-medium text-xs">(Şifre yenileme işlemi için gerekiyor, zorunlu değil)</span></label><input type="email" className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 focus:border-indigo-500 outline-none transition text-xl font-bold text-slate-800" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="Örn: ornek@email.com"/></div>
             </div>
             <button onClick={handleStep1Submit} disabled={!formData.fullName || formData.phone.length !== 10 || !formData.parentName || !formData.gender} className="w-full bg-indigo-600 text-white font-black text-2xl py-6 rounded-2xl mt-8 hover:bg-indigo-700 transition shadow-2xl disabled:opacity-50">Devam Et</button>

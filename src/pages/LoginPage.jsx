@@ -1,42 +1,50 @@
 import React, { useState } from 'react';
 import { KeyRound, Phone, ChevronRight, AlertCircle, Send, HelpCircle, UserCheck, ArrowLeft } from 'lucide-react';
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db, appId } from '../services/firebase';
 import { sendSMS, SMS_FOOTER } from '../services/smsService';
 
-export default function LoginPage({ students, setCurrentUser, navigateTo }) {
-  const [step, setStep] = useState(1); // 1: Telefon, 2: Profil ve Şifre
+export default function LoginPage({ setCurrentUser, navigateTo }) {
+  const [step, setStep] = useState(1); 
   const [phone, setPhone] = useState('');
   const [matchedProfiles, setMatchedProfiles] = useState([]);
   const [selectedProfileId, setSelectedProfileId] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
   
-  // Şifremi Unuttum State'leri
   const [showForgot, setShowForgot] = useState(false);
   const [forgotPhone, setForgotPhone] = useState('');
   const [hasOldSms, setHasOldSms] = useState(null);
   const [forgotError, setForgotError] = useState('');
   const [forgotSuccess, setForgotSuccess] = useState('');
 
-  // Adım 1: Telefonu Kontrol Et ve Profilleri Getir
-  const handlePhoneSubmit = (e) => {
+  // OPTİMİZASYON: Sadece girilen numarayı Firebase'den sorgular
+  const handlePhoneSubmit = async (e) => {
     e.preventDefault();
     setError('');
     const cleanPhone = phone.replace(/\D/g, '').slice(-10);
-    
     if(cleanPhone.length !== 10) return setError("Lütfen geçerli bir 10 haneli numara girin.");
 
-    const matches = students.filter(s => s.phone && s.phone.slice(-10) === cleanPhone);
-    
-    if (matches.length > 0) {
-      setMatchedProfiles(matches);
-      setSelectedProfileId(matches[0].firebaseId);
-      setStep(2);
-    } else {
-      setError("Bu numaraya ait bir kayıt bulunamadı.");
+    setIsSearching(true);
+    try {
+       const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'students'), where("phone", "==", cleanPhone));
+       const querySnapshot = await getDocs(q);
+       const matches = querySnapshot.docs.map(doc => ({ firebaseId: doc.id, ...doc.data() }));
+
+       if (matches.length > 0) {
+         setMatchedProfiles(matches);
+         setSelectedProfileId(matches[0].firebaseId);
+         setStep(2);
+       } else {
+         setError("Bu numaraya ait bir kayıt bulunamadı.");
+       }
+    } catch(err) {
+       setError("Bağlantı hatası oluştu, lütfen tekrar deneyin.");
     }
+    setIsSearching(false);
   };
 
-  // Adım 2: Seçilen Profil ile Giriş Yap
   const handleLoginSubmit = (e) => {
     e.preventDefault();
     setError('');
@@ -53,30 +61,30 @@ export default function LoginPage({ students, setCurrentUser, navigateTo }) {
   const handleForgotSubmit = async () => {
       setForgotError(''); setForgotSuccess('');
       const cleanPhone = forgotPhone.replace(/\D/g, '').slice(-10);
+      if(cleanPhone.length !== 10) return setForgotError("Geçerli bir numara girin.");
       
-      // Çoklu profilde şifremi unuttum: o numaraya ait tüm profillerin şifrelerini yollarız
-      const matches = students.filter(s => s.phone && s.phone.slice(-10) === cleanPhone);
-
-      if (matches.length === 0) {
-          setForgotError("Bu numaraya ait bir öğrenci kaydı bulunamadı.");
-          return;
-      }
-      if (hasOldSms === null) {
-          setForgotError("Lütfen aşağıdaki seçeneklerden birini işaretleyin.");
-          return;
-      }
+      if (hasOldSms === null) { setForgotError("Lütfen seçeneklerden birini işaretleyin."); return; }
 
       if (hasOldSms === true) {
-          setForgotSuccess("Harika! Lütfen ilk kayıt olduğunuzda size gelen o SMS'teki şifre ile giriş yapmayı deneyin.");
+          setForgotSuccess("Harika! Lütfen size gelen o SMS'teki şifre ile giriş yapmayı deneyin.");
           setTimeout(() => { setShowForgot(false); setHasOldSms(null); setForgotSuccess(''); setForgotPhone(''); }, 4000);
       } else {
           try {
+             const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'students'), where("phone", "==", cleanPhone));
+             const querySnapshot = await getDocs(q);
+             const matches = querySnapshot.docs.map(doc => ({ firebaseId: doc.id, ...doc.data() }));
+
+             if (matches.length === 0) {
+                setForgotError("Bu numaraya ait kayıt bulunamadı.");
+                return;
+             }
+
              let msgLines = matches.map(m => `${m.fullName}: ${m.password}`).join('\n');
              await sendSMS([{tel: [cleanPhone], msg: `odullusinav.net Hatırlatma:\nMevcut Profil Şifreleriniz:\n${msgLines}\nLütfen bu şifreler ile sisteme giriş yapınız.${SMS_FOOTER}`}]);
              setForgotSuccess("Şifreleriniz, kayıtlı telefon numaranıza SMS olarak tekrar gönderildi!");
              setTimeout(() => { setShowForgot(false); setHasOldSms(null); setForgotSuccess(''); setForgotPhone(''); }, 4000);
           } catch(e) {
-             setForgotError("SMS gönderilemedi. Lütfen yöneticinizle iletişime geçin.");
+             setForgotError("Bağlantı hatası veya SMS gönderilemedi.");
           }
       }
   };
@@ -141,8 +149,8 @@ export default function LoginPage({ students, setCurrentUser, navigateTo }) {
                     <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05XX XXX XX XX" className="w-full border-4 border-slate-100 rounded-2xl pl-12 pr-6 py-4 text-xl font-bold focus:border-indigo-500 outline-none transition bg-white" required />
                   </div>
                 </div>
-                <button type="submit" className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 transition shadow-2xl flex items-center justify-center mt-8">
-                  Profilleri Bul <ChevronRight className="ml-2 w-6 h-6" />
+                <button type="submit" disabled={isSearching} className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 transition shadow-2xl flex items-center justify-center mt-8 disabled:opacity-50">
+                  {isSearching ? "Aranıyor..." : "Profilleri Bul"} {!isSearching && <ChevronRight className="ml-2 w-6 h-6" />}
                 </button>
              </form>
           ) : (
@@ -183,7 +191,6 @@ export default function LoginPage({ students, setCurrentUser, navigateTo }) {
                 </button>
              </form>
           )}
-
         </div>
       </div>
     </div>
