@@ -31,38 +31,50 @@ export const getNeighborhoodDetails = (zone, district, neighborhood, gender, gra
     const defaultFallback = { phone: "0553 973 54 40", contactName: "", mapLink: null, centerName: "Sınav Merkezi Bekleniyor", address: "" };
     if (!zone || !district || !neighborhood) return defaultFallback;
 
-    let centerInfo = null;
-
+    // 1. ÖZEL 8. SINIF ERKEK MERKEZİ KONTROLÜ
     if (String(grade) === '8' && gender === 'Erkek') {
         const specialKey = `${district}-${neighborhood}`;
         if (zone.specialBoysCenters && zone.specialBoysCenters[specialKey]) {
-            centerInfo = zone.specialBoysCenters[specialKey];
+            const sp = zone.specialBoysCenters[specialKey];
+            return {
+                phone: sp.contactPhone || defaultFallback.phone,
+                contactName: sp.contactName || "",
+                mapLink: sp.mapLink || null,
+                centerName: sp.centerName || defaultFallback.centerName,
+                address: sp.address || "Açık adres bilgisi girilmemiş."
+            };
         }
     }
 
-    if (!centerInfo) {
-        const centerKey = `${district}-${neighborhood}`;
-        if (zone.centers && zone.centers[centerKey]) {
-            centerInfo = zone.centers[centerKey];
-        } else if (zone.mappings) {
-            centerInfo = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood);
+    // 2. DİĞER ATAMALAR (Kızlar 4-8 ve Erkekler 4-7)
+    let mapping = null;
+    let centerObj = null;
+
+    if (zone.mappings) {
+        // A. Önce tam cinsiyet eşleşmesi ara (Sadece 'Kız' veya sadece 'Erkek' ataması)
+        mapping = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood && m.gender === gender);
+        
+        // B. Bulamazsa 'Tümü' (Karma) ataması ara
+        if (!mapping) {
+            mapping = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood && (m.gender === 'Tümü' || !m.gender));
         }
     }
 
-    if (!centerInfo) return defaultFallback;
+    // 3. Eşleşen atamanın KURUM detaylarını çek (Adres ve Harita Linki buradan gelir!)
+    if (mapping && zone.centers) {
+        centerObj = zone.centers.find(c => c.id === mapping.centerId);
+    }
 
-    let phone = centerInfo.contactPhone || centerInfo.phone || defaultFallback.phone;
-    if (gender === 'Kız' && centerInfo.contactPhoneKiz) phone = centerInfo.contactPhoneKiz;
+    if (!mapping || !centerObj) return defaultFallback;
 
-    let finalCenterName = centerInfo.centerName || centerInfo.schoolName || `${district} Sınav Merkezi`;
-
-    // DÜZELTME: Fallback'ler artırıldı (Konum ve Adres için)
-    const finalMapLink = centerInfo.mapLink || centerInfo.mapUrl || centerInfo.googleMaps || centerInfo.link || null;
-    const finalAddress = centerInfo.address || centerInfo.openAddress || centerInfo.acikAdres || centerInfo.fullAddress || "Açık adres bilgisi girilmemiş.";
+    // Adres ve Harita Linkini Center objesinden garantili şekilde al
+    const finalMapLink = centerObj.mapLink || centerObj.mapUrl || centerObj.googleMaps || centerObj.link || null;
+    const finalAddress = centerObj.address || centerObj.openAddress || centerObj.acikAdres || centerObj.fullAddress || "Açık adres bilgisi girilmemiş.";
+    const finalCenterName = centerObj.name || centerObj.centerName || centerObj.schoolName || `${district} Sınav Merkezi`;
 
     return {
-        phone: phone,
-        contactName: centerInfo.contactName || "",
+        phone: mapping.phone || defaultFallback.phone,
+        contactName: mapping.contactName || "",
         mapLink: finalMapLink,
         centerName: finalCenterName,
         address: finalAddress

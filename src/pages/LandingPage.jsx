@@ -20,47 +20,58 @@ export default function LandingPage({ navigateTo, currentUser, scrollToSection, 
 
   return (
     <div className="relative">
-      <section id="hero" className="pt-20 pb-20 relative z-10">
-        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col-reverse lg:flex-row items-center justify-between gap-8 lg:gap-12">
+      <section id="hero" className="pt-10 md:pt-20 pb-20 relative z-10 overflow-hidden">
+        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8">
            
-           <div className="w-full lg:w-3/5 flex flex-col items-start text-left mt-10 lg:mt-0 relative z-20">
-              
-              {/* DÜZELTME: Görseldeki gibi temaya göre renklenen, kapsül şeklinde beyaz yazılı üst bant */}
-              <div className="inline-block px-6 md:px-8 py-2 md:py-3 rounded-full text-white font-black text-sm sm:text-lg md:text-xl tracking-[0.2em] mb-8 shadow-lg uppercase"
+           {/* DÜZELTME: MOBİL İÇİN ÜST BANT (Sadece mobilde Logonun üstünde yer alır ve tek satıra sığar) */}
+           <div className="flex justify-center lg:hidden w-full mb-8 relative z-20">
+              <div className="inline-block px-4 sm:px-6 py-2.5 rounded-full text-white font-black text-[11px] sm:text-sm tracking-[0.15em] shadow-lg uppercase whitespace-nowrap"
                    style={{ backgroundColor: 'var(--color-main)' }}>
                  KOCAELİ • SAKARYA • YALOVA
               </div>
-              
-              <div className="flex flex-col text-left font-black uppercase transition-colors drop-shadow-lg mb-8 space-y-2 w-full" 
-                   style={{ color: 'var(--color-contrast)', fontFamily: "'Fredoka One', 'Baloo 2', 'Comic Sans MS', 'Nunito', sans-serif", textShadow: '2px 4px 0px rgba(0,0,0,0.1)' }}>
-                  
-                  {/* İki satır, ferah ve büyük */}
-                  <div className="text-3xl sm:text-5xl md:text-6xl lg:text-[4rem] xl:text-[4.8rem] leading-tight whitespace-nowrap">
-                     LGS MARATONUNDA 
-                  </div>
-                  <div className="text-3xl sm:text-5xl md:text-6xl lg:text-[4rem] xl:text-[4.8rem] leading-tight whitespace-nowrap">
-                     PARLA, ÖDÜLÜNÜ AL!
-                  </div>
-              </div>
-              
-              <p className="text-lg md:text-2xl mb-12 font-bold leading-relaxed max-w-2xl drop-shadow-sm" style={{ color: 'color-mix(in srgb, var(--color-main) 60%, var(--color-contrast) 40%)' }}>
-                 Ortaokul Öğrencilerine Özel Ödüllü<br/>Sınav ve LGS Provaları Burada.
-              </p>
-
-              {!currentUser ? (
-                 <button onClick={() => navigateTo('register')} className="text-white px-12 py-5 rounded-full font-black text-xl hover:scale-105 active:scale-95 transition-all w-full sm:w-auto shadow-2xl" style={{ backgroundColor: 'var(--color-main)' }}> 
-                    HEMEN SINAVA KATIL
-                 </button>
-              ) : (
-                 <button onClick={() => scrollToSection('takvim')} className="text-white px-12 py-5 rounded-full font-black text-xl hover:scale-105 active:scale-95 transition-all w-full sm:w-auto shadow-2xl" style={{ backgroundColor: 'var(--color-main)' }}>
-                    YAKLAŞAN SINAVLARINI GÖRÜNTÜLE
-                 </button>
-              )}
            </div>
-           
-           <div className="w-full sm:w-96 lg:w-2/5 flex-shrink-0 relative group flex justify-center lg:justify-end">
-              <div className="absolute inset-0 bg-white blur-[100px] rounded-full opacity-100 z-0 pointer-events-none"></div>
-              <img src={currentTheme?.logo || '/OSLOGO1.png'} alt="Ödüllü Sınav Logo" className="w-full max-w-[400px] xl:max-w-[550px] h-auto drop-shadow-2xl group-hover:scale-105 transition-transform duration-500 relative z-10" />
+
+           <div className="flex flex-col-reverse lg:flex-row items-center justify-between gap-8 lg:gap-12">
+               
+               <div className="w-full lg:w-3/5 flex flex-col items-start text-left mt-6 lg:mt-0 relative z-20">
+                  
+                  {/* DÜZELTME: MASAÜSTÜ İÇİN ÜST BANT (Sadece geniş ekranda başlığın üstünde yer alır) */}
+                  <div className="hidden lg:inline-block px-6 md:px-8 py-2 md:py-3 rounded-full text-white font-black text-sm sm:text-lg md:text-xl tracking-[0.2em] mb-8 shadow-lg uppercase"
+                       style={{ backgroundColor: 'var(--color-main)' }}>
+                     KOCAELİ • SAKARYA • YALOVA
+                  </div>
+                  
+                  {/* DÜZELTME: Yeni Slogan (Aynı devasa ve ferah stille iki satır) */}
+                  <div className="flex flex-col text-left font-black uppercase transition-colors drop-shadow-lg mb-8 space-y-2 w-full" 
+                       style={{ color: 'var(--color-contrast)', fontFamily: "'Fredoka One', 'Baloo 2', 'Comic Sans MS', 'Nunito', sans-serif", textShadow: '2px 4px 0px rgba(0,0,0,0.1)' }}>
+                      
+                      <div className="text-3xl sm:text-5xl md:text-6xl lg:text-[4rem] xl:text-[4.8rem] leading-tight whitespace-nowrap">
+                         BUGÜNÜN ÇALIŞMASI,
+                      </div>
+                      <div className="text-3xl sm:text-5xl md:text-6xl lg:text-[4rem] xl:text-[4.8rem] leading-tight whitespace-nowrap">
+                         YARININ BAŞARISI!
+                      </div>
+                  </div>
+                  
+                  <p className="text-lg md:text-2xl mb-12 font-bold leading-relaxed max-w-2xl drop-shadow-sm" style={{ color: 'color-mix(in srgb, var(--color-main) 60%, var(--color-contrast) 40%)' }}>
+                     Ortaokul Öğrencilerine Özel Ödüllü<br/>Sınav ve LGS Provaları Burada.
+                  </p>
+
+                  {!currentUser ? (
+                     <button onClick={() => navigateTo('register')} className="text-white px-12 py-5 rounded-full font-black text-xl hover:scale-105 active:scale-95 transition-all w-full sm:w-auto shadow-2xl" style={{ backgroundColor: 'var(--color-main)' }}> 
+                        HEMEN SINAVA KATIL
+                     </button>
+                  ) : (
+                     <button onClick={() => scrollToSection('takvim')} className="text-white px-12 py-5 rounded-full font-black text-xl hover:scale-105 active:scale-95 transition-all w-full sm:w-auto shadow-2xl" style={{ backgroundColor: 'var(--color-main)' }}>
+                        YAKLAŞAN SINAVLARINI GÖRÜNTÜLE
+                     </button>
+                  )}
+               </div>
+               
+               <div className="w-full sm:w-96 lg:w-2/5 flex-shrink-0 relative group flex justify-center lg:justify-end">
+                  <div className="absolute inset-0 bg-white blur-[100px] rounded-full opacity-100 z-0 pointer-events-none"></div>
+                  <img src={currentTheme?.logo || '/OSLOGO1.png'} alt="Ödüllü Sınav Logo" className="w-[85%] max-w-[350px] lg:max-w-[400px] xl:max-w-[550px] h-auto drop-shadow-2xl group-hover:scale-105 transition-transform duration-500 relative z-10" />
+               </div>
            </div>
         </div>
       </section>
