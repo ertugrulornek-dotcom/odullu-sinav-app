@@ -25,6 +25,13 @@ const mirrorFrameStyle = {
 };
 
 export default function App() {
+  // =========================================================================
+  // 🛑 BAKIM MODU ANAHTARI 🛑
+  // Aşağıdaki değeri 'false' yaparsan site normale döner.
+  // Şu an 'true' olduğu için herkes sadece bakım ekranını görecek.
+  // =========================================================================
+  const IS_UNDER_MAINTENANCE = true;
+
   const [currentView, setCurrentView] = useState('landing'); 
   const [currentUser, setCurrentUser] = useState(null);
   const [authUser, setAuthUser] = useState(null);
@@ -113,16 +120,11 @@ export default function App() {
   };
 
   const copyInviteLink = () => {
-    // DÜZELTME: Linkten tema parametresi kaldırıldı, her zaman sabit "#register" eklenecek.
     const link = `https://www.odullusinav.net/#register`;
-    
     const part1 = "%2AT%C3%BCrkiye%20Geneli%20%C3%96d%C3%BCll%C3%BC%20Deneme%20S%C4%B1nav%C4%B1%2A%20%F0%9F%8F%86%F0%9F%8E%96%EF%B8%8F%F0%9F%93%9D%0A%0A23-25%20Nisan%20%20tarihlerinde%203%2C%204%2C%205%2C%206%2C%207%20ve%208.s%C4%B1n%C4%B1flara%20%C3%B6zel%20d%C3%BCzenlenen%20%2A%C3%96d%C3%BCll%C3%BC%20Deneme%20S%C4%B1nav%C4%B1na%2A%20kat%C4%B1lmak%20i%C3%A7in%20ge%C3%A7%20kalmay%C4%B1n!%0A%0AKat%C4%B1lan%20herkese%20%C3%A7e%C5%9Fitli%20%C3%B6d%C3%BCllerden%20istedi%C4%9Fi%20hediye!%0A%0A%2Afutbol%20topu%E2%9A%BD%EF%B8%8F%2C%20Suluk%20%F0%9F%8D%B6%2C%20Kulakl%C4%B1k%20%F0%9F%8E%A7%2A%20ve%20daha%20niceleri%E2%80%A6%0A%0A%20Derece%20%C3%96d%C3%BClleri%3A%0A%0A%2AAk%C4%B1ll%C4%B1%20saat%20%E2%8C%9A%2Cbisiklet%20%20%F0%9F%9A%B4%20%2C%20Tak%C4%B1ma%20%C3%96zel%20Forma%20%F0%9F%91%95%2A%20ve%20daha%20niceleri%E2%80%A6%0A%0A%2A%E2%80%9C%C3%96d%C3%BCller%2C%20kurumdan%20kuruma%20de%C4%9Fi%C5%9Fiklik%20arz%20edebilir.%E2%80%9D%2A%0A%0ABa%C5%9Fvuru%20i%C3%A7in%3A%0A";
-
     const part2 = "%0A%0A%C3%96d%C3%BCll%C3%BC%20Deneme%20Sitesi%20Linki%20%0Ahttps%3A%2F%2Fodullusinav.net%2F";
-    
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const waDomain = isMobile ? 'api.whatsapp.com' : 'web.whatsapp.com';
-    
     const finalUrl = `https://${waDomain}/send?text=${part1}${encodeURIComponent(link)}${part2}`;
     window.open(finalUrl, '_blank');
   };
@@ -141,22 +143,16 @@ export default function App() {
       else { day = dParts[0]; month = dParts[1]; year = dParts[2]; }
       const timeParts = uTime.split(':');
       const examTime = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(timeParts[0]||9), parseInt(timeParts[1]||0)).getTime();
-      
-      if (examTime > new Date().getTime()) { 
-          targetCountdownDate = examTime; 
-          countdownMode = 'personal'; 
-      }
+      if (examTime > new Date().getTime()) { targetCountdownDate = examTime; countdownMode = 'personal'; }
     } catch(e) {}
   } 
 
   if (countdownMode === 'none' && exams.length > 0) {
     let userZoneId = currentUser?.zone?.id;
-    
     if (currentUser && !userZoneId && currentUser?.zone?.name) {
        const matchedZ = findZoneByName(zones, currentUser.zone.name);
        if (matchedZ) userZoneId = matchedZ.id;
     }
-    
     const defaultZoneObj = zones.find(z => z.districts?.includes('Gebze')) || zones[0] || INITIAL_ZONES[0];
     if (!userZoneId && detectedZone) userZoneId = detectedZone.id;
     if (!userZoneId && defaultZoneObj) userZoneId = defaultZoneObj.id;
@@ -191,17 +187,27 @@ export default function App() {
     myZoneUpcoming.sort((a,b) => a - b);
     otherZoneUpcoming.sort((a,b) => a - b);
     
-    if (myZoneUpcoming.length > 0) { 
-        targetCountdownDate = myZoneUpcoming[0]; 
-        countdownMode = 'zone'; 
-    } 
-    else if (otherZoneUpcoming.length > 0) { 
-        targetCountdownDate = otherZoneUpcoming[0]; 
-        countdownMode = 'other_zones'; 
-    } 
-    else { 
-        countdownMode = 'none'; 
-    }
+    if (myZoneUpcoming.length > 0) { targetCountdownDate = myZoneUpcoming[0]; countdownMode = 'zone'; } 
+    else if (otherZoneUpcoming.length > 0) { targetCountdownDate = otherZoneUpcoming[0]; countdownMode = 'other_zones'; } 
+    else { countdownMode = 'none'; }
+  }
+
+  // =========================================================================
+  // BAKIM MODU EKRANI
+  // =========================================================================
+  if (IS_UNDER_MAINTENANCE) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 relative z-50">
+         <div className="absolute inset-0 bg-slate-900/5 backdrop-blur-sm z-[-1]"></div>
+         <div className="bg-white p-12 rounded-[3rem] shadow-2xl max-w-xl w-full border-4 border-indigo-100 text-center animate-in zoom-in-95 duration-500">
+            <img src="/Sembol.png" alt="Logo" className="w-32 h-32 md:w-40 md:h-40 mx-auto mb-8 animate-pulse drop-shadow-2xl object-contain" />
+            <h1 className="text-3xl md:text-4xl font-black text-slate-800 mb-6 uppercase tracking-wide">Bakım Çalışması</h1>
+            <p className="text-lg md:text-xl font-bold text-slate-500 leading-relaxed">
+               Sitemizde kısa süreli bakım çalışması yapılmaktadır.<br/>Anlayışınız için teşekkür ederiz.
+            </p>
+         </div>
+      </div>
+    );
   }
 
   if (loading) return (
