@@ -33,7 +33,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [adminAuth, setAdminAuth] = useState({ isAuthenticated: false, zoneId: null, isSuperAdmin: false });
   
-  // DÜZELTME: Konum bazlı dinamik bölge tespiti
   const [detectedZone, setDetectedZone] = useState(null);
 
   useEffect(() => {
@@ -84,7 +83,6 @@ export default function App() {
     fetchInitialData();
   }, [authUser]);
 
-  // DÜZELTME: Ziyaretçinin konumunu alarak bölgesini bulma (Gebze Varsayılan)
   useEffect(() => {
     if (!currentUser && zones.length > 0 && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(async (pos) => {
@@ -97,7 +95,7 @@ export default function App() {
             if (matchedZone) setDetectedZone(matchedZone);
           }
         } catch(e) {}
-      }, () => { /* Konum reddedilirse sessizce devam et (Varsayılan Gebze olacak) */ });
+      }, () => { });
     }
   }, [currentUser, zones]);
 
@@ -114,26 +112,24 @@ export default function App() {
     } else document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  // DÜZELTME: PC/Mobil ayrımı ve %100 Kırılamaz Hex URL Mimarisi
+  // DÜZELTME: Yeni WhatsApp Davet Mesajı (%100 Kırılamaz Format)
   const copyInviteLink = () => {
     const currentTheme = localStorage.getItem('os_theme') || 'watergreen';
     const link = `https://www.odullusinav.net/?theme=${currentTheme}#register`;
     
-    // Saf Hex formatı. Hiçbir editör veya işletim sistemi bozamaz.
-    const part1 = "%C3%96d%C3%BCll%C3%BC%20Akademik%20Yeterlilik%20S%C4%B1nav%C4%B1na%20beraber%20kat%C4%B1lal%C4%B1m%20m%C4%B1%3F%20%F0%9F%A4%A9%0A%0A%F0%9F%97%93%EF%B8%8F%20S%C4%B1nav%C4%B1%2029%20Ekim%2C%201%20ve%202%20Kas%C4%B1m%20tarihlerinde%20yapacaklar.%0A%0A%F0%9F%8E%81%20S%C4%B1nava%20kat%C4%B1lan%20herkese%20hediye%20veriliyor.%0A%0A%F0%9F%8F%86%20Ayr%C4%B1ca%20%2510'luk%20dilime%20girdi%C4%9Finde%20diledi%C4%9Fin%20derece%20%C3%B6d%C3%BCl%C3%BC%20hediye!%0A%0A%F0%9F%9A%80%20Kendine%20g%C3%BCveniyorsan%20bu%20linke%20t%C4%B1kla%20ve%20hemen%20Ba%C5%9Fvur%20%F0%9F%91%87%F0%9F%8F%BB%0A";
-    const part2 = "%0A%0A%F0%9F%A4%9D%20Kim%20kazanacak%20g%C3%B6relim!%20%F0%9F%92%AB";
+    // Emojiler ve Türkçe karakterler bilgisayarda (WhatsApp Web) bozulmasın diye tamamen URL-Encoded yapıldı.
+    const part1 = "T%C3%BCrkiye%20Geneli%20%C3%96d%C3%BCll%C3%BC%20Deneme%20S%C4%B1nav%C4%B1%20%F0%9F%8F%86%F0%9F%8E%96%EF%B8%8F%F0%9F%93%9D%0A%0A23-25%20Nisan%20tarihlerinde%203%2C%204%2C%205%2C%206%2C%207%20ve%208.s%C4%B1n%C4%B1flara%20%C3%B6zel%20d%C3%BCzenlenen%20%C3%96d%C3%BCll%C3%BC%20Deneme%20S%C4%B1nav%C4%B1na%20kat%C4%B1lmak%20i%C3%A7in%20ge%C3%A7%20kalmay%C4%B1n!%0A%0AKat%C4%B1lan%20herkese%20%C3%A7e%C5%9Fitli%20%C3%B6d%C3%BCllerden%20istedi%C4%9Fi%20hediye!%0Afutbol%20topu%E2%9A%BD%EF%B8%8F%2C%20Suluk%20%F0%9F%8D%B6%2C%20Kulakl%C4%B1k%20%F0%9F%8E%A7%20ve%20daha%20niceleri%E2%80%A6%0A%0A%20Derece%20%C3%96d%C3%BClleri%3A%0AAk%C4%B1ll%C4%B1%20saat%20%E2%8C%9A%2Cbisiklet%20%F0%9F%9A%B4%20%2C%20Tak%C4%B1ma%20%C3%96zel%20Forma%20%F0%9F%91%95%20ve%20daha%20niceleri%E2%80%A6%0A%0ABa%C5%9Fvuru%20i%C3%A7in%3A%0A";
     
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const waDomain = isMobile ? 'api.whatsapp.com' : 'web.whatsapp.com';
     
-    const finalUrl = `https://${waDomain}/send?text=${part1}${encodeURIComponent(link)}${part2}`;
+    const finalUrl = `https://${waDomain}/send?text=${part1}${encodeURIComponent(link)}`;
     window.open(finalUrl, '_blank');
   };
 
-let targetCountdownDate = null;
+  let targetCountdownDate = null;
   let countdownMode = 'none';
 
-  // 1. ÖĞRENCİ GİRİŞ YAPTIYSA VE OTURUMU VARSA (Kendi Sınavını Sayar)
   if (currentUser && (currentUser.selectedDate || currentUser.exam?.date)) {
     try {
       const uDate = currentUser.selectedDate || currentUser.exam.date;
@@ -153,17 +149,14 @@ let targetCountdownDate = null;
     } catch(e) {}
   } 
 
-  // 2. ÖĞRENCİ OTURUM SEÇMEDİYSE VEYA GİRİŞ YAPILMADIYSA (Mıntıka Sınavlarını Sayar)
   if (countdownMode === 'none' && exams.length > 0) {
     let userZoneId = currentUser?.zone?.id;
     
-    // Zone ID'yi tespit etme sırası:
     if (currentUser && !userZoneId && currentUser?.zone?.name) {
        const matchedZ = findZoneByName(zones, currentUser.zone.name);
        if (matchedZ) userZoneId = matchedZ.id;
     }
     
-    // Eğer giriş yapılmadıysa Konumdan veya Varsayılan Gebze'den tespit et
     const defaultZoneObj = zones.find(z => z.districts?.includes('Gebze')) || zones[0] || INITIAL_ZONES[0];
     if (!userZoneId && detectedZone) userZoneId = detectedZone.id;
     if (!userZoneId && defaultZoneObj) userZoneId = defaultZoneObj.id;
@@ -171,7 +164,6 @@ let targetCountdownDate = null;
     let myZoneUpcoming = [];
     let otherZoneUpcoming = [];
     
-    // Sınavları Tarama ve Ayırma
     exams.forEach(exam => {
        if (exam.active !== false) {
           const examSessions = exam.sessions || (exam.date && exam.slots ? [{ date: exam.date, slots: exam.slots }] : []);
@@ -187,7 +179,6 @@ let targetCountdownDate = null;
                 const timeParts = timeStr.split(':');
                 const stime = new Date(year, month - 1, day, parseInt(timeParts[0] || '9'), parseInt(timeParts[1] || '0')).getTime();
                 
-                // Sınavın tarihi henüz geçmediyse
                 if (stime > new Date().getTime()) {
                    if (exam.zoneId == userZoneId) myZoneUpcoming.push(stime);
                    else otherZoneUpcoming.push(stime);
@@ -200,7 +191,6 @@ let targetCountdownDate = null;
     myZoneUpcoming.sort((a,b) => a - b);
     otherZoneUpcoming.sort((a,b) => a - b);
     
-    // Hangi modu açacağına karar verme algoritması
     if (myZoneUpcoming.length > 0) { 
         targetCountdownDate = myZoneUpcoming[0]; 
         countdownMode = 'zone'; 
@@ -214,7 +204,6 @@ let targetCountdownDate = null;
     }
   }
 
-  // 3. YÜKLEME EKRANI
   if (loading) return (
      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center relative" aria-hidden="true" data-nosnippet>
         <img src="/Sembol.png" className="w-32 h-32 md:w-40 md:h-40 animate-bounce mb-8 object-contain drop-shadow-2xl" alt="" />
@@ -222,10 +211,10 @@ let targetCountdownDate = null;
      </div>
   );
 
-  // 4. İLETİŞİM BİLGİLERİ (Header için)
   const liveZone = currentUser ? (findZoneByName(zones, currentUser.zone?.name) || currentUser.zone) : null;
   const userLocDetails = currentUser ? getNeighborhoodDetails(liveZone, currentUser.district, currentUser.neighborhood, currentUser.gender, currentUser.grade) : null;
   let headerPhone = userLocDetails?.phone || "0553 973 54 40";
+
   return (
     <ThemeProvider>
       <div className="fixed inset-0 z-[-1] bg-slate-50 pointer-events-none overflow-hidden transition-colors duration-500">
@@ -307,7 +296,6 @@ let targetCountdownDate = null;
         </div>
 
         <main className="pb-0 animate-in fade-in duration-500 mt-10">
-          {/* DÜZELTME: LandingPage'e detectedZone Gönderildi */}
           {currentView === 'landing' && <LandingPage navigateTo={navigateTo} currentUser={currentUser} detectedZone={detectedZone} scrollToSection={scrollToSection} exams={exams} zones={zones} />}
           {currentView === 'register' && <RegistrationProcess navigateTo={navigateTo} currentUser={currentUser} setCurrentUser={setCurrentUser} zones={zones} exams={exams} refreshData={fetchInitialData} />}
           {currentView === 'login' && <LoginPage setCurrentUser={setCurrentUser} navigateTo={navigateTo} />}
