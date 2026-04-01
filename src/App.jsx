@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Award, Users, LogOut, Phone, MapPin, UserPlus } from 'lucide-react';
 import { db, auth, appId } from './services/firebase';
-import { collection, getDocs, setDoc, doc } from "firebase/firestore"; 
+import { collection, setDoc, doc, onSnapshot } from "firebase/firestore"; 
 import { signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "firebase/auth";
 import { INITIAL_ZONES } from './data/constants';
 import { getNeighborhoodDetails, findZoneByName } from './utils/helpers';
@@ -25,12 +25,8 @@ const mirrorFrameStyle = {
 };
 
 export default function App() {
-  // =========================================================================
-  // 🛑 BAKIM MODU ANAHTARI 🛑
-  // Aşağıdaki değeri 'false' yaparsan site normale döner.
-  // Şu an 'true' olduğu için herkes sadece bakım ekranını görecek.
-  // =========================================================================
-  const IS_UNDER_MAINTENANCE = true;
+  // SİTEYİ BAKIM MODUNDAN ÇIKARDIK
+  const IS_UNDER_MAINTENANCE = false;
 
   const [currentView, setCurrentView] = useState('landing'); 
   const [currentUser, setCurrentUser] = useState(null);
@@ -64,12 +60,12 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const fetchInitialData = async () => {
+  // DÜZELTME: Veri Kaybını Engelleyen "Real-Time (Canlı) Dinleme" Motoru Kuruldu
+  useEffect(() => {
+    if (!authUser) return;
     setLoading(true);
-    try {
-      const zonesSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'zones'));
-      const examsSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'exams'));
 
+    const unsubZones = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'zones'), (zonesSnap) => {
       if (zonesSnap.empty) {
          INITIAL_ZONES.forEach(async (z) => await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', z.id.toString()), z));
       } else {
@@ -80,14 +76,14 @@ export default function App() {
         });
         setZones(zonesData.sort((a, b) => a.id - b.id)); 
       }
-      setExams(examsSnap.docs.map(d => ({ firebaseId: d.id, ...d.data() })));
-    } catch(e) { console.error("Veri çekme hatası: ", e); }
-    setLoading(false);
-  };
+      setLoading(false);
+    });
 
-  useEffect(() => {
-    if (!authUser) return;
-    fetchInitialData();
+    const unsubExams = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'exams'), (examsSnap) => {
+      setExams(examsSnap.docs.map(d => ({ firebaseId: d.id, ...d.data() })));
+    });
+
+    return () => { unsubZones(); unsubExams(); };
   }, [authUser]);
 
   useEffect(() => {
@@ -143,16 +139,22 @@ export default function App() {
       else { day = dParts[0]; month = dParts[1]; year = dParts[2]; }
       const timeParts = uTime.split(':');
       const examTime = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(timeParts[0]||9), parseInt(timeParts[1]||0)).getTime();
-      if (examTime > new Date().getTime()) { targetCountdownDate = examTime; countdownMode = 'personal'; }
+      
+      if (examTime > new Date().getTime()) { 
+          targetCountdownDate = examTime; 
+          countdownMode = 'personal'; 
+      }
     } catch(e) {}
   } 
 
   if (countdownMode === 'none' && exams.length > 0) {
     let userZoneId = currentUser?.zone?.id;
+    
     if (currentUser && !userZoneId && currentUser?.zone?.name) {
        const matchedZ = findZoneByName(zones, currentUser.zone.name);
        if (matchedZ) userZoneId = matchedZ.id;
     }
+    
     const defaultZoneObj = zones.find(z => z.districts?.includes('Gebze')) || zones[0] || INITIAL_ZONES[0];
     if (!userZoneId && detectedZone) userZoneId = detectedZone.id;
     if (!userZoneId && defaultZoneObj) userZoneId = defaultZoneObj.id;
@@ -187,14 +189,19 @@ export default function App() {
     myZoneUpcoming.sort((a,b) => a - b);
     otherZoneUpcoming.sort((a,b) => a - b);
     
-    if (myZoneUpcoming.length > 0) { targetCountdownDate = myZoneUpcoming[0]; countdownMode = 'zone'; } 
-    else if (otherZoneUpcoming.length > 0) { targetCountdownDate = otherZoneUpcoming[0]; countdownMode = 'other_zones'; } 
-    else { countdownMode = 'none'; }
+    if (myZoneUpcoming.length > 0) { 
+        targetCountdownDate = myZoneUpcoming[0]; 
+        countdownMode = 'zone'; 
+    } 
+    else if (otherZoneUpcoming.length > 0) { 
+        targetCountdownDate = otherZoneUpcoming[0]; 
+        countdownMode = 'other_zones'; 
+    } 
+    else { 
+        countdownMode = 'none'; 
+    }
   }
 
-  // =========================================================================
-  // BAKIM MODU EKRANI
-  // =========================================================================
   if (IS_UNDER_MAINTENANCE) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 relative z-50">
@@ -303,7 +310,7 @@ export default function App() {
 
         <main className="pb-0 animate-in fade-in duration-500 mt-10">
           {currentView === 'landing' && <LandingPage navigateTo={navigateTo} currentUser={currentUser} detectedZone={detectedZone} scrollToSection={scrollToSection} exams={exams} zones={zones} />}
-          {currentView === 'register' && <RegistrationProcess navigateTo={navigateTo} currentUser={currentUser} setCurrentUser={setCurrentUser} zones={zones} exams={exams} refreshData={fetchInitialData} />}
+          {currentView === 'register' && <RegistrationProcess navigateTo={navigateTo} currentUser={currentUser} setCurrentUser={setCurrentUser} zones={zones} exams={exams} refreshData={() => {}} />}
           {currentView === 'login' && <LoginPage setCurrentUser={setCurrentUser} navigateTo={navigateTo} />}
           {currentView === 'profile' && <StudentProfile currentUser={currentUser} exams={exams} navigateTo={navigateTo} setCurrentUser={setCurrentUser} zones={zones} />}
           {currentView === 'admin' && !adminAuth.isAuthenticated && <AdminLogin setAdminAuth={setAdminAuth} zones={zones} />}
