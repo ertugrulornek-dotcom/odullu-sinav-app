@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { Gift, CheckCircle2 } from 'lucide-react';
+import { Gift, CheckCircle2, AlertCircle } from 'lucide-react';
 import { ThemeContext } from './ThemeSelector';
 import { parsePrizeArray } from '../utils/helpers';
 
@@ -64,10 +64,11 @@ export default function CombinedPrizeSection({ displayPrizes, currentUser }) {
         );
       })}
       
-      {/* DÜZELTME: Alt Uyarı Yazısı */}
-      <p className="text-sm md:text-base text-slate-400 font-bold text-center w-full mt-12 pb-4">
-         Ödüller kurumlara göre farklılık gösterebilir.
-      </p>
+      {/* DÜZELTME: DAHA DİKKAT ÇEKİCİ VE BELİRGİN UYARI KUTUSU */}
+      <div className="flex items-center justify-center gap-3 bg-amber-50 border-2 border-amber-200 text-amber-800 text-base md:text-lg font-black text-center w-full max-w-3xl mx-auto p-5 rounded-2xl mt-16 shadow-sm">
+         <AlertCircle className="w-6 h-6 flex-shrink-0 text-amber-500" />
+         <span>"Ödüller, kurumdan kuruma değişiklik arz edebilir."</span>
+      </div>
     </div>
   );
 }

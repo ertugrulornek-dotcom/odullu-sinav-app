@@ -85,13 +85,13 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
   
   const [filterZone, setFilterZone] = useState('');
   const [filterCenter, setFilterCenter] = useState('');
-  const [chk8Erkek, setCheck8Erkek] = useState(true);
-  const [chkOtherErkek, setCheckOtherErkek] = useState(true);
-  const [chkKiz, setCheckKiz] = useState(true);
+  // Not: Checkbox'ları ekrandan sildik çünkü filtreleme StudentsTab'da yapılıyor.
 
   const [showQuotaWarning, setShowQuotaWarning] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
-  const [pendingQuery, setPendingQuery] = useState([]);
+  
+  // DÜZELTME: Doğrudan indireceğimiz listeyi bellekte (RAM'de) tutar.
+  const [pendingFilteredData, setPendingFilteredData] = useState([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
 
   const adminZoneData = isSuperAdmin 
@@ -133,53 +133,20 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
       availableCenters = [...cNames].sort();
   }
 
+  // DÜZELTME: Firebase Index Hatasını Kökten Çözen Ham (Filtresiz) İndirme Motoru
   const handleCalculateQuery = async () => {
-      if (!chk8Erkek && !chkOtherErkek && !chkKiz) return alert("Lütfen en az bir öğrenci grubu seçiniz.");
       setIsFetchingData(true);
       try {
-          let queriesToRun = [];
-          const baseConstraints = [];
-          if (filterZone) baseConstraints.push(where("zone.id", "==", parseInt(filterZone)));
-
           const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'students');
+          // Sadece bölgeye göre süz (Diğer her şey StudentsTab içinde filtrelenecek)
+          let q = filterZone ? query(collRef, where("zone.id", "==", parseInt(filterZone))) : query(collRef);
 
-          if (chk8Erkek && chkOtherErkek && chkKiz) {
-              queriesToRun.push(query(collRef, ...baseConstraints));
-          } else {
-              if (chk8Erkek) queriesToRun.push(query(collRef, ...baseConstraints, where("gender", "==", "Erkek"), where("grade", "==", "8")));
-              if (chkOtherErkek) queriesToRun.push(query(collRef, ...baseConstraints, where("gender", "==", "Erkek"), where("grade", "in", ["3","4","5","6","7"])));
-              if (chkKiz) queriesToRun.push(query(collRef, ...baseConstraints, where("gender", "==", "Kız")));
-          }
+          const snap = await getDocs(q);
+          let allStudentsInZone = snap.docs.map(doc => ({ firebaseId: doc.id, ...doc.data() }));
 
-          let tCount = 0;
-          for (let q of queriesToRun) {
-              const s = await getCountFromServer(q);
-              tCount += s.data().count;
-          }
-          
-          setPendingCount(tCount);
-          setPendingQuery(queriesToRun);
-          setShowQuotaWarning(true);
-      } catch(e) { alert("Hesaplama hatası."); }
-      setIsFetchingData(false);
-  };
-
-  const executeStudentFetch = async () => {
-      setShowQuotaWarning(false);
-      setIsFetchingData(true);
-      try {
-          let allStudents = [];
-          for (let q of pendingQuery) {
-              const snap = await getDocs(q);
-              allStudents = [...allStudents, ...snap.docs.map(doc => ({ firebaseId: doc.id, ...doc.data() }))];
-          }
-
-          const uniqueMap = new Map();
-          allStudents.forEach(s => uniqueMap.set(s.firebaseId, s));
-          let finalStudents = Array.from(uniqueMap.values());
-
+          // Eğer Admin özellikle bir kurum seçtiyse sadece o kurumun çocuklarını hafızada tut
           if (filterCenter) {
-              finalStudents = finalStudents.filter(s => {
+              allStudentsInZone = allStudentsInZone.filter(s => {
                   const z = zones.find(zn => zn.id === s.zone?.id);
                   if (!z) return false;
                   const centerInfo = getNeighborhoodDetails(z, s.district, s.neighborhood, s.gender, s.grade);
@@ -187,10 +154,20 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
               });
           }
 
-          setFetchedStudents(finalStudents);
-          if (finalStudents.length === 0) alert("Seçtiğiniz kuruma/filtreye uyan öğrenci bulunamadı.");
-      } catch(e) { alert("Veriler indirilemedi."); }
+          setPendingCount(allStudentsInZone.length);
+          setPendingFilteredData(allStudentsInZone);
+          setShowQuotaWarning(true);
+      } catch(e) { 
+          console.error(e);
+          alert("Hesaplama hatası. Lütfen internet bağlantınızı kontrol edip tekrar deneyin."); 
+      }
       setIsFetchingData(false);
+  };
+
+  const executeStudentFetch = () => {
+      setShowQuotaWarning(false);
+      setFetchedStudents(pendingFilteredData);
+      if (pendingFilteredData.length === 0) alert("Seçtiğiniz kuruma/filtreye uyan öğrenci bulunamadı.");
   };
 
   const handleLogoutWithSync = async () => {
@@ -286,17 +263,12 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
             <AlertTriangle className="w-20 h-20 text-amber-500 mx-auto mb-6 animate-pulse" />
             <h3 className="text-2xl font-black text-slate-800 mb-4">Veri İndirme Onayı</h3>
             <p className="text-slate-600 font-medium mb-6 text-lg">
-              Seçtiğiniz gruplardaki öğrencileri görüntülemek için veritabanına bağlanılacaktır.
+              Seçilen bölgedeki tüm öğrencileri görüntülemek için veritabanına bağlanılacaktır.
             </p>
             
             <div className="bg-amber-50 text-amber-800 p-5 rounded-xl font-bold border border-amber-200 mb-8 text-sm">
               <span className="block text-lg mb-2">Günlük 50.000 işlem kotanızdan</span>
               <span className="text-3xl text-amber-600 block mb-2">{pendingCount} okuma eksilecektir.</span>
-              {filterCenter && (
-                 <span className="block text-xs opacity-80 mt-2 text-indigo-700">
-                    (Not: Seçtiğiniz <b>"{filterCenter}"</b> kurumunun öğrencilerini ayıklamak için bölgedeki {pendingCount} kişinin tamamı taranıp sizin için süzülecektir.)
-                 </span>
-              )}
             </div>
             
             <div className="flex gap-4">
@@ -349,13 +321,12 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
       <div className="mt-8 animate-in fade-in duration-300">
         {activeTab === 'ayarlar' && <SettingsTab adminZoneData={adminZoneData} isSuperAdmin={isSuperAdmin} adminZoneId={adminZoneId} setHasMadeChanges={setHasMadeChanges} filteredExams={filteredExams} zones={zones} />}
         
-        {/* DÜZELTME: Sınav Yerleri ve Atamalar Sekmesi Çağrıldı */}
         {activeTab === 'merkezler' && !isSuperAdmin && <CentersTab adminZoneData={adminZoneData} adminZoneId={adminZoneId} setHasMadeChanges={setHasMadeChanges} />}
         
         {activeTab === 'ogrenci' && (
            <>
              <div className="bg-white border-4 border-slate-100 rounded-[3rem] p-8 md:p-12 shadow-xl mb-8">
-                <h3 className="text-2xl font-black text-slate-800 mb-6 border-b-2 border-slate-100 pb-4 flex items-center"><Search className="w-6 h-6 mr-3 text-indigo-500"/> Öğrenci Verilerini İndir & Filtrele</h3>
+                <h3 className="text-2xl font-black text-slate-800 mb-6 border-b-2 border-slate-100 pb-4 flex items-center"><Search className="w-6 h-6 mr-3 text-indigo-500"/> Öğrenci Verilerini İndir</h3>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                     <div>
@@ -375,38 +346,19 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
                     </div>
                 </div>
 
-                <div className="mb-10">
-                    <label className="block text-sm font-bold text-slate-500 mb-3 uppercase tracking-wider">İndirilecek Öğrenci Grupları</label>
-                    <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
-                        <label className="flex items-center gap-3 cursor-pointer p-4 rounded-2xl border-2 border-slate-100 hover:bg-indigo-50 hover:border-indigo-200 transition select-none flex-1">
-                            <input type="checkbox" checked={chk8Erkek} onChange={e=>setCheck8Erkek(e.target.checked)} className="w-6 h-6 accent-indigo-600 rounded cursor-pointer" />
-                            <span className="font-bold text-slate-700 text-lg">8. Sınıf Erkekler</span>
-                        </label>
-                        <label className="flex items-center gap-3 cursor-pointer p-4 rounded-2xl border-2 border-slate-100 hover:bg-indigo-50 hover:border-indigo-200 transition select-none flex-1">
-                            <input type="checkbox" checked={chkOtherErkek} onChange={e=>setCheckOtherErkek(e.target.checked)} className="w-6 h-6 accent-indigo-600 rounded cursor-pointer" />
-                            <span className="font-bold text-slate-700 text-lg">3-7. Sınıf Erkekler</span>
-                        </label>
-                        <label className="flex items-center gap-3 cursor-pointer p-4 rounded-2xl border-2 border-slate-100 hover:bg-pink-50 hover:border-pink-200 transition select-none flex-1">
-                            <input type="checkbox" checked={chkKiz} onChange={e=>setCheckKiz(e.target.checked)} className="w-6 h-6 accent-pink-600 rounded cursor-pointer" />
-                            <span className="font-bold text-slate-700 text-lg">Tüm Kızlar (3-8. Sınıf)</span>
-                        </label>
-                    </div>
-                </div>
-
                 <button onClick={handleCalculateQuery} disabled={isFetchingData} className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 transition shadow-xl disabled:opacity-50 flex items-center justify-center">
-                   {isFetchingData ? "Maliyet Hesaplanıyor..." : <><Download className="w-6 h-6 mr-3"/> Kriterlere Uyan Verileri İndir</>}
+                   {isFetchingData ? "Maliyet Hesaplanıyor..." : <><Download className="w-6 h-6 mr-3"/> Seçilen Bölgedeki Tüm Öğrencileri İndir</>}
                 </button>
              </div>
 
              {fetchedStudents.length > 0 ? (
                 <StudentsTab students={fetchedStudents} isSuperAdmin={isSuperAdmin} adminZoneData={adminZoneData} zones={zones} setHasMadeChanges={setHasMadeChanges} />
              ) : (
-                <div className="text-center font-bold text-slate-400 py-10 bg-white rounded-3xl border-4 border-slate-50">Lütfen yukarıdan kriterleri seçip "Verileri İndir" butonuna tıklayın.</div>
+                <div className="text-center font-bold text-slate-400 py-10 bg-white rounded-3xl border-4 border-slate-50">Lütfen yukarıdan bölgeyi seçip "Verileri İndir" butonuna tıklayın. Cinsiyet, Sınıf vb. filtrelemeleri aşağıda liste açıldıktan sonra yapabilirsiniz.</div>
              )}
            </>
         )}
 
-        {/* DÜZELTME: İstatistikler Sekmesi Çağrıldı */}
         {activeTab === 'mahalleler' && isSuperAdmin && <StatsTab zones={zones} setHasMadeChanges={setHasMadeChanges} />}
         {activeTab === 'karaliste' && isSuperAdmin && <BlacklistTab setHasMadeChanges={setHasMadeChanges} />}
       </div>

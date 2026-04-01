@@ -96,10 +96,10 @@ export default function LandingPage({ navigateTo, currentUser, detectedZone, scr
                     Tarayıcınız video oynatmayı desteklemiyor.
                  </video>
               </div>
-              <div className="mt-8 bg-amber-50 p-6 rounded-2xl border border-amber-200 shadow-sm flex items-start text-left max-w-3xl mx-auto">
-                 <AlertCircle className="w-8 h-8 text-amber-500 mr-4 flex-shrink-0" />
-                 <p className="text-lg text-amber-900 font-bold leading-relaxed">
-                    Not: 8. sınıflarımız için doğrudan <span className="text-amber-600 font-black">LGS formatında hazırlanmış özel bir deneme</span> yapılacaktır.
+              <div className="mt-8 flex flex-col md:flex-row items-center justify-center text-center md:text-left max-w-3xl mx-auto px-4 gap-3">
+                 <AlertCircle className="w-6 h-6 text-amber-500 flex-shrink-0" />
+                 <p className="text-lg md:text-xl text-slate-700 font-bold leading-relaxed">
+                    <span className="text-amber-500 font-black">Not:</span> 8. sınıflarımız için doğrudan <span className="text-amber-500 font-black">LGS formatında hazırlanmış özel bir deneme</span> yapılacaktır.
                  </p>
               </div>
             </div>
