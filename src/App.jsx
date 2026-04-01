@@ -130,9 +130,10 @@ export default function App() {
     window.open(finalUrl, '_blank');
   };
 
-  let targetCountdownDate = null;
+let targetCountdownDate = null;
   let countdownMode = 'none';
 
+  // 1. ÖĞRENCİ GİRİŞ YAPTIYSA VE OTURUMU VARSA (Kendi Sınavını Sayar)
   if (currentUser && (currentUser.selectedDate || currentUser.exam?.date)) {
     try {
       const uDate = currentUser.selectedDate || currentUser.exam.date;
@@ -144,10 +145,76 @@ export default function App() {
       else { day = dParts[0]; month = dParts[1]; year = dParts[2]; }
       const timeParts = uTime.split(':');
       const examTime = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(timeParts[0]||9), parseInt(timeParts[1]||0)).getTime();
-      if (examTime > new Date().getTime()) { targetCountdownDate = examTime; countdownMode = 'personal'; }
+      
+      if (examTime > new Date().getTime()) { 
+          targetCountdownDate = examTime; 
+          countdownMode = 'personal'; 
+      }
     } catch(e) {}
   } 
 
+  // 2. ÖĞRENCİ OTURUM SEÇMEDİYSE VEYA GİRİŞ YAPILMADIYSA (Mıntıka Sınavlarını Sayar)
+  if (countdownMode === 'none' && exams.length > 0) {
+    let userZoneId = currentUser?.zone?.id;
+    
+    // Zone ID'yi tespit etme sırası:
+    if (currentUser && !userZoneId && currentUser?.zone?.name) {
+       const matchedZ = findZoneByName(zones, currentUser.zone.name);
+       if (matchedZ) userZoneId = matchedZ.id;
+    }
+    
+    // Eğer giriş yapılmadıysa Konumdan veya Varsayılan Gebze'den tespit et
+    const defaultZoneObj = zones.find(z => z.districts?.includes('Gebze')) || zones[0] || INITIAL_ZONES[0];
+    if (!userZoneId && detectedZone) userZoneId = detectedZone.id;
+    if (!userZoneId && defaultZoneObj) userZoneId = defaultZoneObj.id;
+
+    let myZoneUpcoming = [];
+    let otherZoneUpcoming = [];
+    
+    // Sınavları Tarama ve Ayırma
+    exams.forEach(exam => {
+       if (exam.active !== false) {
+          const examSessions = exam.sessions || (exam.date && exam.slots ? [{ date: exam.date, slots: exam.slots }] : []);
+          examSessions.forEach(session => {
+             if (!session.date) return;
+             try {
+                const cleanDate = session.date.replace(/\//g, '-').replace(/\./g, '-');
+                const dParts = cleanDate.split('-');
+                let year, month, day;
+                if (dParts[0].length === 4) { year = parseInt(dParts[0]); month = parseInt(dParts[1]); day = parseInt(dParts[2]); }
+                else { day = parseInt(dParts[0]); month = parseInt(dParts[1]); year = parseInt(dParts[2]); }
+                const timeStr = (session.slots && session.slots.length > 0) ? session.slots[0] : '09:00';
+                const timeParts = timeStr.split(':');
+                const stime = new Date(year, month - 1, day, parseInt(timeParts[0] || '9'), parseInt(timeParts[1] || '0')).getTime();
+                
+                // Sınavın tarihi henüz geçmediyse
+                if (stime > new Date().getTime()) {
+                   if (exam.zoneId == userZoneId) myZoneUpcoming.push(stime);
+                   else otherZoneUpcoming.push(stime);
+                }
+             } catch(e) {}
+          });
+       }
+    });
+    
+    myZoneUpcoming.sort((a,b) => a - b);
+    otherZoneUpcoming.sort((a,b) => a - b);
+    
+    // Hangi modu açacağına karar verme algoritması
+    if (myZoneUpcoming.length > 0) { 
+        targetCountdownDate = myZoneUpcoming[0]; 
+        countdownMode = 'zone'; 
+    } 
+    else if (otherZoneUpcoming.length > 0) { 
+        targetCountdownDate = otherZoneUpcoming[0]; 
+        countdownMode = 'other_zones'; 
+    } 
+    else { 
+        countdownMode = 'none'; 
+    }
+  }
+
+  // 3. YÜKLEME EKRANI
   if (loading) return (
      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center relative" aria-hidden="true" data-nosnippet>
         <img src="/Sembol.png" className="w-32 h-32 md:w-40 md:h-40 animate-bounce mb-8 object-contain drop-shadow-2xl" alt="" />
@@ -155,10 +222,10 @@ export default function App() {
      </div>
   );
 
+  // 4. İLETİŞİM BİLGİLERİ (Header için)
   const liveZone = currentUser ? (findZoneByName(zones, currentUser.zone?.name) || currentUser.zone) : null;
   const userLocDetails = currentUser ? getNeighborhoodDetails(liveZone, currentUser.district, currentUser.neighborhood, currentUser.gender, currentUser.grade) : null;
   let headerPhone = userLocDetails?.phone || "0553 973 54 40";
-
   return (
     <ThemeProvider>
       <div className="fixed inset-0 z-[-1] bg-slate-50 pointer-events-none overflow-hidden transition-colors duration-500">

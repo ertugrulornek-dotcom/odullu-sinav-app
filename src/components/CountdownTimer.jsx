@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { CalendarClock, X, Phone, Info } from 'lucide-react';
+import { CalendarClock, X, Phone, MapPin } from 'lucide-react';
 import { ThemeContext } from './ThemeSelector';
 
 export default function CountdownTimer({ examDate, mode }) {
@@ -43,8 +43,16 @@ export default function CountdownTimer({ examDate, mode }) {
          <CalendarClock className="w-10 h-10" style={{ color: currentTheme.main }} />
       </div>
       
-      {mode === 'personal' || mode === 'zone' ? (
-          <>
+      {mode === 'none' || !timeLeft ? (
+         <div className="py-2 pl-2">
+             <p className="text-sm font-black text-slate-800 mb-2 leading-tight">Şu anda planlanmış aktif sınavımız yoktur.</p>
+             <p className="text-[11px] font-bold text-slate-500 mb-2">Gelecekteki sınavlarımız için bilgi alabilirsiniz:</p>
+             <a href="tel:05539735440" className="inline-flex items-center text-sm font-black px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-colors">
+                 <Phone className="w-4 h-4 mr-2" style={{ color: currentTheme.main }}/> 0553 973 54 40
+             </a>
+         </div>
+      ) : (
+         <>
             <div className="flex gap-2">
               {[{ value: timeLeft?.days||0, label: 'Gün' }, { value: timeLeft?.hours||0, label: 'Saat' }, { value: timeLeft?.minutes||0, label: 'Dakika' }].map(({ value, label }) => (
                 <div key={label} className="text-center bg-slate-50 border border-slate-100 rounded-xl px-2 py-1.5 min-w-[3.5rem] shadow-sm">
@@ -53,31 +61,22 @@ export default function CountdownTimer({ examDate, mode }) {
                 </div>
               ))}
             </div>
-            <div className="border-l border-slate-200 pl-4 py-1">
+            <div className="border-l border-slate-200 pl-4 py-1 flex flex-col justify-center">
                 <p className="text-sm font-black text-slate-700 leading-tight">
-                    {mode === 'personal' ? 'Oturumunuza Kalan Süre' : 'Sıradaki Sınava Kalan Süre'}
+                    {mode === 'personal' ? 'Oturumunuza Kalan Süre' : 
+                     mode === 'other_zones' ? 'Diğer Bölgelerdeki Sınava Kalan Süre' : 
+                     'Sıradaki Sınava Kalan Süre'}
                 </p>
                 {mode === 'zone' && <p className="text-xs font-bold text-slate-500 mt-1">Siz de yerinizi ayırtın!</p>}
+                
+                {/* DİĞER BÖLGELERDE SINAV VARSA KAYIT SAYFASINA YÖNLENDİR */}
+                {mode === 'other_zones' && (
+                    <a href="#register" onClick={() => { setIsExpanded(false); window.scrollTo(0,0); }} className="mt-2 inline-flex items-center text-[10px] font-black text-white px-2.5 py-1.5 rounded-lg transition-transform hover:scale-105 shadow-sm w-max" style={{ backgroundColor: currentTheme.main }}>
+                        <MapPin className="w-3 h-3 mr-1"/> Sınavları İncele
+                    </a>
+                )}
             </div>
-          </>
-      ) : mode === 'other_zones' ? (
-          <div className="py-2 pl-2 pr-2">
-              <div className="flex items-start">
-                 <Info className="w-6 h-6 text-indigo-500 mr-3 flex-shrink-0 mt-0.5" />
-                 <div>
-                    <p className="text-sm font-black text-slate-800 mb-1 leading-tight">Mıntıkanızda şu an aktif sınav yok.</p>
-                    <p className="text-xs font-bold text-slate-500">Ancak diğer bölgelerdeki sınavları inceleyebilir ve dilerseniz onlara başvuru yapabilirsiniz.</p>
-                 </div>
-              </div>
-          </div>
-      ) : (
-          <div className="py-2 pl-2">
-              <p className="text-sm font-black text-slate-800 mb-2 leading-tight">Şu anda planlanmış aktif sınavımız yoktur.</p>
-              <p className="text-[11px] font-bold text-slate-500 mb-2">Gelecekteki sınavlarımız için bilgi alabilirsiniz:</p>
-              <a href="tel:05539735440" className="inline-flex items-center text-sm font-black px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-colors">
-                  <Phone className="w-4 h-4 mr-2" style={{ color: currentTheme.main }}/> 0553 973 54 40
-              </a>
-          </div>
+         </>
       )}
     </div>
   );
