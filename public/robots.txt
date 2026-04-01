@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Arama motorlarının girmesini istemediğimiz özel sayfalar
+Disallow: /*#admin
+Disallow: /*#profile
+Disallow: /*#login
+
+# Site haritasının konumu (Google botlarına yolu gösterir)
+Sitemap: https://www.odullusinav.net/sitemap.xml
