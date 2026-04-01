@@ -8,10 +8,13 @@ import { LOCATIONS } from '../data/constants';
 import { SCHOOLS } from '../data/schools'; 
 import { determineZoneName, findZoneByName, parsePrizeArray, getNeighborhoodDetails, formatToTurkishDate } from '../utils/helpers';
 
-// DÜZELTME: Ödül Vitrini Süslemeleri, Açıklamalar ve Derece Ödülleri Eklendi
+// DÜZELTME: Sadece 1. sıraya değil, tüm listeye bakıp dolu olan ödülleri ekrana çizen güçlü filtreleme eklendi
 const RegistrationPrizeSelector = ({ partPrizes, degreePrizes, selectedPrize, onSelect }) => {
-  const hasPart = partPrizes && partPrizes.length > 0 && partPrizes[0].title;
-  const hasDegree = degreePrizes && degreePrizes.length > 0 && degreePrizes[0].title;
+  const validPartPrizes = partPrizes ? partPrizes.filter(p => p.title && p.title.trim() !== '') : [];
+  const validDegreePrizes = degreePrizes ? degreePrizes.filter(p => p.title && p.title.trim() !== '') : [];
+
+  const hasPart = validPartPrizes.length > 0;
+  const hasDegree = validDegreePrizes.length > 0;
 
   if (!hasPart && !hasDegree) return null;
 
@@ -25,7 +28,7 @@ const RegistrationPrizeSelector = ({ partPrizes, degreePrizes, selectedPrize, on
                      <Gift className="w-8 h-8 mr-3"/> İstediğiniz Katılım Ödülü *
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                      {partPrizes.map((prize, idx) => {
+                      {validPartPrizes.map((prize, idx) => {
                           const isSelected = selectedPrize === prize.title;
                           return (
                               <div key={idx} onClick={() => onSelect(prize.title)}
@@ -52,12 +55,12 @@ const RegistrationPrizeSelector = ({ partPrizes, degreePrizes, selectedPrize, on
 
           {/* Derece Ödülleri Vitrini (Sadece Gösterim) */}
           {hasDegree && (
-              <div className="mt-12 pt-10 border-t-4 border-slate-200/60 relative z-10">
+              <div className={`mt-12 pt-10 relative z-10 ${hasPart ? 'border-t-4 border-slate-200/60' : ''}`}>
                   <h3 className="flex items-center text-xl md:text-2xl font-black text-amber-500 mb-8 drop-shadow-sm">
                      <Trophy className="w-8 h-8 mr-3"/> Dereceye Girerseniz Kazanacaklarınız
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                      {degreePrizes.map((prize, idx) => (
+                      {validDegreePrizes.map((prize, idx) => (
                           <div key={idx} className="bg-white/80 backdrop-blur-sm p-6 rounded-3xl border-2 border-amber-100 shadow-sm hover:shadow-lg transition-all hover:-translate-y-2 flex flex-col items-center text-center group">
                               <div className="relative mb-5">
                                  <div className="absolute inset-0 bg-amber-400 blur-xl opacity-20 rounded-full group-hover:opacity-40 transition-opacity duration-500"></div>
@@ -171,21 +174,25 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
     if (!currentUser) setSelectedParticipationPrize('');
   }, [formData.district, formData.neighborhood]);
 
-  // DÜZELTME: Ödül Dizileri Ayrıştırıldı
   const partPrizesList = parsePrizeArray(matchedZone?.prizes?.participation);
   const degreePrizesList = parsePrizeArray(matchedZone?.prizes?.degree);
-  const needsPartSelection = partPrizesList.length > 0 && !!partPrizesList[0].title;
+  
+  // DÜZELTME: Sadece geçerli (dolu) ödülleri dikkate alır
+  const validPartPrizesList = partPrizesList.filter(p => p.title && p.title.trim() !== '');
+  const needsPartSelection = validPartPrizesList.length > 0;
 
   useEffect(() => {
-     if (needsPartSelection && partPrizesList.length === 1 && !selectedParticipationPrize) setSelectedParticipationPrize(partPrizesList[0].title);
-  }, [needsPartSelection, partPrizesList, selectedParticipationPrize]);
+     if (needsPartSelection && validPartPrizesList.length === 1 && !selectedParticipationPrize) {
+         setSelectedParticipationPrize(validPartPrizesList[0].title);
+     }
+  }, [needsPartSelection, validPartPrizesList, selectedParticipationPrize]);
 
   const isFormValid = selectedSlot !== null && (!needsPartSelection || selectedParticipationPrize !== '');
 
   const handleComplete = async (withoutExam = false) => {
     setIsSubmitting(true);
     const finalSchoolName = isCustomSchool ? customSchoolName : formData.schoolName;
-    const finalPartPrize = withoutExam ? '' : (selectedParticipationPrize || (partPrizesList.length === 1 ? partPrizesList[0].title : ''));
+    const finalPartPrize = withoutExam ? '' : (selectedParticipationPrize || (validPartPrizesList.length === 1 ? validPartPrizesList[0].title : ''));
     
     const isUpdate = !!currentUser;
     let finalPassword = isUpdate ? currentUser.password : Math.floor(100000 + Math.random() * 900000).toString();
@@ -322,8 +329,7 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
                       })}
                     </div>
                     
-                    {/* DÜZELTME: Ödül Vitrini Alanı Eklendi */}
-                    {selectedSlot && (needsPartSelection || degreePrizesList.length > 0) && (
+                    {selectedSlot && (needsPartSelection || validDegreePrizesList.length > 0) && (
                        <RegistrationPrizeSelector 
                            partPrizes={partPrizesList} 
                            degreePrizes={degreePrizesList} 
