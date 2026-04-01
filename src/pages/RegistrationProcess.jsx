@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Phone, Plus, MapPin, AlertCircle, CalendarIcon, Clock, CheckCircle2, Gift, ChevronRight, School } from 'lucide-react';
+import { Phone, Plus, MapPin, AlertCircle, CalendarIcon, Clock, CheckCircle2, Gift, ChevronRight, School, Trophy } from 'lucide-react';
 import { Image as ImageIcon } from 'lucide-react';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, onSnapshot } from "firebase/firestore";
 import { db, appId } from '../services/firebase';
@@ -8,26 +8,72 @@ import { LOCATIONS } from '../data/constants';
 import { SCHOOLS } from '../data/schools'; 
 import { determineZoneName, findZoneByName, parsePrizeArray, getNeighborhoodDetails, formatToTurkishDate } from '../utils/helpers';
 
-const RegistrationPrizeSelector = ({ type, prizes, selectedPrize, onSelect }) => {
-  if (!prizes || prizes.length === 0) return null;
-  if (prizes.length === 1 && !prizes[0].title) return null;
+// DÜZELTME: Ödül Vitrini Süslemeleri, Açıklamalar ve Derece Ödülleri Eklendi
+const RegistrationPrizeSelector = ({ partPrizes, degreePrizes, selectedPrize, onSelect }) => {
+  const hasPart = partPrizes && partPrizes.length > 0 && partPrizes[0].title;
+  const hasDegree = degreePrizes && degreePrizes.length > 0 && degreePrizes[0].title;
+
+  if (!hasPart && !hasDegree) return null;
 
   return (
-      <div className="mb-8 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
-          <label className="block text-sm font-black uppercase tracking-widest mb-4 text-emerald-600">İstediğiniz Katılım Ödülü *</label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {prizes.map((prize, idx) => {
-                  const isSelected = selectedPrize === prize.title;
-                  return (
-                      <div key={idx} onClick={() => onSelect(prize.title)}
-                           className={`cursor-pointer flex items-center p-4 rounded-2xl border-4 transition-all hover:scale-105 ${isSelected ? 'border-green-500 bg-green-50 shadow-md' : 'border-slate-200 bg-white hover:border-green-300'}`}>
-                           {prize.img ? <img src={prize.img} alt={prize.title} className="w-16 h-16 object-cover rounded-xl shadow-sm border border-slate-200 mr-4 bg-white flex-shrink-0" /> : <div className="w-16 h-16 rounded-xl bg-slate-100 border border-slate-200 mr-4 flex items-center justify-center text-slate-300 flex-shrink-0"><ImageIcon className="w-6 h-6"/></div>}
-                           <div className="flex-1"><h4 className={`font-black text-lg ${isSelected ? 'text-green-700' : 'text-slate-700'}`}>{prize.title}</h4></div>
-                           {isSelected && <CheckCircle2 className="w-6 h-6 text-green-500 ml-2 flex-shrink-0 animate-in zoom-in" />}
-                      </div>
-                  )
-              })}
-          </div>
+      <div className="mb-10 bg-gradient-to-br from-slate-50 to-slate-100 p-6 md:p-10 rounded-[3rem] border-4 border-white shadow-xl relative overflow-hidden">
+          
+          {/* Katılım Ödülleri Seçim Alanı */}
+          {hasPart && (
+              <div className="relative z-10">
+                  <label className="flex items-center text-xl md:text-2xl font-black text-emerald-600 mb-6 drop-shadow-sm">
+                     <Gift className="w-8 h-8 mr-3"/> İstediğiniz Katılım Ödülü *
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      {partPrizes.map((prize, idx) => {
+                          const isSelected = selectedPrize === prize.title;
+                          return (
+                              <div key={idx} onClick={() => onSelect(prize.title)}
+                                   className={`cursor-pointer flex flex-col sm:flex-row items-center p-5 rounded-3xl border-4 transition-all duration-300 hover:-translate-y-1 ${isSelected ? 'border-emerald-500 bg-emerald-50 shadow-lg scale-[1.02]' : 'border-white bg-white hover:border-emerald-300 shadow-sm'}`}>
+                                   
+                                   {prize.img ? (
+                                      <img src={prize.img} alt={prize.title} className="w-24 h-24 object-cover rounded-2xl shadow-md border-2 border-white mb-4 sm:mb-0 sm:mr-5 bg-white flex-shrink-0" />
+                                   ) : (
+                                      <div className="w-24 h-24 rounded-2xl bg-slate-50 border-2 border-slate-100 mb-4 sm:mb-0 sm:mr-5 flex items-center justify-center text-slate-300 flex-shrink-0"><ImageIcon className="w-8 h-8"/></div>
+                                   )}
+                                   
+                                   <div className="flex-1 text-center sm:text-left">
+                                       <h4 className={`font-black text-lg leading-tight mb-2 ${isSelected ? 'text-emerald-700' : 'text-slate-800'}`}>{prize.title}</h4>
+                                       {prize.desc && <p className="text-sm font-bold text-slate-500 line-clamp-2 leading-snug">{prize.desc}</p>}
+                                   </div>
+                                   
+                                   {isSelected && <CheckCircle2 className="w-8 h-8 text-emerald-500 mt-4 sm:mt-0 sm:ml-3 flex-shrink-0 animate-in zoom-in" />}
+                              </div>
+                          )
+                      })}
+                  </div>
+              </div>
+          )}
+
+          {/* Derece Ödülleri Vitrini (Sadece Gösterim) */}
+          {hasDegree && (
+              <div className="mt-12 pt-10 border-t-4 border-slate-200/60 relative z-10">
+                  <h3 className="flex items-center text-xl md:text-2xl font-black text-amber-500 mb-8 drop-shadow-sm">
+                     <Trophy className="w-8 h-8 mr-3"/> Dereceye Girerseniz Kazanacaklarınız
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                      {degreePrizes.map((prize, idx) => (
+                          <div key={idx} className="bg-white/80 backdrop-blur-sm p-6 rounded-3xl border-2 border-amber-100 shadow-sm hover:shadow-lg transition-all hover:-translate-y-2 flex flex-col items-center text-center group">
+                              <div className="relative mb-5">
+                                 <div className="absolute inset-0 bg-amber-400 blur-xl opacity-20 rounded-full group-hover:opacity-40 transition-opacity duration-500"></div>
+                                 {prize.img ? (
+                                    <img src={prize.img} alt={prize.title} className="w-24 h-24 object-contain drop-shadow-xl relative z-10 group-hover:scale-110 transition-transform duration-500" />
+                                 ) : (
+                                    <Trophy className="w-20 h-20 text-amber-300 relative z-10"/>
+                                 )}
+                              </div>
+                              <h4 className="font-black text-lg text-slate-800 mb-2">{prize.title}</h4>
+                              {prize.desc && <p className="text-xs font-bold text-slate-500 line-clamp-2">{prize.desc}</p>}
+                          </div>
+                      ))}
+                  </div>
+              </div>
+          )}
       </div>
   )
 };
@@ -74,7 +120,6 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
     setFormData({ ...formData, phone: val });
   };
 
-  // OPTİMİZASYON: Sadece girilen numarayı sorgulayıp mükerrer kontrolü yapar
   const handleStep1Submit = async () => {
     if (blacklist.includes(formData.phone)) return alert("Bu numara personel numarasıdır. Lütfen veli numarası giriniz.");
     
@@ -126,7 +171,9 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
     if (!currentUser) setSelectedParticipationPrize('');
   }, [formData.district, formData.neighborhood]);
 
+  // DÜZELTME: Ödül Dizileri Ayrıştırıldı
   const partPrizesList = parsePrizeArray(matchedZone?.prizes?.participation);
+  const degreePrizesList = parsePrizeArray(matchedZone?.prizes?.degree);
   const needsPartSelection = partPrizesList.length > 0 && !!partPrizesList[0].title;
 
   useEffect(() => {
@@ -275,8 +322,14 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
                       })}
                     </div>
                     
-                    {selectedSlot && needsPartSelection && (
-                       <RegistrationPrizeSelector type="part" prizes={partPrizesList} selectedPrize={selectedParticipationPrize} onSelect={setSelectedParticipationPrize} />
+                    {/* DÜZELTME: Ödül Vitrini Alanı Eklendi */}
+                    {selectedSlot && (needsPartSelection || degreePrizesList.length > 0) && (
+                       <RegistrationPrizeSelector 
+                           partPrizes={partPrizesList} 
+                           degreePrizes={degreePrizesList} 
+                           selectedPrize={selectedParticipationPrize} 
+                           onSelect={setSelectedParticipationPrize} 
+                       />
                     )}
 
                     <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-6 mt-12 pt-8 border-t-2 border-slate-100">

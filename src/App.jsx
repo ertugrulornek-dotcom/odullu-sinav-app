@@ -113,13 +113,11 @@ export default function App() {
   };
 
   const copyInviteLink = () => {
-    const currentTheme = localStorage.getItem('os_theme') || 'watergreen';
-    const link = `https://www.odullusinav.net/?theme=${currentTheme}#register`;
+    // DÜZELTME: Linkten tema parametresi kaldırıldı, her zaman sabit "#register" eklenecek.
+    const link = `https://www.odullusinav.net/#register`;
     
-    // Mesajın Yıldızlı (Kalın), emojili ve uyarı yazılı ilk kısmı
     const part1 = "%2AT%C3%BCrkiye%20Geneli%20%C3%96d%C3%BCll%C3%BC%20Deneme%20S%C4%B1nav%C4%B1%2A%20%F0%9F%8F%86%F0%9F%8E%96%EF%B8%8F%F0%9F%93%9D%0A%0A23-25%20Nisan%20%20tarihlerinde%203%2C%204%2C%205%2C%206%2C%207%20ve%208.s%C4%B1n%C4%B1flara%20%C3%B6zel%20d%C3%BCzenlenen%20%2A%C3%96d%C3%BCll%C3%BC%20Deneme%20S%C4%B1nav%C4%B1na%2A%20kat%C4%B1lmak%20i%C3%A7in%20ge%C3%A7%20kalmay%C4%B1n!%0A%0AKat%C4%B1lan%20herkese%20%C3%A7e%C5%9Fitli%20%C3%B6d%C3%BCllerden%20istedi%C4%9Fi%20hediye!%0A%0A%2Afutbol%20topu%E2%9A%BD%EF%B8%8F%2C%20Suluk%20%F0%9F%8D%B6%2C%20Kulakl%C4%B1k%20%F0%9F%8E%A7%2A%20ve%20daha%20niceleri%E2%80%A6%0A%0A%20Derece%20%C3%96d%C3%BClleri%3A%0A%0A%2AAk%C4%B1ll%C4%B1%20saat%20%E2%8C%9A%2Cbisiklet%20%20%F0%9F%9A%B4%20%2C%20Tak%C4%B1ma%20%C3%96zel%20Forma%20%F0%9F%91%95%2A%20ve%20daha%20niceleri%E2%80%A6%0A%0A%2A%E2%80%9C%C3%96d%C3%BCller%2C%20kurumdan%20kuruma%20de%C4%9Fi%C5%9Fiklik%20arz%20edebilir.%E2%80%9D%2A%0A%0ABa%C5%9Fvuru%20i%C3%A7in%3A%0A";
 
-    // Linkin hemen altına eklenecek olan 2. Kısım (Ana Site Linki)
     const part2 = "%0A%0A%C3%96d%C3%BCll%C3%BC%20Deneme%20Sitesi%20Linki%20%0Ahttps%3A%2F%2Fodullusinav.net%2F";
     
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
