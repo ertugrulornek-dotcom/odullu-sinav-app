@@ -8,7 +8,6 @@ import { INITIAL_ZONES } from '../data/constants';
 export default function LandingPage({ navigateTo, currentUser, detectedZone, scrollToSection, exams, zones }) {
   const { currentTheme } = useContext(ThemeContext);
   
-  // Konum bazlı akıllı bölge seçimi
   const defaultZone = zones.find(z => z.districts?.includes('Gebze')) || zones[0] || INITIAL_ZONES[0];
   const activeZone = currentUser 
      ? zones.find(z => z.id === currentUser.zone?.id) 
@@ -23,6 +22,10 @@ export default function LandingPage({ navigateTo, currentUser, detectedZone, scr
       if(key && !seenExams.has(key)) { seenExams.add(key); uniqueExams.push(e); }
   });
   const displayExams = currentUser ? exams.filter(e => e.zoneId === currentUser.zone?.id) : uniqueExams;
+
+  // DÜZELTME: Giriş yapılmadığında (profilde değilken) her zaman varsayılan numara gönderilir
+  const fallbackContact = { contactName: "Bilgi & İletişim", phone: "0553 973 54 40" };
+  const contactToPass = currentUser ? (activeZone?.mappings?.[0] || fallbackContact) : fallbackContact;
 
   return (
     <div className="relative">
@@ -116,11 +119,12 @@ export default function LandingPage({ navigateTo, currentUser, detectedZone, scr
                      <ul className="flex flex-col gap-4 text-left ml-4 md:ml-0 mb-8">
                         <li className="flex items-start gap-3">
                            <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
-                           <span className="font-black text-xl md:text-2xl drop-shadow-md" style={{ color: 'color-mix(in srgb, white 85%, var(--color-contrast))' }}>Konu Bazlı Performans Karnesi</span>
+                           {/* DÜZELTME: Doğrudan 2. Renk Atandı */}
+                           <span className="font-black text-xl md:text-2xl drop-shadow-md" style={{ color: 'var(--color-contrast)' }}>Konu Bazlı Performans Karnesi</span>
                         </li>
                         <li className="flex items-start gap-3">
                            <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
-                           <span className="font-black text-xl md:text-2xl drop-shadow-md" style={{ color: 'color-mix(in srgb, white 85%, var(--color-contrast))' }}>Türkiye ve İl Geneli Yüzdelik Dilim</span>
+                           <span className="font-black text-xl md:text-2xl drop-shadow-md" style={{ color: 'var(--color-contrast)' }}>Türkiye ve İl Geneli Yüzdelik Dilim</span>
                         </li>
                      </ul>
 
@@ -140,11 +144,12 @@ export default function LandingPage({ navigateTo, currentUser, detectedZone, scr
                      <ul className="flex flex-col gap-5 text-left ml-4 md:ml-0 mb-8">
                         <li className="flex items-start gap-3">
                            <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
-                           <span className="font-black text-lg md:text-xl uppercase tracking-wide drop-shadow-md" style={{ color: 'color-mix(in srgb, white 85%, var(--color-contrast))' }}>DERECEYE GİRENLERE EĞİTİM BURSU!</span>
+                           {/* DÜZELTME: Doğrudan 2. Renk Atandı */}
+                           <span className="font-black text-lg md:text-xl uppercase tracking-wide drop-shadow-md" style={{ color: 'var(--color-contrast)' }}>DERECEYE GİRENLERE EĞİTİM BURSU!</span>
                         </li>
                         <li className="flex items-start gap-3">
                            <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
-                           <span className="font-black text-lg md:text-xl uppercase tracking-wide drop-shadow-md" style={{ color: 'color-mix(in srgb, white 85%, var(--color-contrast))' }}>DETAYLI ANALİZ SONUCU EKSİK OLDUĞUN KONULARDA EĞİTİM DESTEĞİ!</span>
+                           <span className="font-black text-lg md:text-xl uppercase tracking-wide drop-shadow-md" style={{ color: 'var(--color-contrast)' }}>DETAYLI ANALİZ SONUCU EKSİK OLDUĞUN KONULARDA EĞİTİM DESTEĞİ!</span>
                         </li>
                      </ul>
 
@@ -157,8 +162,7 @@ export default function LandingPage({ navigateTo, currentUser, detectedZone, scr
             </div>
           </div>
 
-          {/* DÜZELTME: publicZone yerine activeZone eklendi */}
-          <div id="takvim" className="pt-10 scroll-mt-24"><TimelineCalendar zoneExams={displayExams} currentUser={currentUser} defaultContact={activeZone?.mappings?.[0]} /></div>
+          <div id="takvim" className="pt-10 scroll-mt-24"><TimelineCalendar zoneExams={displayExams} currentUser={currentUser} defaultContact={contactToPass} /></div>
         </div>
       </section>
     </div>
