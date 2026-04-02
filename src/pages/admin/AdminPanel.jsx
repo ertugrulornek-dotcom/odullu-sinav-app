@@ -85,12 +85,10 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
   
   const [filterZone, setFilterZone] = useState('');
   const [filterCenter, setFilterCenter] = useState('');
-  // Not: Checkbox'ları ekrandan sildik çünkü filtreleme StudentsTab'da yapılıyor.
 
   const [showQuotaWarning, setShowQuotaWarning] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   
-  // DÜZELTME: Doğrudan indireceğimiz listeyi bellekte (RAM'de) tutar.
   const [pendingFilteredData, setPendingFilteredData] = useState([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
 
@@ -133,18 +131,15 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
       availableCenters = [...cNames].sort();
   }
 
-  // DÜZELTME: Firebase Index Hatasını Kökten Çözen Ham (Filtresiz) İndirme Motoru
   const handleCalculateQuery = async () => {
       setIsFetchingData(true);
       try {
           const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'students');
-          // Sadece bölgeye göre süz (Diğer her şey StudentsTab içinde filtrelenecek)
           let q = filterZone ? query(collRef, where("zone.id", "==", parseInt(filterZone))) : query(collRef);
 
           const snap = await getDocs(q);
           let allStudentsInZone = snap.docs.map(doc => ({ firebaseId: doc.id, ...doc.data() }));
 
-          // Eğer Admin özellikle bir kurum seçtiyse sadece o kurumun çocuklarını hafızada tut
           if (filterCenter) {
               allStudentsInZone = allStudentsInZone.filter(s => {
                   const z = zones.find(zn => zn.id === s.zone?.id);
@@ -168,6 +163,8 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
       setShowQuotaWarning(false);
       setFetchedStudents(pendingFilteredData);
       if (pendingFilteredData.length === 0) alert("Seçtiğiniz kuruma/filtreye uyan öğrenci bulunamadı.");
+      // DÜZELTME: İndirme işlemi yapıldığında listeyi güncellenmiş varsay
+      setHasMadeChanges(true);
   };
 
   const handleLogoutWithSync = async () => {
@@ -191,6 +188,7 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
         const centerInfo = getNeighborhoodDetails(zone, student.district, student.neighborhood, student.gender, student.grade);
         const hasValidCenter = centerInfo.centerName !== "Sınav Merkezi Bekleniyor";
         
+        // DÜZELTME: Bekleme havuzundaki çocuğa merkez atanmışsa onu yakala ve SMS at!
         if (student.isWaitingPool === true && hasValidCenter) {
            updates.isWaitingPool = false;
            needsSms = true;
