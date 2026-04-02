@@ -5,7 +5,7 @@ import { db, appId } from "../../services/firebase";
 import { doc, updateDoc } from "firebase/firestore";
 import { sendSMS, SMS_FOOTER } from '../../services/smsService';
 import { DEFAULT_PRIZE_OBJ, INITIAL_ZONES } from '../../data/constants';
-import { getNeighborhoodDetails, normalizeForSearch, parsePrizeArray } from '../../utils/helpers';
+import { getNeighborhoodDetails, normalizeForSearch, parsePrizeArray, determineZoneName, findZoneByName } from '../../utils/helpers';
 
 import SettingsTab from './SettingsTab';
 import CentersTab from './CentersTab';
@@ -22,7 +22,8 @@ export function AdminLogin({ setAdminAuth, zones }) {
     e.preventDefault();
     setError('');
 
-    if (password !== '18881959') {
+    // ŞİFRE GÜNCELLENDİ
+    if (password !== '19031966') {
       setError('Hatalı şifre girdiniz.');
       return;
     }
@@ -163,7 +164,6 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
       setShowQuotaWarning(false);
       setFetchedStudents(pendingFilteredData);
       if (pendingFilteredData.length === 0) alert("Seçtiğiniz kuruma/filtreye uyan öğrenci bulunamadı.");
-      // DÜZELTME: İndirme işlemi yapıldığında listeyi güncellenmiş varsay
       setHasMadeChanges(true);
   };
 
@@ -178,21 +178,40 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
       let smsQueue = [];
 
       for (let student of fetchedStudents) {
-        const zone = zones.find(z => z.id === student.zone?.id) || student.zone;
-        if (!zone) continue;
+        let latestZone = null;
+        if (student.zone && student.zone.id) {
+           latestZone = zones.find(z => z.id == student.zone.id);
+        }
+        if (!latestZone) {
+           const zName = determineZoneName(student.province, student.district, student.neighborhood);
+           latestZone = findZoneByName(zones, zName);
+        }
+        if (!latestZone) continue;
 
         let updates = {};
         let needsSms = false;
         let smsText = "";
 
-        const centerInfo = getNeighborhoodDetails(zone, student.district, student.neighborhood, student.gender, student.grade);
+        const centerInfo = getNeighborhoodDetails(latestZone, student.district, student.neighborhood, student.gender, student.grade);
         const hasValidCenter = centerInfo.centerName !== "Sınav Merkezi Bekleniyor";
         
-        // DÜZELTME: Bekleme havuzundaki çocuğa merkez atanmışsa onu yakala ve SMS at!
-        if (student.isWaitingPool === true && hasValidCenter) {
-           updates.isWaitingPool = false;
-           needsSms = true;
-           smsText = `Müjde! Sınav merkeziniz tanımlandı. Lütfen odullusinav.net üzerinden profilinize giriş yaparak oturumunuzu seçiniz.${SMS_FOOTER}`;
+        updates.zone = latestZone;
+
+        // EĞER ÇOCUĞA YENİ MERKEZ ATANMIŞSA (Veya sessiz güncelleme gerekiyorsa)
+        if (hasValidCenter && student.notifiedCenter !== centerInfo.centerName) {
+           updates.notifiedCenter = centerInfo.centerName; 
+           
+           // YENİ ÖZELLİK: SESSİZ GÜNCELLEME (Eski öğrencilere boş yere SMS atmaz)
+           if (student.isWaitingPool === true || (student.notifiedCenter && student.notifiedCenter !== centerInfo.centerName)) {
+               needsSms = true;
+               
+               if (student.isWaitingPool === true) {
+                   updates.isWaitingPool = false;
+                   smsText = `Müjde! Sınav merkeziniz ${centerInfo.centerName} olarak tanımlanmıştır.\nLütfen odullusinav.net üzerinden profilinize giriş yaparak oturum saatinizi seçiniz!${SMS_FOOTER}`;
+               } else {
+                   smsText = `Sayın ${student.fullName},\nSınav yeriniz ${centerInfo.centerName} olarak güncellenmiştir.\nTarih: ${student.selectedDate}\nSaat: ${student.selectedTime}\nKonum: ${centerInfo.mapLink || 'Belirtilmedi'}\nBaşarılar dileriz!${SMS_FOOTER}`;
+               }
+           }
         }
 
         if (student.examId) {
@@ -217,7 +236,7 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
         }
 
         if (student.selectedParticipationPrize) {
-           const partPrizesList = parsePrizeArray(zone.prizes?.participation);
+           const partPrizesList = parsePrizeArray(latestZone.prizes?.participation);
            const prizeExists = partPrizesList.some(p => p.title === student.selectedParticipationPrize);
            if (!prizeExists) {
               updates.selectedParticipationPrize = '';
@@ -288,7 +307,7 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
           <p className="text-slate-500 mt-2 font-bold text-lg">Bölgenize ait ayarlar, sınav planlaması, kurum eşleştirmeleri ve kayıtlı öğrenciler.</p>
         </div>
         <button onClick={handleLogoutWithSync} disabled={isSyncing} className="flex items-center text-red-600 bg-red-50 hover:bg-red-100 px-5 py-2.5 rounded-xl font-bold transition border border-red-200 shadow-sm">
-          {isSyncing ? "Senkronize Ediliyor..." : <><LogOut className="w-5 h-5 mr-2"/> Güvenli Çıkış</>}
+          {isSyncing ? "Senkronize Ediliyor..." : <><LogOut className="w-5 h-5 mr-2"/> Güvenli Çıkış & Değişiklikleri Bildir</>}
         </button>
       </div>
 
