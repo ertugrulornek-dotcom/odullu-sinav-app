@@ -47,7 +47,12 @@ export default function TimelineCalendar({ zoneExams, currentUser, defaultContac
   let takvimPhone = contactInfo?.phone || "0553 973 54 40";
   if (takvimPhone?.includes("05.. ... .. ..")) { takvimPhone = "0553 973 54 40"; }
 
-  // DÜZELTME: Giriş Yapılmamışsa (Ana Sayfadaysa) İsim GÖZÜKMEYECEK
+  // DÜZELTME: Telefon numarasını her cihazda kesin çalışacak formata (+90) sokar
+  let cleanPhone = String(takvimPhone).replace(/\D/g, '');
+  if (cleanPhone.startsWith('90')) cleanPhone = cleanPhone.substring(2);
+  if (cleanPhone.startsWith('0')) cleanPhone = cleanPhone.substring(1);
+  if (cleanPhone.length === 0) cleanPhone = "5539735440";
+
   const contactName = contactInfo?.contactName;
 
   return (
@@ -98,8 +103,9 @@ export default function TimelineCalendar({ zoneExams, currentUser, defaultContac
             <Info className="w-8 h-8 mt-1 flex-shrink-0" style={{ color: currentTheme.main }} />
             <div>
                <p className="text-lg font-bold text-slate-700 mb-2">Sınav ile ilgili ayrıntılı bilgi için:</p>
-               <a href={`tel:${takvimPhone}`} className="text-2xl md:text-3xl font-black hover:opacity-80 transition block mb-3" style={{ color: currentTheme.contrast }}>
-                  {contactName ? `${contactName}: ` : ''}<span style={{ color: currentTheme.main }}>{takvimPhone}</span>
+               {/* DÜZELTME: href içinde +90 ve arayüzde 0 eklendi */}
+               <a href={`tel:+90${cleanPhone}`} className="text-2xl md:text-3xl font-black hover:opacity-80 transition block mb-3" style={{ color: currentTheme.contrast }}>
+                  {contactName ? `${contactName}: ` : ''}<span style={{ color: currentTheme.main }}>0{cleanPhone}</span>
                </a>
                <p className="text-base font-bold text-slate-500">Sınav yoksa gelecek sınavlar hakkında bilgi almak için de arayabilirsiniz.</p>
             </div>
