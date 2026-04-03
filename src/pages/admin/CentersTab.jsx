@@ -61,7 +61,6 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
 
   const adminDistricts = getAdminDistricts();
 
-  // DÜZELTME: Telefon numarasını standart 10 haneli (5 ile başlayan) formata çevirir.
   const formatPhoneNumber = (phoneRaw) => {
       let phone = String(phoneRaw || "").replace(/\D/g, '');
       if (phone.length > 0 && phone[0] !== '5' && phone[0] !== '0') {
@@ -122,7 +121,6 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
       const newMappings = [...localMappings];
       const existingIndex = newMappings.findIndex(m => m.district === mappingData.district && m.neighborhood === mappingData.neighborhood && m.gender === mappingData.gender);
       
-      // Telefon formatını temizle
       const cleanedPhone = formatPhoneNumber(mappingData.phone) || "5539735440";
 
       const newMapObj = { district: mappingData.district, neighborhood: mappingData.neighborhood, gender: mappingData.gender, centerId: mappingData.centerId, contactName: mappingData.contactName || "", phone: cleanedPhone };
@@ -197,7 +195,6 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
            continue; 
        }
 
-       // Telefon formatını temizle
        const cleanedPhone = formatPhoneNumber(phone) || "5539735440";
 
        const normDistrict = normalizeForSearch(rawDistrict);
@@ -335,7 +332,6 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
                   <div className="flex gap-2">
                     <input type="text" value={mappingData.contactName} onChange={e=>setMappingData({...mappingData, contactName: e.target.value})} className="w-1/2 text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white" placeholder="Sorumlu İsim"/>
                     <input type="tel" value={mappingData.phone} onChange={e=>{
-                        // Yazarken sadece rakam girmesini sağla
                         let val = e.target.value.replace(/\D/g, '');
                         if(val.length > 0 && val[0] !== '5' && val[0] !== '0') val = '5' + val;
                         setMappingData({...mappingData, phone: val});
@@ -354,7 +350,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
                      value={bulkExcelData}
                      onChange={e => setBulkExcelData(e.target.value)}
                      className="w-full text-xs font-mono p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 resize-none whitespace-pre" 
-                     placeholder="Gebze	Akarçeşme	8. Sınıf Erkek	Şekerpınar Eğitim..."/>
+                     placeholder="Gebze Akarçeşme 8. Sınıf Erkek  Şekerpınar Eğitim..."/>
                    <button onClick={handleBulkUploadExcel} className="bg-slate-800 hover:bg-slate-900 text-white text-base font-black py-4 px-4 rounded-xl transition w-full shadow-lg">Excel Verilerini İçe Aktar</button>
                 </div>
              </div>
@@ -417,21 +413,28 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
                     <div>
                       <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Bağlı Olan Mahalleler ({mappedHoods.length})</h5>
                       <div className="flex flex-wrap gap-3">
-                        {mappedHoods.length > 0 ? mappedHoods.map((m, i) => (
-                           <div key={i} className="flex flex-col bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm relative group/item hover:shadow-md transition">
-                              <span className="font-black text-slate-800 mb-1">{m.district} / {m.neighborhood} <span className="text-xs ml-1 text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-md">{m.gender || 'Tümü'}</span></span>
-                              
-                              {/* DÜZELTME: TIKLANABİLİR, DOĞRU FORMATLI TELEFON LİNKİ */}
-                              <span className="text-slate-500 font-medium text-xs flex items-center">
-                                 <Users className="w-3 h-3 inline mr-1"/>{m.contactName || 'İsimsiz'} - 
-                                 <a href={`tel:+90${m.phone}`} className="ml-1 text-indigo-500 hover:text-indigo-700 underline underline-offset-2 flex items-center">
-                                     <Phone className="w-3 h-3 mr-0.5"/> 0{m.phone}
-                                 </a>
-                              </span>
+                        {mappedHoods.length > 0 ? mappedHoods.map((m, i) => {
+                           // DÜZELTME: Eski/Yeni tüm numaraları güvenli +90 ve 05XX formatına sokar
+                           let p = String(m.phone || "").replace(/\D/g, '');
+                           if (p.startsWith('90')) p = p.substring(2);
+                           if (p.startsWith('0')) p = p.substring(1);
+                           if (p.length === 0) p = "5539735440";
 
-                              <button onClick={() => handleDeleteMapping(m.district, m.neighborhood, m.gender)} className="absolute top-1/2 right-3 transform -translate-y-1/2 text-slate-300 hover:text-red-500 transition opacity-0 group-hover/item:opacity-100"><Trash2 className="w-5 h-5"/></button>
-                           </div>
-                        )) : (
+                           return (
+                             <div key={i} className="flex flex-col bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm relative group/item hover:shadow-md transition">
+                                <span className="font-black text-slate-800 mb-1">{m.district} / {m.neighborhood} <span className="text-xs ml-1 text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-md">{m.gender || 'Tümü'}</span></span>
+                                
+                                <span className="text-slate-500 font-medium text-xs flex items-center mt-1">
+                                   <Users className="w-3 h-3 inline mr-1"/>{m.contactName || 'İsimsiz'} - 
+                                   <a href={`tel:+90${p}`} className="ml-1 text-indigo-500 hover:text-indigo-700 underline underline-offset-2 flex items-center">
+                                       <Phone className="w-3 h-3 mr-0.5"/> 0{p}
+                                   </a>
+                                </span>
+
+                                <button onClick={() => handleDeleteMapping(m.district, m.neighborhood, m.gender)} className="absolute top-1/2 right-3 transform -translate-y-1/2 text-slate-300 hover:text-red-500 transition opacity-0 group-hover/item:opacity-100"><Trash2 className="w-5 h-5"/></button>
+                             </div>
+                           )
+                        }) : (
                            <span className="text-sm font-medium text-slate-400 italic">Seçili filtreye uygun mahalle ataması yok.</span>
                         )}
                       </div>
