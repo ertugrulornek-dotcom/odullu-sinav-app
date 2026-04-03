@@ -9,15 +9,12 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
   const [resultModal, setResultModal] = useState({ isOpen: false, student: null, score: '', rank: '' });
   const [smsModal, setSmsModal] = useState({ isOpen: false, type: 'custom', customMsg: '', loading: false, targetStudent: null });
 
-  // FİLTRELEME STATE'LERİ
   const [filterGrade, setFilterGrade] = useState('');
   const [filterSchool, setFilterSchool] = useState('');
   const [filterZone, setFilterZone] = useState('');
 
-  // SADECE GÜNCEL LİSTEDEKİ KURUMLARI SEÇENEK OLARAK ÇIKAR
   const uniqueSchools = [...new Set(students.map(s => s.schoolName).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'tr-TR'));
 
-  // FİLTRELERİ UYGULAMA
   const displayStudents = students.filter(s => {
       if (filterGrade && s.grade !== filterGrade) return false;
       if (filterSchool && s.schoolName !== filterSchool) return false;
@@ -27,7 +24,6 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
       return true;
   });
 
-  // SINIFLARA GÖRE GRUPLAMA İŞLEMİ
   const groupedStudents = {};
   displayStudents.forEach(s => {
       const g = s.grade || 'Belirtilmemiş';
@@ -35,7 +31,6 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
       groupedStudents[g].push(s);
   });
   
-  // Sınıfları sırala (Büyükten küçüğe veya tersi. Ben 8'den 3'e sıraladım)
   const sortedGrades = Object.keys(groupedStudents).sort((a, b) => {
       if(a === 'Belirtilmemiş') return 1;
       if(b === 'Belirtilmemiş') return -1;
@@ -73,7 +68,6 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
     }
   };
 
-  // TAM VE EKSİKSİZ SMS FONKSİYONU
   const handleBulkSMS = async () => {
     setSmsModal({ ...smsModal, loading: true });
     
@@ -113,7 +107,8 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
   };
 
   const handleExportExcel = () => {
-     let csvContent = "Ogrenci Isim Soyisim;Veli Isim Soyisim;Telefon;Sinif;Cinsiyet;Okul Bilgisi;Ilce;Mahalle;Atanan Sinav Merkezi;Kayitli Sinav ve Seans;Aciklanan Puan;Derece;Katilim Durumu;Gorusme Durumu;Gorusme Sonucu\n";
+     // DÜZELTME: "Katılım Ödülü" sütunu eklendi
+     let csvContent = "Ogrenci Isim Soyisim;Veli Isim Soyisim;Telefon;Sinif;Cinsiyet;Okul Bilgisi;Ilce;Mahalle;Atanan Sinav Merkezi;Kayitli Sinav ve Seans;Aciklanan Puan;Derece;Katilim Odulu;Katilim Durumu;Gorusme Durumu;Gorusme Sonucu\n";
      students.forEach(s => {
         const stdZone = isSuperAdmin ? (zones.find(z => z.id === s.zone?.id) || s.zone) : adminZoneData;
         const center = getNeighborhoodDetails(stdZone, s.district, s.neighborhood, s.gender)?.centerName || 'Bekleniyor';
@@ -122,8 +117,13 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
         const activeExam = (s.examTitle || s.exam?.title) ? `${s.examTitle || s.exam?.title} (${s.selectedDate || s.exam?.date} ${s.selectedTime || s.slot})` : 'Yok / Beklemede';
         const score = lastPast ? lastPast.score : '-';
         const rank = lastPast ? lastPast.rank : '-';
+        
+        // Ödül verisi
+        const prize = s.selectedParticipationPrize || 'Secilmedi';
+
         const clean = str => String(str || '').replace(/;/g, ' ').replace(/\n/g, ' ');
-        csvContent += `${clean(s.fullName)};${clean(s.parentName)};${clean(s.phone)};${clean(s.grade)};${clean(s.gender)};${clean(s.schoolName)};${clean(s.district)};${clean(s.neighborhood)};${clean(center)};${clean(activeExam)};${clean(score)};${clean(rank)};${clean(s.attendance)};${clean(s.interview)};${clean(s.interviewResult)}\n`;
+        
+        csvContent += `${clean(s.fullName)};${clean(s.parentName)};${clean(s.phone)};${clean(s.grade)};${clean(s.gender)};${clean(s.schoolName)};${clean(s.district)};${clean(s.neighborhood)};${clean(center)};${clean(activeExam)};${clean(score)};${clean(rank)};${clean(prize)};${clean(s.attendance)};${clean(s.interview)};${clean(s.interviewResult)}\n`;
      });
      const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
      const url = URL.createObjectURL(blob);
@@ -149,7 +149,6 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
         </div>
       </div>
 
-      {/* FİLTRELEME BÖLÜMÜ */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6 bg-slate-50 p-5 rounded-3xl border border-slate-200 shadow-inner">
          <div className="flex items-center text-slate-500 font-black mr-2"><Filter className="w-5 h-5 mr-2"/> Filtreler:</div>
          
@@ -188,7 +187,6 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
             ) : (
                sortedGrades.map(grade => (
                   <React.Fragment key={`grade-${grade}`}>
-                     {/* SINIF AYRAÇ / BAŞLIK SATIRI */}
                      <tr className="bg-indigo-50/70 border-y-4 border-white">
                         <td colSpan="5" className="p-4 px-6 font-black text-indigo-900 text-lg">
                            {grade === 'Belirtilmemiş' ? 'Sınıfı Belirtilmeyenler' : `${grade}. Sınıflar`} 
@@ -196,7 +194,6 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
                         </td>
                      </tr>
                      
-                     {/* O SINIFA AİT ÖĞRENCİLER */}
                      {groupedStudents[grade].map(student => {
                         const hasActiveExam = !!(student.examId || student.examTitle || student.exam);
                         const realZoneData = isSuperAdmin ? (zones.find(z => z.id === student.zone?.id) || student.zone) : adminZoneData;
