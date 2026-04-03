@@ -61,14 +61,12 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
 
   const adminDistricts = getAdminDistricts();
 
+  // 🚀 DÜZELTME: Kırpma hatasını çözen Akıllı Telefon Çevirici
   const formatPhoneNumber = (phoneRaw) => {
       let phone = String(phoneRaw || "").replace(/\D/g, '');
-      if (phone.length > 0 && phone[0] !== '5' && phone[0] !== '0') {
-          phone = '5' + phone; 
-      }
-      if (phone.length > 0 && phone[0] === '0') {
-          phone = phone.substring(1); 
-      }
+      if (phone.startsWith('90')) phone = phone.substring(2);
+      if (phone.startsWith('0')) phone = phone.substring(1);
+      if (phone.length > 0 && !phone.startsWith('5')) phone = '5' + phone;
       if (phone.length > 10) phone = phone.substring(0, 10);
       return phone;
   };
@@ -195,6 +193,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
            continue; 
        }
 
+       // DÜZELTME: Excel'den gelen numarayı da aynı şekilde hatasız süz
        const cleanedPhone = formatPhoneNumber(phone) || "5539735440";
 
        const normDistrict = normalizeForSearch(rawDistrict);
@@ -333,7 +332,8 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
                     <input type="text" value={mappingData.contactName} onChange={e=>setMappingData({...mappingData, contactName: e.target.value})} className="w-1/2 text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white" placeholder="Sorumlu İsim"/>
                     <input type="tel" value={mappingData.phone} onChange={e=>{
                         let val = e.target.value.replace(/\D/g, '');
-                        if(val.length > 0 && val[0] !== '5' && val[0] !== '0') val = '5' + val;
+                        if (val.startsWith('90')) val = val.substring(2);
+                        if (val.startsWith('0')) val = val.substring(1);
                         setMappingData({...mappingData, phone: val});
                     }} className="w-1/2 text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white" placeholder="Sorumlu Tel"/>
                   </div>
@@ -350,7 +350,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
                      value={bulkExcelData}
                      onChange={e => setBulkExcelData(e.target.value)}
                      className="w-full text-xs font-mono p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 resize-none whitespace-pre" 
-                     placeholder="Gebze Akarçeşme 8. Sınıf Erkek  Şekerpınar Eğitim..."/>
+                     placeholder="Gebze	Akarçeşme	8. Sınıf Erkek	Şekerpınar Eğitim..."/>
                    <button onClick={handleBulkUploadExcel} className="bg-slate-800 hover:bg-slate-900 text-white text-base font-black py-4 px-4 rounded-xl transition w-full shadow-lg">Excel Verilerini İçe Aktar</button>
                 </div>
              </div>
@@ -414,7 +414,6 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
                       <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Bağlı Olan Mahalleler ({mappedHoods.length})</h5>
                       <div className="flex flex-wrap gap-3">
                         {mappedHoods.length > 0 ? mappedHoods.map((m, i) => {
-                           // DÜZELTME: Eski/Yeni tüm numaraları güvenli +90 ve 05XX formatına sokar
                            let p = String(m.phone || "").replace(/\D/g, '');
                            if (p.startsWith('90')) p = p.substring(2);
                            if (p.startsWith('0')) p = p.substring(1);
