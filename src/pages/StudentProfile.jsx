@@ -27,12 +27,10 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
   const zoneExams = exams.filter(e => e.zoneId === matchedZone?.id);
   const partPrizesList = parsePrizeArray(matchedZone?.prizes?.participation);
 
-  // DÜZELTME: Katılım Ödülü Seçilmediyse Otomatik Uyarı ve Ayarlar Penceresi
   useEffect(() => {
     if (currentUser && partPrizesList.length > 0 && !currentUser.selectedParticipationPrize) {
         setShowSettings(true);
         setHasViewedSettings(true);
-        // Sürekli döngüye girmemesi için oturum başına 1 kez uyar
         if (!sessionStorage.getItem('prizeAlertShown')) {
             alert("Lütfen profil ayarlarından size en uygun katılım ödülünü seçiniz.");
             sessionStorage.setItem('prizeAlertShown', 'true');
@@ -68,6 +66,13 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
       setShowSettings(false); setNewPassword('');
     } catch(e) { console.error(e); alert("Bir hata oluştu."); }
   };
+
+  // DÜZELTME: Profil kartındaki numarayı tıklanabilir, garantili +90 formatına dönüştürür.
+  let rawContactPhone = neighborhoodDetails?.phone || "0553 973 54 40";
+  let cleanContactPhone = String(rawContactPhone).replace(/\D/g, '');
+  if (cleanContactPhone.startsWith('90')) cleanContactPhone = cleanContactPhone.substring(2);
+  if (cleanContactPhone.startsWith('0')) cleanContactPhone = cleanContactPhone.substring(1);
+  if (cleanContactPhone.length === 0) cleanContactPhone = "5539735440";
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-16 relative">
@@ -167,7 +172,12 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
                   <div className="font-bold text-lg flex items-start mb-4"><MapPin className="w-6 h-6 mr-3 opacity-80 flex-shrink-0 mt-1"/><div>{neighborhoodDetails.centerName}<div className="text-sm font-medium text-white/80 mt-2 leading-relaxed">{neighborhoodDetails.address || "Açık adres bilgisi girilmemiş."}</div></div></div>
                   <div className="flex flex-col sm:flex-row gap-4 mt-6">
                       {neighborhoodDetails.mapLink && ( <a href={neighborhoodDetails.mapLink} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center text-sm font-black bg-white/10 px-5 py-3 rounded-xl hover:bg-white/20 transition"><Map className="w-5 h-5 mr-2"/> Haritada Konumu Aç</a> )}
-                      <a href={`tel:${neighborhoodDetails.phone}`} className="inline-flex items-center justify-center text-sm font-black bg-white/10 px-5 py-3 rounded-xl hover:bg-white/20 transition"><Phone className="w-5 h-5 mr-2"/> {neighborhoodDetails.contactName ? `${neighborhoodDetails.contactName}: ` : ''}{neighborhoodDetails.phone}</a>
+                      
+                      {/* DÜZELTME BURADA: Hoca ismi ve tıklandığında kesin çalışacak +90 numaralı bağlantı */}
+                      <a href={`tel:+90${cleanContactPhone}`} className="inline-flex items-center justify-center text-sm font-black bg-white/10 px-5 py-3 rounded-xl hover:bg-white/20 transition">
+                         <Phone className="w-5 h-5 mr-2"/> {neighborhoodDetails.contactName ? `${neighborhoodDetails.contactName}: ` : ''}0{cleanContactPhone}
+                      </a>
+
                   </div>
                 </div>
               </div>
