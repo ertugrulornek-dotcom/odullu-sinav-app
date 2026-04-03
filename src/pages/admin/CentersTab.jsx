@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, FileText, Edit3, Trash2, MapPin, Users, Save, X, Filter } from 'lucide-react';
+import { Building2, FileText, Edit3, Trash2, MapPin, Users, Save, X, Filter, Phone } from 'lucide-react';
 import { db, appId } from '../../services/firebase';
 import { updateDoc, doc } from "firebase/firestore";
 import { LOCATIONS } from '../../data/constants';
 import { normalizeForSearch } from '../../utils/helpers';
 
 export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChanges }) {
-  // DÜZELTME: Verilerin anında ekrana düşmesi için İç Hafıza (Local State) oluşturuldu
   const [localCenters, setLocalCenters] = useState([]);
   const [localMappings, setLocalMappings] = useState([]);
 
-  // Firebase'den gelen veri güncellendiğinde iç hafızayı da güncelle
   useEffect(() => {
      setLocalCenters(adminZoneData.centers || []);
      setLocalMappings(adminZoneData.mappings || []);
@@ -63,13 +61,26 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
 
   const adminDistricts = getAdminDistricts();
 
+  // DÜZELTME: Telefon numarasını standart 10 haneli (5 ile başlayan) formata çevirir.
+  const formatPhoneNumber = (phoneRaw) => {
+      let phone = String(phoneRaw || "").replace(/\D/g, '');
+      if (phone.length > 0 && phone[0] !== '5' && phone[0] !== '0') {
+          phone = '5' + phone; 
+      }
+      if (phone.length > 0 && phone[0] === '0') {
+          phone = phone.substring(1); 
+      }
+      if (phone.length > 10) phone = phone.substring(0, 10);
+      return phone;
+  };
+
   const handleAddCenter = async () => {
     if(!newCenter.name || !newCenter.address) return alert("Kurum adı ve açık adres zorunludur.");
     try {
       const centerObj = { id: "c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9), name: newCenter.name, address: newCenter.address, mapLink: newCenter.mapLink || "" };
       const updatedCenters = [...localCenters, centerObj];
       
-      setLocalCenters(updatedCenters); // Ekranı anında güncelle
+      setLocalCenters(updatedCenters); 
       setHasMadeChanges(true);
       
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters });
@@ -83,7 +94,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
     try {
       const updatedCenters = localCenters.map(c => c.id === editingCenter.id ? editingCenter : c);
       
-      setLocalCenters(updatedCenters); // Ekranı anında güncelle
+      setLocalCenters(updatedCenters); 
       setHasMadeChanges(true);
       
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters });
@@ -97,7 +108,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
       const updatedCenters = localCenters.filter(c => c.id !== centerId);
       const updatedMappings = localMappings.filter(m => m.centerId !== centerId); 
       
-      setLocalCenters(updatedCenters); // Ekranı anında güncelle
+      setLocalCenters(updatedCenters); 
       setLocalMappings(updatedMappings);
       setHasMadeChanges(true);
 
@@ -111,12 +122,15 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
       const newMappings = [...localMappings];
       const existingIndex = newMappings.findIndex(m => m.district === mappingData.district && m.neighborhood === mappingData.neighborhood && m.gender === mappingData.gender);
       
-      const newMapObj = { district: mappingData.district, neighborhood: mappingData.neighborhood, gender: mappingData.gender, centerId: mappingData.centerId, contactName: mappingData.contactName || "", phone: mappingData.phone || "0553 973 54 40" };
+      // Telefon formatını temizle
+      const cleanedPhone = formatPhoneNumber(mappingData.phone) || "5539735440";
+
+      const newMapObj = { district: mappingData.district, neighborhood: mappingData.neighborhood, gender: mappingData.gender, centerId: mappingData.centerId, contactName: mappingData.contactName || "", phone: cleanedPhone };
 
       if (existingIndex >= 0) newMappings[existingIndex] = newMapObj;
       else newMappings.push(newMapObj);
       
-      setLocalMappings(newMappings); // Ekranı anında güncelle
+      setLocalMappings(newMappings); 
       setHasMadeChanges(true);
 
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { mappings: newMappings });
@@ -183,10 +197,8 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
            continue; 
        }
 
-       phone = phone.replace(/\D/g, '');
-       if (phone.length > 0 && phone[0] !== '5') { phone = '5' + phone; }
-       if (phone.length > 10) phone = phone.substring(0, 10);
-       if (!phone) phone = "0553 973 54 40";
+       // Telefon formatını temizle
+       const cleanedPhone = formatPhoneNumber(phone) || "5539735440";
 
        const normDistrict = normalizeForSearch(rawDistrict);
        const normNeighborhood = normalizeForSearch(rawNeighborhood);
@@ -223,7 +235,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
        }
        
        const existingMapIndex = updatedMappings.findIndex(m => m.district === matchedDistrict && m.neighborhood === matchedNeighborhood && m.gender === rawGender);
-       const newMapObj = { district: matchedDistrict, neighborhood: matchedNeighborhood, gender: rawGender, centerId: center.id, contactName, phone };
+       const newMapObj = { district: matchedDistrict, neighborhood: matchedNeighborhood, gender: rawGender, centerId: center.id, contactName, phone: cleanedPhone };
        
        if(existingMapIndex >= 0) updatedMappings[existingIndex] = newMapObj;
        else updatedMappings.push(newMapObj);
@@ -234,7 +246,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
     if (errors.length > 0) alert("Eksik/Hatalı satırlar atlandı:\n" + errors.join('\n'));
     if (successCount > 0) {
       try {
-        setLocalCenters(updatedCenters); // Ekranı anında güncelle
+        setLocalCenters(updatedCenters); 
         setLocalMappings(updatedMappings);
         setHasMadeChanges(true);
 
@@ -254,7 +266,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
     try {
       const updatedMappings = localMappings.filter(m => !(m.district === district && m.neighborhood === neighborhood && m.gender === gender));
       
-      setLocalMappings(updatedMappings); // Ekranı anında güncelle
+      setLocalMappings(updatedMappings); 
       setHasMadeChanges(true);
 
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { mappings: updatedMappings });
@@ -322,7 +334,12 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
                   </div>
                   <div className="flex gap-2">
                     <input type="text" value={mappingData.contactName} onChange={e=>setMappingData({...mappingData, contactName: e.target.value})} className="w-1/2 text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white" placeholder="Sorumlu İsim"/>
-                    <input type="tel" value={mappingData.phone} onChange={e=>setMappingData({...mappingData, phone: e.target.value})} className="w-1/2 text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white" placeholder="Sorumlu Tel"/>
+                    <input type="tel" value={mappingData.phone} onChange={e=>{
+                        // Yazarken sadece rakam girmesini sağla
+                        let val = e.target.value.replace(/\D/g, '');
+                        if(val.length > 0 && val[0] !== '5' && val[0] !== '0') val = '5' + val;
+                        setMappingData({...mappingData, phone: val});
+                    }} className="w-1/2 text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white" placeholder="Sorumlu Tel"/>
                   </div>
                   <button onClick={handleAddMapping} disabled={!mappingData.centerId || !mappingData.neighborhood || !mappingData.gender} className="w-full bg-emerald-600 text-white font-black py-3 rounded-xl hover:bg-emerald-700 transition shadow-md disabled:opacity-50">Mahalleyi Kuruma Ata</button>
                 </div>
@@ -403,7 +420,15 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
                         {mappedHoods.length > 0 ? mappedHoods.map((m, i) => (
                            <div key={i} className="flex flex-col bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm relative group/item hover:shadow-md transition">
                               <span className="font-black text-slate-800 mb-1">{m.district} / {m.neighborhood} <span className="text-xs ml-1 text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-md">{m.gender || 'Tümü'}</span></span>
-                              <span className="text-slate-500 font-medium text-xs"><Users className="w-3 h-3 inline mr-1"/>{m.contactName || 'İsimsiz'} - {m.phone}</span>
+                              
+                              {/* DÜZELTME: TIKLANABİLİR, DOĞRU FORMATLI TELEFON LİNKİ */}
+                              <span className="text-slate-500 font-medium text-xs flex items-center">
+                                 <Users className="w-3 h-3 inline mr-1"/>{m.contactName || 'İsimsiz'} - 
+                                 <a href={`tel:+90${m.phone}`} className="ml-1 text-indigo-500 hover:text-indigo-700 underline underline-offset-2 flex items-center">
+                                     <Phone className="w-3 h-3 mr-0.5"/> 0{m.phone}
+                                 </a>
+                              </span>
+
                               <button onClick={() => handleDeleteMapping(m.district, m.neighborhood, m.gender)} className="absolute top-1/2 right-3 transform -translate-y-1/2 text-slate-300 hover:text-red-500 transition opacity-0 group-hover/item:opacity-100"><Trash2 className="w-5 h-5"/></button>
                            </div>
                         )) : (
