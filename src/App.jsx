@@ -26,7 +26,7 @@ const mirrorFrameStyle = {
 
 export default function App() {
   // SİTE ŞU AN BAKIM MODUNDA (Açmak için false yapın)
-  const IS_UNDER_MAINTENANCE = true;
+  const IS_UNDER_MAINTENANCE = false;
 
   const [currentView, setCurrentView] = useState('landing'); 
   const [currentUser, setCurrentUser] = useState(null);
