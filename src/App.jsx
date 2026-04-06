@@ -26,7 +26,7 @@ const mirrorFrameStyle = {
 
 export default function App() {
   // SİTEYİ BAKIM MODUNDAN ÇIKARDIK
-  const IS_UNDER_MAINTENANCE = false;
+  const IS_UNDER_MAINTENANCE = true;
 
   const [currentView, setCurrentView] = useState('landing'); 
   const [currentUser, setCurrentUser] = useState(null);
