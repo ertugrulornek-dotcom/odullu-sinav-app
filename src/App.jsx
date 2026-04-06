@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Award, Users, LogOut, Phone, MapPin, UserPlus } from 'lucide-react';
 import { db, auth, appId } from './services/firebase';
-import { collection, setDoc, doc, onSnapshot } from "firebase/firestore"; 
+import { collection, getDocs, setDoc, doc, onSnapshot } from "firebase/firestore"; 
 import { signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "firebase/auth";
 import { INITIAL_ZONES } from './data/constants';
 import { getNeighborhoodDetails, findZoneByName } from './utils/helpers';
@@ -25,7 +25,7 @@ const mirrorFrameStyle = {
 };
 
 export default function App() {
-  // SİTEYİ BAKIM MODUNDAN ÇIKARDIK
+  // SİTE ŞU AN BAKIM MODUNDA (Açmak için false yapın)
   const IS_UNDER_MAINTENANCE = true;
 
   const [currentView, setCurrentView] = useState('landing'); 
@@ -60,31 +60,53 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // DÜZELTME: Veri Kaybını Engelleyen "Real-Time (Canlı) Dinleme" Motoru Kuruldu
+  // 🚀 DÜZELTME: Veritabanını Yanlışlıkla Sıfırlayan "İlk Kurulum" Kodu Tamamen Kaldırıldı 🚀
   useEffect(() => {
     if (!authUser) return;
-    setLoading(true);
 
-    const unsubZones = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'zones'), (zonesSnap) => {
-      if (zonesSnap.empty) {
-         INITIAL_ZONES.forEach(async (z) => await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', z.id.toString()), z));
-      } else {
-        const zonesData = zonesSnap.docs.map(d => {
-          const dbZone = d.data();
-          const baseZone = INITIAL_ZONES.find(z => z.id === parseInt(d.id)) || {};
-          return { ...dbZone, id: parseInt(d.id), name: baseZone.name, districts: baseZone.districts || [], partialDistricts: baseZone.partialDistricts || {}, prizes: dbZone.prizes || baseZone.prizes, centers: dbZone.centers || [], mappings: dbZone.mappings || [], specialBoysCentersData: dbZone.specialBoysCentersData || { centers: [], mappings: [] } };
-        });
-        setZones(zonesData.sort((a, b) => a.id - b.id)); 
-      }
-      setLoading(false);
-    });
+    if (adminAuth.isAuthenticated) {
+      // 1. YÖNETİCİ MODU (Canlı Dinleme)
+      setLoading(true);
+      const unsubZones = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'zones'), (zonesSnap) => {
+        if (!zonesSnap.empty) {
+          const zonesData = zonesSnap.docs.map(d => {
+            const dbZone = d.data();
+            const baseZone = INITIAL_ZONES.find(z => z.id === parseInt(d.id)) || {};
+            return { ...dbZone, id: parseInt(d.id), name: baseZone.name, districts: baseZone.districts || [], partialDistricts: baseZone.partialDistricts || {}, prizes: dbZone.prizes || baseZone.prizes, centers: dbZone.centers || [], mappings: dbZone.mappings || [], specialBoysCentersData: dbZone.specialBoysCentersData || { centers: [], mappings: [] } };
+          });
+          setZones(zonesData.sort((a, b) => a.id - b.id)); 
+        }
+        setLoading(false);
+      });
 
-    const unsubExams = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'exams'), (examsSnap) => {
-      setExams(examsSnap.docs.map(d => ({ firebaseId: d.id, ...d.data() })));
-    });
+      const unsubExams = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'exams'), (examsSnap) => {
+        setExams(examsSnap.docs.map(d => ({ firebaseId: d.id, ...d.data() })));
+      });
 
-    return () => { unsubZones(); unsubExams(); };
-  }, [authUser]);
+      return () => { unsubZones(); unsubExams(); };
+    } else {
+      // 2. NORMAL ZİYARETÇİ MODU 
+      const fetchInitialData = async () => {
+        setLoading(true);
+        try {
+          const zonesSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'zones'));
+          const examsSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'exams'));
+
+          if (!zonesSnap.empty) {
+            const zonesData = zonesSnap.docs.map(d => {
+              const dbZone = d.data();
+              const baseZone = INITIAL_ZONES.find(z => z.id === parseInt(d.id)) || {};
+              return { ...dbZone, id: parseInt(d.id), name: baseZone.name, districts: baseZone.districts || [], partialDistricts: baseZone.partialDistricts || {}, prizes: dbZone.prizes || baseZone.prizes, centers: dbZone.centers || [], mappings: dbZone.mappings || [], specialBoysCentersData: dbZone.specialBoysCentersData || { centers: [], mappings: [] } };
+            });
+            setZones(zonesData.sort((a, b) => a.id - b.id)); 
+          }
+          setExams(examsSnap.docs.map(d => ({ firebaseId: d.id, ...d.data() })));
+        } catch(e) { console.error(e); }
+        setLoading(false);
+      };
+      fetchInitialData();
+    }
+  }, [authUser, adminAuth.isAuthenticated]);
 
   useEffect(() => {
     if (!currentUser && zones.length > 0 && navigator.geolocation) {
@@ -210,7 +232,7 @@ export default function App() {
             <img src="/Sembol.png" alt="Logo" className="w-32 h-32 md:w-40 md:h-40 mx-auto mb-8 animate-pulse drop-shadow-2xl object-contain" />
             <h1 className="text-3xl md:text-4xl font-black text-slate-800 mb-6 uppercase tracking-wide">Bakım Çalışması</h1>
             <p className="text-lg md:text-xl font-bold text-slate-500 leading-relaxed">
-               Sitemizde kısa süreli bakım çalışması yapılmaktadır.<br/>Anlayışınız için teşekkür ederiz.
+               Sitemizde kısa süreli bir güncelleme çalışması yapılmaktadır.<br/>Lütfen daha sonra tekrar deneyiniz. Anlayışınız için teşekkür ederiz.
             </p>
          </div>
       </div>

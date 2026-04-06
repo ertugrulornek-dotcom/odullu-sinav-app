@@ -22,7 +22,6 @@ export function AdminLogin({ setAdminAuth, zones }) {
     e.preventDefault();
     setError('');
 
-    // ŞİFRE GÜNCELLENDİ
     if (password !== '19031966') {
       setError('Hatalı şifre girdiniz.');
       return;
@@ -79,6 +78,9 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
   const [activeTab, setActiveTab] = useState('ayarlar'); 
   const [isSyncing, setIsSyncing] = useState(false); 
   const [hasMadeChanges, setHasMadeChanges] = useState(false);
+  
+  // 🚀 YENİ: KRİZ YÖNETİMİ İÇİN KURTARMA MODU (VARSAYILAN AÇIK)
+  const [recoveryMode, setRecoveryMode] = useState(true);
   
   const [fetchedStudents, setFetchedStudents] = useState([]);
   const [totalStudentsCount, setTotalStudentsCount] = useState(0);
@@ -183,7 +185,7 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
            latestZone = zones.find(z => z.id == student.zone.id);
         }
         if (!latestZone) {
-           const zName = determineZoneName(student.province, student.district, student.neighborhood);
+           const zName = determineZoneName(student.province, student.district, student.neighborhood, student.gender);
            latestZone = findZoneByName(zones, zName);
         }
         if (!latestZone) continue;
@@ -197,33 +199,52 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
         
         updates.zone = latestZone;
 
-        // EĞER ÇOCUĞA YENİ MERKEZ ATANMIŞSA (Veya sessiz güncelleme gerekiyorsa)
+        // MERKEZ GÜNCELLEME
         if (hasValidCenter && student.notifiedCenter !== centerInfo.centerName) {
            updates.notifiedCenter = centerInfo.centerName; 
            
-           // YENİ ÖZELLİK: SESSİZ GÜNCELLEME (Eski öğrencilere boş yere SMS atmaz)
-           if (student.isWaitingPool === true || (student.notifiedCenter && student.notifiedCenter !== centerInfo.centerName)) {
-               needsSms = true;
-               
-               if (student.isWaitingPool === true) {
-                   updates.isWaitingPool = false;
-                   smsText = `Müjde! Sınav merkeziniz ${centerInfo.centerName} olarak tanımlanmıştır.\nLütfen odullusinav.net üzerinden profilinize giriş yaparak oturum saatinizi seçiniz!${SMS_FOOTER}`;
-               } else {
-                   smsText = `Sayın ${student.fullName},\nSınav yeriniz ${centerInfo.centerName} olarak güncellenmiştir.\nTarih: ${student.selectedDate}\nSaat: ${student.selectedTime}\nKonum: ${centerInfo.mapLink || 'Belirtilmedi'}\nBaşarılar dileriz!${SMS_FOOTER}`;
+           if (!recoveryMode) { // Kurtarma modu kapalıysa normal şekilde SMS at
+               if (student.isWaitingPool === true || (student.notifiedCenter && student.notifiedCenter !== centerInfo.centerName)) {
+                   needsSms = true;
+                   if (student.isWaitingPool === true) {
+                       updates.isWaitingPool = false;
+                       smsText = `Müjde! Sınav merkeziniz ${centerInfo.centerName} olarak tanımlanmıştır.\nLütfen odullusinav.net üzerinden profilinize giriş yaparak oturum saatinizi seçiniz!${SMS_FOOTER}`;
+                   } else {
+                       smsText = `Sayın ${student.fullName},\nSınav yeriniz ${centerInfo.centerName} olarak güncellenmiştir.\nTarih: ${student.selectedDate}\nSaat: ${student.selectedTime}\nKonum: ${centerInfo.mapLink || 'Belirtilmedi'}\nBaşarılar dileriz!${SMS_FOOTER}`;
+                   }
                }
+           } else {
+               // Kurtarma modunda sessizce bekleme havuzundan çıkar
+               if (student.isWaitingPool === true) updates.isWaitingPool = false;
            }
         }
 
-        if (student.examId) {
+        // AKILLI İYİLEŞTİRİCİ (AUTO-HEAL) VE SINAV KONTROLÜ
+        if (student.examId || student.examTitle) {
            const exam = exams.find(e => e.firebaseId === student.examId || e.id === student.examId);
            let validSlot = false;
+           
            if (exam && exam.sessions) {
               const session = exam.sessions.find(s => s.date === student.selectedDate);
               if (session && session.slots.includes(student.selectedTime)) {
                  validSlot = true;
               }
            }
-           if (!validSlot && student.selectedDate && student.selectedTime) {
+
+           // Eğer ID ile bulamadıysa (sınav silinip yeniden açıldıysa) İsim ve Tarih ile bulup bağla!
+           if (!validSlot && student.examTitle && student.selectedDate && student.selectedTime) {
+              const matchingExam = exams.find(e => e.title === student.examTitle);
+              if (matchingExam && matchingExam.sessions) {
+                  const session = matchingExam.sessions.find(s => s.date === student.selectedDate);
+                  if (session && session.slots.includes(student.selectedTime)) {
+                      validSlot = true;
+                      updates.examId = matchingExam.firebaseId || matchingExam.id; // Yeni ID'yi öğrenciye yama yap
+                  }
+              }
+           }
+
+           // Kurtarma modu kapalıysa ve gerçekten geçersizse öğrencinin sınavını sil ve SMS at
+           if (!validSlot && student.selectedDate && student.selectedTime && !recoveryMode) {
               updates.selectedDate = null;
               updates.selectedTime = null;
               updates.examId = null;
@@ -235,10 +256,12 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
            }
         }
 
+        // ÖDÜL KONTROLÜ
         if (student.selectedParticipationPrize) {
            const partPrizesList = parsePrizeArray(latestZone.prizes?.participation);
            const prizeExists = partPrizesList.some(p => p.title === student.selectedParticipationPrize);
-           if (!prizeExists) {
+           
+           if (!prizeExists && !recoveryMode) { // Kurtarma modundaysa ödülünü silme, veriyi koru
               updates.selectedParticipationPrize = '';
               if (!needsSms) {
                  needsSms = true;
@@ -247,10 +270,13 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
            }
         }
 
+        // GÜNCELLEMELERİ KAYDET
         if (Object.keys(updates).length > 0) {
            dbUpdates.push({ ref: doc(db, 'artifacts', appId, 'public', 'data', 'students', student.firebaseId), data: updates });
         }
-        if (needsSms && student.phone) {
+        
+        // SMS GÖNDER (KURTARMA MODUNDA ASLA GÖNDERMEZ)
+        if (needsSms && student.phone && !recoveryMode) {
            smsQueue.push({ tel: [student.phone], msg: smsText });
         }
       }
@@ -298,7 +324,8 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
         </div>
       )}
 
-      <div className="mb-10 border-b-2 border-slate-100 pb-6 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 animate-in fade-in duration-500">
+      {/* 🚀 YENİ BAŞLIK VE KURTARMA MODU BUTONU 🚀 */}
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-10 border-b-2 border-slate-100 pb-6 gap-4 animate-in fade-in duration-500">
         <div>
           <div className="inline-flex items-center px-4 py-1.5 rounded-lg bg-indigo-100 text-indigo-800 text-sm font-black mb-3 uppercase tracking-wider">
             {adminZoneData.name} Yönetimi
@@ -306,9 +333,16 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
           <h1 className="text-4xl font-black text-slate-900">Mıntıka Paneli</h1>
           <p className="text-slate-500 mt-2 font-bold text-lg">Bölgenize ait ayarlar, sınav planlaması, kurum eşleştirmeleri ve kayıtlı öğrenciler.</p>
         </div>
-        <button onClick={handleLogoutWithSync} disabled={isSyncing} className="flex items-center text-red-600 bg-red-50 hover:bg-red-100 px-5 py-2.5 rounded-xl font-bold transition border border-red-200 shadow-sm">
-          {isSyncing ? "Senkronize Ediliyor..." : <><LogOut className="w-5 h-5 mr-2"/> Güvenli Çıkış & Değişiklikleri Bildir</>}
-        </button>
+        
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto">
+          <label className={`flex items-center justify-center text-sm font-black cursor-pointer px-5 py-3.5 rounded-xl transition-all border-2 shadow-sm ${recoveryMode ? 'bg-amber-50 text-amber-700 border-amber-300 ring-2 ring-amber-100' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}>
+             <input type="checkbox" checked={recoveryMode} onChange={e => setRecoveryMode(e.target.checked)} className="mr-3 w-5 h-5 accent-amber-600" />
+             Kurtarma Modu (Sessiz & Korumalı Çıkış)
+          </label>
+          <button onClick={handleLogoutWithSync} disabled={isSyncing} className="flex items-center justify-center text-white bg-slate-800 hover:bg-slate-900 px-6 py-3.5 rounded-xl font-bold transition border border-slate-700 shadow-lg">
+            {isSyncing ? "Senkronize Ediliyor..." : <><LogOut className="w-5 h-5 mr-2"/> Güvenli Çıkış</>}
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-4 mb-10 border-b-2 border-slate-100 pb-6">
