@@ -59,15 +59,6 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
     } catch (err) { console.error(err); }
   };
 
-  const handleDeleteStudent = async (studentId, studentName) => {
-    if(window.confirm(`${studentName} silinsin mi?`)) {
-      try {
-        setHasMadeChanges(true);
-        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', studentId));
-      } catch (e) { console.error(e); }
-    }
-  };
-
   const handleBulkSMS = async () => {
     setSmsModal({ ...smsModal, loading: true });
     
@@ -82,7 +73,8 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
 
     const msgDataArray = validStudents.map(student => {
       const zone = isSuperAdmin ? (zones.find(z => z.id === student.zone?.id) || student.zone) : adminZoneData;
-      const stdCenter = getNeighborhoodDetails(zone, student.district, student.neighborhood, student.gender);
+      // DÜZELTME: Sınıf (grade) bilgisi eklendi
+      const stdCenter = getNeighborhoodDetails(zone, student.district, student.neighborhood, student.gender, student.grade);
       let text = "";
 
       if (smsModal.type === 'custom') {
@@ -107,18 +99,17 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
   };
 
   const handleExportExcel = () => {
-     // DÜZELTME: "Katılım Ödülü" sütunu eklendi
      let csvContent = "Ogrenci Isim Soyisim;Veli Isim Soyisim;Telefon;Sinif;Cinsiyet;Okul Bilgisi;Ilce;Mahalle;Atanan Sinav Merkezi;Kayitli Sinav ve Seans;Aciklanan Puan;Derece;Katilim Odulu;Katilim Durumu;Gorusme Durumu;Gorusme Sonucu\n";
      students.forEach(s => {
         const stdZone = isSuperAdmin ? (zones.find(z => z.id === s.zone?.id) || s.zone) : adminZoneData;
-        const center = getNeighborhoodDetails(stdZone, s.district, s.neighborhood, s.gender)?.centerName || 'Bekleniyor';
+        // DÜZELTME: Sınıf (grade) bilgisi eklendi
+        const center = getNeighborhoodDetails(stdZone, s.district, s.neighborhood, s.gender, s.grade)?.centerName || 'Bekleniyor';
         const hasPast = s.pastExams && s.pastExams.length > 0;
         const lastPast = hasPast ? s.pastExams[s.pastExams.length-1] : null;
         const activeExam = (s.examTitle || s.exam?.title) ? `${s.examTitle || s.exam?.title} (${s.selectedDate || s.exam?.date} ${s.selectedTime || s.slot})` : 'Yok / Beklemede';
         const score = lastPast ? lastPast.score : '-';
         const rank = lastPast ? lastPast.rank : '-';
         
-        // Ödül verisi
         const prize = s.selectedParticipationPrize || 'Secilmedi';
 
         const clean = str => String(str || '').replace(/;/g, ' ').replace(/\n/g, ' ');
@@ -131,6 +122,15 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
      link.setAttribute("href", url);
      link.setAttribute("download", "Ogrenci_Listesi.csv");
      document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  };
+
+  const handleDeleteStudent = async (studentId, studentName) => {
+    if(window.confirm(`${studentName} silinsin mi?`)) {
+      try {
+        setHasMadeChanges(true);
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', studentId));
+      } catch (e) { console.error(e); }
+    }
   };
 
   return (
@@ -197,7 +197,9 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
                      {groupedStudents[grade].map(student => {
                         const hasActiveExam = !!(student.examId || student.examTitle || student.exam);
                         const realZoneData = isSuperAdmin ? (zones.find(z => z.id === student.zone?.id) || student.zone) : adminZoneData;
-                        const stdCenter = getNeighborhoodDetails(realZoneData, student.district, student.neighborhood, student.gender);
+                        
+                        // DÜZELTME: Sınıf (grade) bilgisi eklendi
+                        const stdCenter = getNeighborhoodDetails(realZoneData, student.district, student.neighborhood, student.gender, student.grade);
                         
                         return (
                           <tr key={student.firebaseId} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
