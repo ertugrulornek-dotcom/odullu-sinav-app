@@ -33,26 +33,32 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
      zones.forEach(z => {
         const mappings = z.mappings || [];
         const checkDistrictHood = (dist, hood) => {
+           let requiredGenders = ['Erkek', 'Kız', '8. Sınıf Erkek'];
+           
+           // 🚀 KÖRFEZ İSTİSNASI (Gebze ve Akarçeşme'de yanlış eksik uyarısını engeller)
+           if (dist === 'Körfez' && (hood === '17 Ağustos' || hood === 'Cumhuriyet')) {
+               if (z.name === 'Gebze') requiredGenders = ['Erkek']; // Gebze'den sadece Erkek ataması beklenir
+               else if (z.name === 'Akarçeşme') requiredGenders = ['Kız', '8. Sınıf Erkek']; // Akarçeşme'den sadece Kız ve 8.Sınıf Erkek beklenir
+           }
+
            const hoodMappings = mappings.filter(m => m.district === dist && m.neighborhood === hood);
            const hasTumu = hoodMappings.some(m => m.gender === 'Tümü' || !m.gender);
-           const hasErkek = hoodMappings.some(m => m.gender === 'Erkek');
-           const hasKiz = hoodMappings.some(m => m.gender === 'Kız');
-           const has8Erkek = hoodMappings.some(m => m.gender === '8. Sınıf Erkek');
 
            if (hasTumu) return; 
-           if (hasErkek && hasKiz && has8Erkek) return; 
+
+           let missingGenders = [];
+           requiredGenders.forEach(reqGen => {
+               if (!hoodMappings.some(m => m.gender === reqGen)) {
+                   missingGenders.push(reqGen);
+               }
+           });
            
-           if (hoodMappings.length === 0) {
-              missing.push({ zone: z.name, district: dist, neighborhood: hood, status: 'Hiç Tanımlanmamış', missingGenders: ['Erkek', 'Kız', '8. Sınıf Erkek'] });
-           } else {
-              let missingGenders = [];
-              if (!hasKiz) missingGenders.push('Kız');
-              if (!hasErkek) missingGenders.push('Erkek');
-              if (!has8Erkek) missingGenders.push('8. Sınıf Erkek');
-              
-              if (missingGenders.length > 0) {
-                 missing.push({ zone: z.name, district: dist, neighborhood: hood, status: `Eksik: ${missingGenders.join(', ')}`, missingGenders });
-              }
+           if (missingGenders.length > 0) {
+               if (missingGenders.length === requiredGenders.length) {
+                   missing.push({ zone: z.name, district: dist, neighborhood: hood, status: 'Hiç Tanımlanmamış', missingGenders });
+               } else {
+                   missing.push({ zone: z.name, district: dist, neighborhood: hood, status: `Eksik: ${missingGenders.join(', ')}`, missingGenders });
+               }
            }
         };
 
@@ -126,7 +132,6 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
   let missingListRaw = getMissingMappings();
   if (missingFilterZone !== 'All') missingListRaw = missingListRaw.filter(m => m.zone === missingFilterZone);
   
-  // DÜZELTME: Filtreleme mantığı kusursuzlaştırıldı
   if (missingFilterStatus === 'Hiç Tanımlanmamış') {
       missingListRaw = missingListRaw.filter(m => m.status === 'Hiç Tanımlanmamış');
   } else if (missingFilterStatus !== 'All') {
@@ -244,7 +249,6 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
                <option value="All">Tüm Mıntıkalar</option>
                {zones.map(z => <option key={z.id} value={z.name}>{z.name}</option>)}
             </select>
-            {/* DÜZELTME: Filtreleme seçenekleri düzeltildi */}
             <select value={missingFilterStatus} onChange={e=>setMissingFilterStatus(e.target.value)} className="p-3 border-2 border-slate-200 rounded-xl font-bold text-sm outline-none focus:border-indigo-500">
                <option value="All">Tüm Durumlar (Tüm Eksikler)</option>
                <option value="Hiç Tanımlanmamış">Hiç Atama Yapılmamış Olanlar</option>

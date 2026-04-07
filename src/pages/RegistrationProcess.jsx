@@ -161,7 +161,7 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
 
   useEffect(() => {
     if (formData.district && formData.neighborhood) {
-      const zoneName = determineZoneName(formData.province, formData.district, formData.neighborhood);
+      const zoneName = determineZoneName(formData.province, formData.district, formData.neighborhood, formData.gender, formData.grade);
       const zone = findZoneByName(zones, zoneName);
       setMatchedZone(zone);
       if (zone && zone.active) setAvailableExams(exams.filter(e => e.zoneId == zone.id && e.active !== false));

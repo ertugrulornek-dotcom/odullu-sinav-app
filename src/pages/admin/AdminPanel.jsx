@@ -185,7 +185,7 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
            latestZone = zones.find(z => z.id == student.zone.id);
         }
         if (!latestZone) {
-           const zName = determineZoneName(student.province, student.district, student.neighborhood, student.gender);
+           const zName = determineZoneName(student.province, student.district, student.neighborhood, student.gender, student.grade);
            latestZone = findZoneByName(zones, zName);
         }
         if (!latestZone) continue;

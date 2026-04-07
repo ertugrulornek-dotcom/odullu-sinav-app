@@ -18,7 +18,16 @@ export const parsePrizeArray = (data) => {
 
 export const findZoneByName = (zonesList, zoneName) => zonesList.find(z => z.name === zoneName);
 
-export const determineZoneName = (province, district, neighborhood) => {
+// 🚀 DÜZELTME: Sınıf (grade) ve Cinsiyet (gender) eklendi, İstisna Kusursuzlaştırıldı!
+export const determineZoneName = (province, district, neighborhood, gender, grade) => {
+  
+  // ÖZEL KÖRFEZ İSTİSNASI (17 Ağustos ve Cumhuriyet)
+  if (district === 'Körfez' && (neighborhood === '17 Ağustos' || neighborhood === 'Cumhuriyet')) {
+      if (gender === 'Kız') return 'Akarçeşme';
+      if (gender === 'Erkek' && String(grade) === '8') return 'Akarçeşme';
+      return 'Gebze'; // 3, 4, 5, 6 ve 7. Sınıf Erkekler GEBZE'ye gider!
+  }
+
   for (const z of INITIAL_ZONES) {
     if (z.districts.includes(district)) return z.name;
     if (z.partialDistricts && z.partialDistricts[district] && z.partialDistricts[district].includes(neighborhood)) return z.name;
@@ -35,23 +44,19 @@ export const getNeighborhoodDetails = (zone, district, neighborhood, gender, gra
     let centerObj = null;
 
     if (zone.mappings) {
-        // 1. Önce 8. Sınıf Erkek kontrolü
         if (String(grade) === '8' && gender === 'Erkek') {
             mapping = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood && m.gender === '8. Sınıf Erkek');
         }
         
-        // 2. Kendi Cinsiyetine Göre Ara
         if (!mapping) {
             mapping = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood && m.gender === gender);
         }
         
-        // 3. Bulamazsa 'Tümü' (Karma) ataması ara
         if (!mapping) {
             mapping = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood && (m.gender === 'Tümü' || !m.gender));
         }
     }
 
-    // 4. ESKİ YAPI İÇİN GERİYE DÖNÜK DESTEK (Kullanıcının eski specialBoysCenters verisi boşa gitmesin diye)
     if (!mapping && String(grade) === '8' && gender === 'Erkek' && zone.specialBoysCenters) {
         const specialKey = `${district}-${neighborhood}`;
         if (zone.specialBoysCenters[specialKey]) {
@@ -85,7 +90,6 @@ export const getNeighborhoodDetails = (zone, district, neighborhood, gender, gra
     };
 };
 
-// GÜN-AY-HANGİ GÜN Formatına Çeviren Fonksiyon
 export const formatToTurkishDate = (dateStr) => {
     if (!dateStr) return '';
     try {

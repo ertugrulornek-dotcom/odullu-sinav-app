@@ -42,6 +42,12 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
     }
     
     return allHoods.filter(hood => {
+       // 🚀 KÖRFEZ İSTİSNASI (Gebze ve Akarçeşme adminlerinin yanlış atama yapmasını engeller)
+       if (district === 'Körfez' && (hood === '17 Ağustos' || hood === 'Cumhuriyet')) {
+          if (adminZoneData.name === 'Gebze' && (gender === 'Kız' || gender === '8. Sınıf Erkek' || gender === 'Tümü')) return false;
+          if (adminZoneData.name === 'Akarçeşme' && (gender === 'Erkek' || gender === 'Tümü')) return false; // Akarçeşme 3-7 Erkek atayamaz!
+       }
+
        const hoodMappings = localMappings.filter(m => m.district === district && m.neighborhood === hood);
        const hasTumu = hoodMappings.some(m => m.gender === 'Tümü' || !m.gender);
        const hasErkek = hoodMappings.some(m => m.gender === 'Erkek');
@@ -61,7 +67,6 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
 
   const adminDistricts = getAdminDistricts();
 
-  // 🚀 DÜZELTME: Kırpma hatasını çözen Akıllı Telefon Çevirici
   const formatPhoneNumber = (phoneRaw) => {
       let phone = String(phoneRaw || "").replace(/\D/g, '');
       if (phone.startsWith('90')) phone = phone.substring(2);
@@ -76,10 +81,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
     try {
       const centerObj = { id: "c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9), name: newCenter.name, address: newCenter.address, mapLink: newCenter.mapLink || "" };
       const updatedCenters = [...localCenters, centerObj];
-      
-      setLocalCenters(updatedCenters); 
-      setHasMadeChanges(true);
-      
+      setLocalCenters(updatedCenters); setHasMadeChanges(true);
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters });
       setNewCenter({ name: '', address: '', mapLink: '' });
     } catch (e) { console.error(e); alert("Hata oluştu"); }
@@ -90,10 +92,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
     if(!editingCenter.name || !editingCenter.address) return alert("Adres ve isim zorunludur.");
     try {
       const updatedCenters = localCenters.map(c => c.id === editingCenter.id ? editingCenter : c);
-      
-      setLocalCenters(updatedCenters); 
-      setHasMadeChanges(true);
-      
+      setLocalCenters(updatedCenters); setHasMadeChanges(true);
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters });
       setEditingCenter(null);
     } catch(err) { console.error(err); }
@@ -104,11 +103,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
     try {
       const updatedCenters = localCenters.filter(c => c.id !== centerId);
       const updatedMappings = localMappings.filter(m => m.centerId !== centerId); 
-      
-      setLocalCenters(updatedCenters); 
-      setLocalMappings(updatedMappings);
-      setHasMadeChanges(true);
-
+      setLocalCenters(updatedCenters); setLocalMappings(updatedMappings); setHasMadeChanges(true);
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters, mappings: updatedMappings });
     } catch (e) { console.error(e); }
   };
@@ -118,17 +113,13 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
     try {
       const newMappings = [...localMappings];
       const existingIndex = newMappings.findIndex(m => m.district === mappingData.district && m.neighborhood === mappingData.neighborhood && m.gender === mappingData.gender);
-      
       const cleanedPhone = formatPhoneNumber(mappingData.phone) || "5539735440";
-
       const newMapObj = { district: mappingData.district, neighborhood: mappingData.neighborhood, gender: mappingData.gender, centerId: mappingData.centerId, contactName: mappingData.contactName || "", phone: cleanedPhone };
 
       if (existingIndex >= 0) newMappings[existingIndex] = newMapObj;
       else newMappings.push(newMapObj);
       
-      setLocalMappings(newMappings); 
-      setHasMadeChanges(true);
-
+      setLocalMappings(newMappings); setHasMadeChanges(true);
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { mappings: newMappings });
       alert(`${mappingData.district} / ${mappingData.neighborhood} (${mappingData.gender}) atandı!`);
       setMappingData({ ...mappingData, neighborhood: '', contactName: '', phone: '' }); 
@@ -149,10 +140,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
        if(!row.trim()) continue;
        
        const cols = row.split('\t');
-       if(cols.length < 3) {
-           errors.push(`Satır ${i+1}: Sütunlar eksik.`);
-           continue;
-       }
+       if(cols.length < 3) { errors.push(`Satır ${i+1}: Sütunlar eksik.`); continue; }
        
        let rawDistrict = cols[0]?.trim();
        let rawNeighborhood = cols[1]?.trim();
@@ -168,18 +156,11 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
        
        if (cols.length > 3) {
            const potentialGender = String(cols[2] || '').trim().toLowerCase();
-           
-           if (potentialGender === 'erkek' || potentialGender === 'sadece erkek') {
-               rawGender = 'Erkek'; colOffset = 3;
-           } else if (potentialGender === 'kız' || potentialGender === 'kiz' || potentialGender === 'sadece kız') {
-               rawGender = 'Kız'; colOffset = 3;
-           } else if (['tümü', 'tumu', 'karma'].includes(potentialGender)) {
-               rawGender = 'Tümü'; colOffset = 3;
-           } else if (potentialGender.includes('8') && (potentialGender.includes('sınıf') || potentialGender.includes('sinif') || potentialGender.includes('erkek'))) {
-               rawGender = '8. Sınıf Erkek'; colOffset = 3;
-           } else if (potentialGender === '8' || potentialGender === '8.') {
-               rawGender = '8. Sınıf Erkek'; colOffset = 3;
-           }
+           if (potentialGender === 'erkek' || potentialGender === 'sadece erkek') { rawGender = 'Erkek'; colOffset = 3; } 
+           else if (potentialGender === 'kız' || potentialGender === 'kiz' || potentialGender === 'sadece kız') { rawGender = 'Kız'; colOffset = 3; } 
+           else if (['tümü', 'tumu', 'karma'].includes(potentialGender)) { rawGender = 'Tümü'; colOffset = 3; } 
+           else if (potentialGender.includes('8') && (potentialGender.includes('sınıf') || potentialGender.includes('sinif') || potentialGender.includes('erkek'))) { rawGender = '8. Sınıf Erkek'; colOffset = 3; } 
+           else if (potentialGender === '8' || potentialGender === '8.') { rawGender = '8. Sınıf Erkek'; colOffset = 3; }
        }
 
        let centerName = cols[colOffset]?.trim();
@@ -188,45 +169,36 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
        let address = cols[colOffset+3] ? cols[colOffset+3].trim() : "";
        let mapLink = cols[colOffset+4] ? cols[colOffset+4].trim() : "";
 
-       if (!rawDistrict || !rawNeighborhood || !centerName) { 
-           errors.push(`Satır ${i+1}: İlçe, Mahalle veya Kurum Adı boş olamaz.`); 
-           continue; 
-       }
+       if (!rawDistrict || !rawNeighborhood || !centerName) { errors.push(`Satır ${i+1}: İlçe, Mahalle veya Kurum Adı boş olamaz.`); continue; }
 
-       // DÜZELTME: Excel'den gelen numarayı da aynı şekilde hatasız süz
        const cleanedPhone = formatPhoneNumber(phone) || "5539735440";
-
        const normDistrict = normalizeForSearch(rawDistrict);
        const normNeighborhood = normalizeForSearch(rawNeighborhood);
-
        const matchedDistrict = adminDistricts.find(d => normalizeForSearch(d) === normDistrict);
+       
        let matchedNeighborhood = null;
-
        if (matchedDistrict) {
            let allHoodsForDistrict = [];
-           if(adminZoneData.partialDistricts && adminZoneData.partialDistricts[matchedDistrict]) {
-               allHoodsForDistrict = adminZoneData.partialDistricts[matchedDistrict];
-           } else {
-               for(let prov in LOCATIONS) {
-                   if(LOCATIONS[prov][matchedDistrict]) { allHoodsForDistrict = LOCATIONS[prov][matchedDistrict]; break; }
-               }
-           }
+           if(adminZoneData.partialDistricts && adminZoneData.partialDistricts[matchedDistrict]) allHoodsForDistrict = adminZoneData.partialDistricts[matchedDistrict];
+           else for(let prov in LOCATIONS) { if(LOCATIONS[prov][matchedDistrict]) { allHoodsForDistrict = LOCATIONS[prov][matchedDistrict]; break; } }
            matchedNeighborhood = allHoodsForDistrict.find(h => normalizeForSearch(h) === normNeighborhood);
        }
 
-       if (!matchedDistrict || !matchedNeighborhood) { 
-           errors.push(`Satır ${i+1}: Veritabanında "${rawDistrict}" ilçesinde "${rawNeighborhood}" bulunamadı.`); 
-           continue; 
-       }
+       if (!matchedDistrict || !matchedNeighborhood) { errors.push(`Satır ${i+1}: Veritabanında "${rawDistrict}" ilçesinde "${rawNeighborhood}" bulunamadı.`); continue; }
        
+       // 🚀 KÖRFEZ İSTİSNASI (Excel yüklemesinde engelleme)
+       if (matchedDistrict === 'Körfez' && (matchedNeighborhood === '17 Ağustos' || matchedNeighborhood === 'Cumhuriyet')) {
+          if (adminZoneData.name === 'Gebze' && (rawGender === 'Kız' || rawGender === '8. Sınıf Erkek' || rawGender === 'Tümü')) {
+              errors.push(`Satır ${i+1}: Gebze mıntıkası bu mahalleye Kız veya 8. Sınıf atayamaz.`); continue;
+          }
+          if (adminZoneData.name === 'Akarçeşme' && (rawGender === 'Erkek' || rawGender === 'Tümü')) {
+              errors.push(`Satır ${i+1}: Akarçeşme mıntıkası bu mahalleye 3-7 Erkek atayamaz.`); continue;
+          }
+       }
+
        let center = updatedCenters.find(c => normalizeForSearch(c.name) === normalizeForSearch(centerName));
        if(!center) {
-          center = { 
-             id: "c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9), 
-             name: centerName, 
-             address: address || `${matchedDistrict} / ${matchedNeighborhood}`, 
-             mapLink: mapLink 
-          };
+          center = { id: "c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9), name: centerName, address: address || `${matchedDistrict} / ${matchedNeighborhood}`, mapLink: mapLink };
           updatedCenters.push(center);
        }
        
@@ -242,29 +214,18 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
     if (errors.length > 0) alert("Eksik/Hatalı satırlar atlandı:\n" + errors.join('\n'));
     if (successCount > 0) {
       try {
-        setLocalCenters(updatedCenters); 
-        setLocalMappings(updatedMappings);
-        setHasMadeChanges(true);
-
+        setLocalCenters(updatedCenters); setLocalMappings(updatedMappings); setHasMadeChanges(true);
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters, mappings: updatedMappings });
         alert(`${successCount} adet mahalle ataması başarıyla kaydedildi.`);
         setBulkExcelData("");
-      } catch(err) { 
-        console.error(err); 
-        alert("Veritabanına kaydedilirken hata oluştu.");
-      }
-    } else {
-        alert("Hiç geçerli veri bulunamadı. Kopyaladığınız Excel formatını kontrol edin.");
-    }
+      } catch(err) { console.error(err); alert("Hata oluştu."); }
+    } else { alert("Hiç geçerli veri bulunamadı."); }
   };
 
   const handleDeleteMapping = async (district, neighborhood, gender) => {
     try {
       const updatedMappings = localMappings.filter(m => !(m.district === district && m.neighborhood === neighborhood && m.gender === gender));
-      
-      setLocalMappings(updatedMappings); 
-      setHasMadeChanges(true);
-
+      setLocalMappings(updatedMappings); setHasMadeChanges(true);
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { mappings: updatedMappings });
     } catch (e) { console.error(e); }
   };
