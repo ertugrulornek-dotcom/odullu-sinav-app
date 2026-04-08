@@ -6,8 +6,8 @@ import { collection, addDoc, deleteDoc, doc, onSnapshot } from "firebase/firesto
 export default function BlacklistTab({ setHasMadeChanges }) {
   const [blacklistPhones, setBlacklistPhones] = useState([]);
   const [newBlacklistPhone, setNewBlacklistPhone] = useState('');
-  const [bulkPhones, setBulkPhones] = useState(''); // Toplu ekleme için state
-  const [isBulkMode, setIsBulkMode] = useState(false); // Tekli veya toplu modu
+  const [bulkPhones, setBulkPhones] = useState(''); 
+  const [isBulkMode, setIsBulkMode] = useState(false); 
 
   useEffect(() => {
       const unsub = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'blacklist'), snap => {
@@ -16,12 +16,21 @@ export default function BlacklistTab({ setHasMadeChanges }) {
       return () => unsub();
   }, []);
 
+  // 🚀 DÜZELTME: Kırpma hatasını çözen Akıllı Telefon Çevirici
+  const formatPhoneNumber = (phoneRaw) => {
+      let phone = String(phoneRaw || "").replace(/\D/g, '');
+      if (phone.startsWith('90')) phone = phone.substring(2);
+      if (phone.startsWith('0')) phone = phone.substring(1);
+      if (phone.length > 0 && !phone.startsWith('5')) phone = '5' + phone;
+      if (phone.length > 10) phone = phone.substring(0, 10);
+      return phone;
+  };
+
   const handleAddBlacklist = async () => {
-    let p = newBlacklistPhone.replace(/\D/g, '');
-    if(p.length > 0 && p[0] !== '5') p = '5' + p;
+    const p = formatPhoneNumber(newBlacklistPhone);
+    
     if(p.length !== 10) return alert("Lütfen 10 haneli geçerli bir telefon numarası giriniz.");
     
-    // Zaten varsa ekleme
     if (blacklistPhones.some(bl => bl.phone === p)) return alert("Bu numara zaten kara listede mevcut.");
 
     try {
@@ -42,12 +51,11 @@ export default function BlacklistTab({ setHasMadeChanges }) {
      setHasMadeChanges(true);
 
      for (let line of lines) {
-        let p = line.replace(/\D/g, '');
-        if (p.length > 0 && p[0] !== '5') p = '5' + p;
-        if (p.length > 10) p = p.substring(0, 10);
+        if(!line.trim()) continue;
+        
+        const p = formatPhoneNumber(line);
         
         if (p.length === 10) {
-           // Numara listede yoksa ekle
            if (!blacklistPhones.some(bl => bl.phone === p)) {
                try {
                  await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'blacklist'), { phone: p });

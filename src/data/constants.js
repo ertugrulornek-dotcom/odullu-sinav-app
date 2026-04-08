@@ -16,7 +16,7 @@ export const LOCATIONS = {
     "Körfez": ["Mimar Sinan", "Yarımca", "Tütünçiftlik", "Hacı Osman", "Atalar", "Ağadere", "Barbaros", "Çamlıtepe", "Esentepe", "Fatih", "Güney", "İlimtepe", "Kuzey", "Şirinyalı", "Yavuz Selim", "Yeniyalı", "Yavuz Sultan Selim", "Cumhuriyet", "17 Ağustos", "Kirazlıyalı", "Yukarı Hereke", "Kışladüzü", "Hacı Akif", "Agah Ateş"]
   },
   "Sakarya": {
-    "Adapazarı": ["Akköy", "Alancık", "Aşırlar", "Bağlar", "Bileciler", "Büyükhataplı", "Camili", "Cumhuriyet", "Çaltıcak", "Çamyolu", "Çerçiler", "Çökekler", "Çukurahmediye", "Dağdibi", "Demirbey", "Doğancılar", "Elmalı", "Evrenköy", "Göktepe", "Güllük", "Güneşler", "Hacılar", "Hızırtepe", "Işıklar", "İlyaslar", "İstiklal", "Karaköy", "Karaman", "Karasoku", "Kasımlar", "Kavaklıorman", "Korucuk", "Kurtbeyler", "Kurtuluş", "Küçükhataplı","Maltepe", "Mahmudiye", "Mithatpaşa", "Nasuhlar", "Ozanlar", "Örentepe", "Pabuççular", "Poyrazlar", "Rüstemler", "Sakarya", "Salmanlı", "Semerciler", "Solaklar", "Süleymanbey", "Şeker", "Şirinevler", "Taşkısığı", "Tekeler", "Tepekum", "Tığcılar", "Turnadere", "Tuzla", "Yağcılar", "Yahyalar", "Yenicami", "Yenigün", "Yeniköy", "15 Temmuz Camili", "Güneşler Merkez", "Karaosman", "Orta", "Güneşler Yeni", "Yenidoğan", "Akıncılar", "Papuççular", "Köprübaşı", "Taşlık", "Budaklar", "Karakamış", "Alandüzü", "Kayrancık", "Bayraktar", "Abalı", "Karapınar", "Karadere"],
+    "Adapazarı": ["Akköy", "Alancık", "Aşırlar", "Bağlar", "Bileciler", "Büyükhataplı", "Camili", "Cumhuriyet", "Çaltıcak", "Çamyolu", "Çerçiler", "Çökekler", "Çukurahmediye", "Dağdibi", "Demirbey", "Doğancılar", "Elmalı", "Evrenköy", "Göktepe", "Güllük", "Güneşler", "Hacılar", "Hızırtepe", "Işıklar", "İlyaslar", "İstiklal", "Karaköy", "Karaman", "Karasoku", "Kasımlar", "Kavaklıorman", "Korucuk", "Kurtbeyler", "Kurtuluş", "Küçükhataplı", "Maltepe", "Mahmudiye", "Mithatpaşa", "Nasuhlar", "Ozanlar", "Örentepe", "Pabuççular", "Poyrazlar", "Rüstemler", "Sakarya", "Salmanlı", "Semerciler", "Solaklar", "Süleymanbey", "Şeker", "Şirinevler", "Taşkısığı", "Tekeler", "Tepekum", "Tığcılar", "Turnadere", "Tuzla", "Yağcılar", "Yahyalar", "Yenicami", "Yenigün", "Yeniköy", "15 Temmuz Camili", "Güneşler Merkez", "Karaosman", "Orta", "Güneşler Yeni", "Yenidoğan", "Akıncılar", "Papuççular", "Köprübaşı", "Taşlık", "Budaklar", "Karakamış", "Alandüzü", "Kayrancık", "Bayraktar", "Abalı", "Karapınar", "Karadere"],
     "Ferizli": ["İnönü", "Devlet", "Kemalpaşa", "Gölkent", "Sinanoğlu", "Ağacık", "Bakırlı", "İstiklal", "Değirmencik", "Damlık", "Ceylandere", "Abdürrezzak"],
     "Karasu": ["Aziziye", "İncilli", "Kabakoz", "Kuzuluk", "Yalı", "Yeni", "Adatepe", "Darıçayırı", "Kurudere", "Limandere", "Karasu", "Kuyumcullu", "Tepetarla", "Resuller", "Yuvalıdere", "Manavpınarı", "Karapınar", "Yassıgeçit", "Kızılcık", "İhsaniye", "Taşlıgeçit", "Çatalövez", "Gölköprü", "Konacık"],
     "Kaynarca": ["Orta", "Konak", "Büyükyanık", "Hatipler", "Topçu", "Turnalı", "Merkez", "Yeşilova", "Karaçalı", "Kertil", "Birlik", "Şeyhtımarı", "Karamanlar", "Ziahmet", "Arifağa"],
@@ -34,7 +34,7 @@ export const LOCATIONS = {
     "Karapürçek": ["Çeşmebaşı", "Yazılıgürgen", "Cumhuriyet", "İnönü", "Ahmetler", "Mecidiye", "Yüksel", "Hocaköy", "Mesudiye"]
   },
   "Yalova": {
-    "Merkez": ["Adnan Menderes", "Bağlarbaşı", "Bahçelievler", "Bayraktepe", "Dere", "Fevzi Çakmak", "Gaziosmanpaşa", "İsmet Paşa", "Kadıköy", "Kazım Karabekir", "Mustafa Kemal Paşa", "Paşakent", "Rüstem Paşa", "Süleyman Bey", "Merkez", "Özden", "Seyrantepe"],
+    "Merkez": ["Adnan Menderes", "Bağlarbaşı", "Bahçelievler", "Bayraktepe", "Dere", "Fevzi Çakmak", "Gaziosmanpaşa", "İsmet Paşa", "Kadıköy", "Kazım Karabekir", "Mustafa Kemal Paşa", "Paşakent", "Rüstem Paşa", "Samanlı", "Süleyman Bey", "Merkez", "Özden", "Seyrantepe"],
     "Çiftlikköy": ["Çiftlik", "Mehmet Akif Ersoy", "Sahil", "Sultaniye", "500 Evler", "Siteler", "Taşköprü", "Taşköprü Merkez", "Taşköprü Yeni"],
     "Çınarcık": ["Çamlık", "Harmanlar", "Hasanbaba", "Karpuzdere", "Taşliman", "Koruköy", "Esenköy", "Teşvikiye", "Atakent", "Liman", "Karşıyaka", "Cumhuriyet", "Hürriyet", "Aliye Hanım", "İstiklal"],
     "Altınova": ["Cumhuriyet", "Hürriyet", "Hersek", "Kaytazdere", "Subaşı", "Tavşanlı", "Merkez", "Denizgören", "Altınkent", "Fatih", "Şehitlik"],
@@ -44,11 +44,31 @@ export const LOCATIONS = {
 };
 
 export const INITIAL_ZONES = [
-  { id: 1, name: "Adapazarı", active: true, districts: ["Adapazarı", "Ferizli", "Karasu", "Kaynarca", "Kocaali", "Söğütlü"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] },
+  { 
+    id: 1, 
+    name: "Adapazarı", 
+    active: true, 
+    // DÜZELTME: Adapazarı ilçesini ana listeden çıkarıp "partialDistricts" içine Maltepe hariç hepsini koyduk
+    districts: ["Ferizli", "Karasu", "Kaynarca", "Kocaali", "Söğütlü"], 
+    partialDistricts: {
+      "Adapazarı": ["Akköy", "Alancık", "Aşırlar", "Bağlar", "Bileciler", "Büyükhataplı", "Camili", "Cumhuriyet", "Çaltıcak", "Çamyolu", "Çerçiler", "Çökekler", "Çukurahmediye", "Dağdibi", "Demirbey", "Doğancılar", "Elmalı", "Evrenköy", "Göktepe", "Güllük", "Güneşler", "Hacılar", "Hızırtepe", "Işıklar", "İlyaslar", "İstiklal", "Karaköy", "Karaman", "Karasoku", "Kasımlar", "Kavaklıorman", "Korucuk", "Kurtbeyler", "Kurtuluş", "Küçükhataplı", "Mahmudiye", "Mithatpaşa", "Nasuhlar", "Ozanlar", "Örentepe", "Pabuççular", "Poyrazlar", "Rüstemler", "Sakarya", "Salmanlı", "Semerciler", "Solaklar", "Süleymanbey", "Şeker", "Şirinevler", "Taşkısığı", "Tekeler", "Tepekum", "Tığcılar", "Turnadere", "Tuzla", "Yağcılar", "Yahyalar", "Yenicami", "Yenigün", "Yeniköy", "15 Temmuz Camili", "Güneşler Merkez", "Karaosman", "Orta", "Güneşler Yeni", "Yenidoğan", "Akıncılar", "Papuççular", "Köprübaşı", "Taşlık", "Budaklar", "Karakamış", "Alandüzü", "Kayrancık", "Bayraktar", "Abalı", "Karapınar", "Karadere"]
+    }, 
+    prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] 
+  },
   { id: 2, name: "Akarçeşme", active: true, districts: ["Derince", "İzmit", "Kandıra"], partialDistricts: { "Körfez": ["Yavuz Sultan Selim", "Mimar Sinan", "Güney", "Hacı Osman", "Fatih", "Yeniyalı", "Çamlıtepe", "Esentepe", "Atalar", "İlimtepe", "Kuzey", "Barbaros", "Kirazlıyalı", "17 Ağustos", "Cumhuriyet"] }, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] },
   { id: 3, name: "Erenler", active: true, districts: ["Akyazı", "Erenler", "Hendek", "Karapürçek"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] },
   { id: 4, name: "Gebze", active: true, districts: ["Çayırova", "Darıca", "Dilovası", "Gebze"], partialDistricts: { "Körfez": ["Yukarı Hereke", "Kışladüzü", "Hacı Akif", "Agah Ateş", "17 Ağustos", "Cumhuriyet"] }, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] },
   { id: 5, name: "Kartepe", active: true, districts: ["Başiskele", "Gölcük", "Kartepe"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] },
-  { id: 6, name: "Serdivan", active: true, districts: ["Arifiye", "Geyve", "Pamukova", "Sapanca", "Serdivan", "Taraklı"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] },
+  { 
+    id: 6, 
+    name: "Serdivan", 
+    active: true, 
+    districts: ["Arifiye", "Geyve", "Pamukova", "Sapanca", "Serdivan", "Taraklı"], 
+    // DÜZELTME: Maltepe mahallesi doğrudan Serdivan'ın kollarına bırakıldı
+    partialDistricts: {
+      "Adapazarı": ["Maltepe"]
+    }, 
+    prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] 
+  },
   { id: 7, name: "Yalova", active: true, districts: ["Altınova", "Armutlu", "Çınarcık", "Çiftlikköy", "Karamürsel", "Merkez", "Termal"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] }
 ];
