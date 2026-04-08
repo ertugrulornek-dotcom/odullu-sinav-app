@@ -35,10 +35,16 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
         const checkDistrictHood = (dist, hood) => {
            let requiredGenders = ['Erkek', 'Kız', '8. Sınıf Erkek'];
            
-           // 🚀 KÖRFEZ İSTİSNASI (Gebze ve Akarçeşme'de yanlış eksik uyarısını engeller)
+           // KÖRFEZ İSTİSNASI
            if (dist === 'Körfez' && (hood === '17 Ağustos' || hood === 'Cumhuriyet')) {
-               if (z.name === 'Gebze') requiredGenders = ['Erkek']; // Gebze'den sadece Erkek ataması beklenir
-               else if (z.name === 'Akarçeşme') requiredGenders = ['Kız', '8. Sınıf Erkek']; // Akarçeşme'den sadece Kız ve 8.Sınıf Erkek beklenir
+               if (z.name === 'Gebze') requiredGenders = ['Erkek']; 
+               else if (z.name === 'Akarçeşme') requiredGenders = ['Kız', '8. Sınıf Erkek']; 
+           }
+
+           // 🚀 ADAPAZARI / MALTEPE İSTİSNASI (Yanlış eksik uyarısını engeller)
+           if (dist === 'Adapazarı' && hood === 'Maltepe') {
+               if (z.name === 'Adapazarı') requiredGenders = ['Kız', '8. Sınıf Erkek']; // Adapazarı'ndan Kız ve 8 Erkek beklenir
+               else if (z.name === 'Serdivan') requiredGenders = ['Erkek']; // Serdivan'dan sadece Erkek beklenir
            }
 
            const hoodMappings = mappings.filter(m => m.district === dist && m.neighborhood === hood);

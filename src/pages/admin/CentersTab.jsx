@@ -42,10 +42,16 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
     }
     
     return allHoods.filter(hood => {
-       // 🚀 KÖRFEZ İSTİSNASI (Gebze ve Akarçeşme adminlerinin yanlış atama yapmasını engeller)
+       // KÖRFEZ İSTİSNASI
        if (district === 'Körfez' && (hood === '17 Ağustos' || hood === 'Cumhuriyet')) {
           if (adminZoneData.name === 'Gebze' && (gender === 'Kız' || gender === '8. Sınıf Erkek' || gender === 'Tümü')) return false;
-          if (adminZoneData.name === 'Akarçeşme' && (gender === 'Erkek' || gender === 'Tümü')) return false; // Akarçeşme 3-7 Erkek atayamaz!
+          if (adminZoneData.name === 'Akarçeşme' && (gender === 'Erkek' || gender === 'Tümü')) return false; 
+       }
+
+       // 🚀 ADAPAZARI / MALTEPE İSTİSNASI (Yanlış atama yapmayı engeller)
+       if (district === 'Adapazarı' && hood === 'Maltepe') {
+          if (adminZoneData.name === 'Adapazarı' && (gender === 'Erkek' || gender === 'Tümü')) return false; // Adapazarı 3-7 Erkek atayamaz
+          if (adminZoneData.name === 'Serdivan' && (gender === 'Kız' || gender === '8. Sınıf Erkek' || gender === 'Tümü')) return false; // Serdivan Kız ve 8 atayamaz
        }
 
        const hoodMappings = localMappings.filter(m => m.district === district && m.neighborhood === hood);
@@ -186,13 +192,23 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
 
        if (!matchedDistrict || !matchedNeighborhood) { errors.push(`Satır ${i+1}: Veritabanında "${rawDistrict}" ilçesinde "${rawNeighborhood}" bulunamadı.`); continue; }
        
-       // 🚀 KÖRFEZ İSTİSNASI (Excel yüklemesinde engelleme)
+       // KÖRFEZ İSTİSNASI (Excel yüklemesinde engelleme)
        if (matchedDistrict === 'Körfez' && (matchedNeighborhood === '17 Ağustos' || matchedNeighborhood === 'Cumhuriyet')) {
           if (adminZoneData.name === 'Gebze' && (rawGender === 'Kız' || rawGender === '8. Sınıf Erkek' || rawGender === 'Tümü')) {
               errors.push(`Satır ${i+1}: Gebze mıntıkası bu mahalleye Kız veya 8. Sınıf atayamaz.`); continue;
           }
           if (adminZoneData.name === 'Akarçeşme' && (rawGender === 'Erkek' || rawGender === 'Tümü')) {
               errors.push(`Satır ${i+1}: Akarçeşme mıntıkası bu mahalleye 3-7 Erkek atayamaz.`); continue;
+          }
+       }
+
+       // 🚀 ADAPAZARI / MALTEPE İSTİSNASI (Excel yüklemesinde engelleme)
+       if (matchedDistrict === 'Adapazarı' && matchedNeighborhood === 'Maltepe') {
+          if (adminZoneData.name === 'Adapazarı' && (rawGender === 'Erkek' || rawGender === 'Tümü')) {
+              errors.push(`Satır ${i+1}: Adapazarı mıntıkası bu mahalleye 3-7 Erkek atayamaz.`); continue;
+          }
+          if (adminZoneData.name === 'Serdivan' && (rawGender === 'Kız' || rawGender === '8. Sınıf Erkek' || rawGender === 'Tümü')) {
+              errors.push(`Satır ${i+1}: Serdivan mıntıkası bu mahalleye Kız veya 8. Sınıf atayamaz.`); continue;
           }
        }
 

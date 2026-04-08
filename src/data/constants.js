@@ -48,11 +48,9 @@ export const INITIAL_ZONES = [
     id: 1, 
     name: "Adapazarı", 
     active: true, 
-    // DÜZELTME: Adapazarı ilçesini ana listeden çıkarıp "partialDistricts" içine Maltepe hariç hepsini koyduk
-    districts: ["Ferizli", "Karasu", "Kaynarca", "Kocaali", "Söğütlü"], 
-    partialDistricts: {
-      "Adapazarı": ["Akköy", "Alancık", "Aşırlar", "Bağlar", "Bileciler", "Büyükhataplı", "Camili", "Cumhuriyet", "Çaltıcak", "Çamyolu", "Çerçiler", "Çökekler", "Çukurahmediye", "Dağdibi", "Demirbey", "Doğancılar", "Elmalı", "Evrenköy", "Göktepe", "Güllük", "Güneşler", "Hacılar", "Hızırtepe", "Işıklar", "İlyaslar", "İstiklal", "Karaköy", "Karaman", "Karasoku", "Kasımlar", "Kavaklıorman", "Korucuk", "Kurtbeyler", "Kurtuluş", "Küçükhataplı", "Mahmudiye", "Mithatpaşa", "Nasuhlar", "Ozanlar", "Örentepe", "Pabuççular", "Poyrazlar", "Rüstemler", "Sakarya", "Salmanlı", "Semerciler", "Solaklar", "Süleymanbey", "Şeker", "Şirinevler", "Taşkısığı", "Tekeler", "Tepekum", "Tığcılar", "Turnadere", "Tuzla", "Yağcılar", "Yahyalar", "Yenicami", "Yenigün", "Yeniköy", "15 Temmuz Camili", "Güneşler Merkez", "Karaosman", "Orta", "Güneşler Yeni", "Yenidoğan", "Akıncılar", "Papuççular", "Köprübaşı", "Taşlık", "Budaklar", "Karakamış", "Alandüzü", "Kayrancık", "Bayraktar", "Abalı", "Karapınar", "Karadere"]
-    }, 
+    // DÜZELTME: Adapazarı ilçesi tekrar tam yetkiyle Adapazarı mıntıkasına eklendi.
+    districts: ["Adapazarı", "Ferizli", "Karasu", "Kaynarca", "Kocaali", "Söğütlü"], 
+    partialDistricts: {}, 
     prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] 
   },
   { id: 2, name: "Akarçeşme", active: true, districts: ["Derince", "İzmit", "Kandıra"], partialDistricts: { "Körfez": ["Yavuz Sultan Selim", "Mimar Sinan", "Güney", "Hacı Osman", "Fatih", "Yeniyalı", "Çamlıtepe", "Esentepe", "Atalar", "İlimtepe", "Kuzey", "Barbaros", "Kirazlıyalı", "17 Ağustos", "Cumhuriyet"] }, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] },
@@ -64,7 +62,7 @@ export const INITIAL_ZONES = [
     name: "Serdivan", 
     active: true, 
     districts: ["Arifiye", "Geyve", "Pamukova", "Sapanca", "Serdivan", "Taraklı"], 
-    // DÜZELTME: Maltepe mahallesi doğrudan Serdivan'ın kollarına bırakıldı
+    // Maltepe mahallesi Serdivan'a da eklendi
     partialDistricts: {
       "Adapazarı": ["Maltepe"]
     }, 

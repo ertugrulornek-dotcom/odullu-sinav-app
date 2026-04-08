@@ -18,7 +18,6 @@ export const parsePrizeArray = (data) => {
 
 export const findZoneByName = (zonesList, zoneName) => zonesList.find(z => z.name === zoneName);
 
-// 🚀 DÜZELTME: Sınıf (grade) ve Cinsiyet (gender) eklendi, İstisna Kusursuzlaştırıldı!
 export const determineZoneName = (province, district, neighborhood, gender, grade) => {
   
   // ÖZEL KÖRFEZ İSTİSNASI (17 Ağustos ve Cumhuriyet)
@@ -28,6 +27,13 @@ export const determineZoneName = (province, district, neighborhood, gender, grad
       return 'Gebze'; // 3, 4, 5, 6 ve 7. Sınıf Erkekler GEBZE'ye gider!
   }
 
+  // 🚀 YENİ: ÖZEL ADAPAZARI/MALTEPE İSTİSNASI
+  if (district === 'Adapazarı' && neighborhood === 'Maltepe') {
+      if (gender === 'Kız') return 'Adapazarı';
+      if (gender === 'Erkek' && String(grade) === '8') return 'Adapazarı';
+      return 'Serdivan'; // 3, 4, 5, 6 ve 7. Sınıf Erkekler SERDİVAN'a gider!
+  }
+
   for (const z of INITIAL_ZONES) {
     if (z.districts.includes(district)) return z.name;
     if (z.partialDistricts && z.partialDistricts[district] && z.partialDistricts[district].includes(neighborhood)) return z.name;
@@ -35,7 +41,6 @@ export const determineZoneName = (province, district, neighborhood, gender, grad
   return null;
 };
 
-// 8. SINIF ERKEK İSTİSNASI EKLENMİŞ LOKASYON BULUCU
 export const getNeighborhoodDetails = (zone, district, neighborhood, gender, grade) => {
     const defaultFallback = { phone: "0553 973 54 40", contactName: "", mapLink: null, centerName: "Sınav Merkezi Bekleniyor", address: "" };
     if (!zone || !district || !neighborhood) return defaultFallback;
@@ -47,11 +52,9 @@ export const getNeighborhoodDetails = (zone, district, neighborhood, gender, gra
         if (String(grade) === '8' && gender === 'Erkek') {
             mapping = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood && m.gender === '8. Sınıf Erkek');
         }
-        
         if (!mapping) {
             mapping = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood && m.gender === gender);
         }
-        
         if (!mapping) {
             mapping = zone.mappings.find(m => m.district === district && m.neighborhood === neighborhood && (m.gender === 'Tümü' || !m.gender));
         }
