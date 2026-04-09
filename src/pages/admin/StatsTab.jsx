@@ -1,371 +1,338 @@
 import React, { useState } from 'react';
-import { Download, MessageSquare, Plus, Trash2, Send, Trophy, Filter, ArrowRightLeft } from 'lucide-react';
+import { Map, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { db, appId } from '../../services/firebase';
-import { doc, updateDoc, deleteDoc } from "firebase/firestore";
-import { sendSMS, SMS_FOOTER } from '../../services/smsService';
-import { getNeighborhoodDetails } from '../../utils/helpers';
+import { updateDoc, doc } from "firebase/firestore";
+import { LOCATIONS } from '../../data/constants';
 
-export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zones, setHasMadeChanges }) {
-  const [resultModal, setResultModal] = useState({ isOpen: false, student: null, score: '', rank: '' });
-  const [smsModal, setSmsModal] = useState({ isOpen: false, type: 'custom', customMsg: '', loading: false, targetStudent: null });
-  
-  // 🚀 YENİ: Öğrenci Aktarma (Transfer) Modalı State'i
-  const [transferModal, setTransferModal] = useState({ isOpen: false, student: null, targetZoneId: '' });
+export default function StatsTab({ zones, setHasMadeChanges }) {
+  const [expandedZoneId, setExpandedZoneId] = useState(null);
+  const [missingFilterZone, setMissingFilterZone] = useState('All');
+  const [missingFilterStatus, setMissingFilterStatus] = useState('All');
+  const [exceptionModal, setExceptionModal] = useState({ isOpen: false, center: null, sourceZone: null });
+  const [exceptionData, setExceptionData] = useState({ gender: 'Tümü', district: '', neighborhood: '', contactName: '', phone: '' });
 
-  const [filterGrade, setFilterGrade] = useState('');
-  const [filterSchool, setFilterSchool] = useState('');
-  const [filterZone, setFilterZone] = useState('');
-
-  const uniqueSchools = [...new Set(students.map(s => s.schoolName).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'tr-TR'));
-
-  const displayStudents = students.filter(s => {
-      if (filterGrade && s.grade !== filterGrade) return false;
-      if (filterSchool && s.schoolName !== filterSchool) return false;
-      if (isSuperAdmin && filterZone) {
-         if (s.zone?.id !== parseInt(filterZone) && s.zone?.name !== filterZone) return false;
-      }
-      return true;
-  });
-
-  const groupedStudents = {};
-  displayStudents.forEach(s => {
-      const g = s.grade || 'Belirtilmemiş';
-      if(!groupedStudents[g]) groupedStudents[g] = [];
-      groupedStudents[g].push(s);
-  });
-  
-  const sortedGrades = Object.keys(groupedStudents).sort((a, b) => {
-      if(a === 'Belirtilmemiş') return 1;
-      if(b === 'Belirtilmemiş') return -1;
-      return parseInt(b) - parseInt(a);
-  });
-
-  const handleUpdateStudentStatus = async (studentId, field, value) => {
-    try {
-      setHasMadeChanges(true);
-      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', studentId), { [field]: value });
-    } catch(err) { console.error(err); alert("Durum güncellenemedi."); }
-  };
-
-  const handleSaveResult = async () => {
-    const student = resultModal.student;
-    const pastExam = { id: student.examId || student.exam?.firebaseId, title: student.examTitle || student.exam?.title, date: student.selectedDate || student.exam?.date, time: student.selectedTime || student.slot, score: resultModal.score, rank: resultModal.rank };
-    const pastExams = [...(student.pastExams || []), pastExam];
-
-    try {
-      setHasMadeChanges(true);
-      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', student.firebaseId), {
-          pastExams: pastExams, examId: null, examTitle: null, selectedDate: null, selectedTime: null, exam: null, slot: null, selectedDegreePrize: null, selectedParticipationPrize: null
+  const getZoneTotalHoods = (zone) => {
+    let count = 0;
+    if (zone.districts) {
+      zone.districts.forEach(d => {
+        for(let prov in LOCATIONS) {
+          if(LOCATIONS[prov][d]) { count += LOCATIONS[prov][d].length; break; }
+        }
       });
-      setResultModal({ isOpen: false, student: null, score: '', rank: '' });
-      alert("Sonuç kaydedildi.");
-    } catch (err) { console.error(err); }
-  };
-
-  const handleDeleteStudent = async (studentId, studentName) => {
-    if(window.confirm(`${studentName} silinsin mi?`)) {
-      try {
-        setHasMadeChanges(true);
-        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', studentId));
-      } catch (e) { console.error(e); }
     }
-  };
-
-  // 🚀 YENİ: Öğrenciyi Başka Mıntıkaya Aktarma Fonksiyonu
-  const handleTransferStudent = async () => {
-    if (!transferModal.targetZoneId) return alert("Lütfen hedef mıntıkayı seçin.");
-    
-    const targetZone = zones.find(z => z.id.toString() === transferModal.targetZoneId.toString());
-    if (!targetZone) return;
-
-    try {
-      setHasMadeChanges(true);
-      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', transferModal.student.firebaseId), {
-        zone: targetZone,
-        examId: null,
-        examTitle: null,
-        selectedDate: null,
-        selectedTime: null,
-        notifiedCenter: null,
-        isWaitingPool: true // Öğrenci yeni mıntıkanın havuzuna düşer
+    if (zone.partialDistricts) {
+      Object.keys(zone.partialDistricts).forEach(d => {
+        count += zone.partialDistricts[d].length;
       });
-      alert(`${transferModal.student.fullName} adlı öğrenci başarıyla ${targetZone.name} mıntıkasına aktarıldı. Öğrenci artık o bölgenin havuzunda bekliyor.`);
-      setTransferModal({ isOpen: false, student: null, targetZoneId: '' });
-    } catch(e) { 
-      console.error(e); 
-      alert("Aktarım sırasında bir hata oluştu."); 
     }
+    return count;
   };
 
-  const handleBulkSMS = async () => {
-    setSmsModal({ ...smsModal, loading: true });
-    
-    const targetStudents = smsModal.targetStudent ? [smsModal.targetStudent] : students;
-    const validStudents = targetStudents.filter(s => s.phone && s.phone.length >= 10);
-    
-    if (validStudents.length === 0) {
-      alert("Gönderilecek numara yok.");
-      setSmsModal({ ...smsModal, loading: false, isOpen: false, targetStudent: null });
-      return;
-    }
+  const getMissingMappings = () => {
+     let missing = [];
+     zones.forEach(z => {
+        const mappings = z.mappings || [];
+        const checkDistrictHood = (dist, hood) => {
+           let requiredGenders = ['Erkek', 'Kız', '8. Sınıf Erkek'];
+           
+           // KÖRFEZ İSTİSNASI
+           if (dist === 'Körfez' && (hood === '17 Ağustos' || hood === 'Cumhuriyet')) {
+               if (z.name === 'Gebze') requiredGenders = ['Erkek']; 
+               else if (z.name === 'Akarçeşme') requiredGenders = ['Kız', '8. Sınıf Erkek']; 
+           }
 
-    const msgDataArray = validStudents.map(student => {
-      const zone = isSuperAdmin ? (zones.find(z => z.id === student.zone?.id) || student.zone) : adminZoneData;
-      const stdCenter = getNeighborhoodDetails(zone, student.district, student.neighborhood, student.gender, student.grade);
-      let text = "";
+           // 🚀 ADAPAZARI / MALTEPE İSTİSNASI (Yanlış eksik uyarısını engeller)
+           if (dist === 'Adapazarı' && hood === 'Maltepe') {
+               if (z.name === 'Adapazarı') requiredGenders = ['Kız', '8. Sınıf Erkek']; // Adapazarı'ndan Kız ve 8 Erkek beklenir
+               else if (z.name === 'Serdivan') requiredGenders = ['Erkek']; // Serdivan'dan sadece Erkek beklenir
+           }
 
-      if (smsModal.type === 'custom') {
-          text = smsModal.customMsg;
-      } else if (smsModal.type === 'announcement') {
-          text = `🎯 Büyük fırsat yeniden kapında!\n\nDaha önce katıldığın ödüllü denemeyi hatırlıyor musun? Şimdi çok daha heyecanlısı geliyor! 🚀\n\nYeni ödüllü denememizde yine katılan HERKES kendi seçtiği ödülü kazanma şansı yakalıyor 🎁\nÜstelik dereceye girenleri çok daha büyük sürprizler bekliyor! 🏆🔥\n\nBu fırsatı kaçırma, yerini hemen ayırt!\n👉 Kayıt olmak ve detayları öğrenmek için: odullusinav.net\n\nHadi, bir adım öne geçme zamanı! 💥`;
-      } else if (smsModal.type === 'reminder') {
-          text = `🚀 Sınav heyecanı başlıyor!\n\nYaklaşan sınavımız için kayıtlar tüm hızıyla devam ediyor! 🎉\nSen de yerini almayı unutma — başarıya giden yol burada başlıyor!\n\nÜstelik bu heyecanı tek başına yaşamak zorunda değilsin…\nArkadaşlarını da sınava davet et, birlikte kazanmanın keyfini çıkar! 💪🔥\n\nDetayları öğrenmek ve sınav oturumunla ilgili düzenlemeleri yapmak için hemen\n👉 odullusinav.net üzerinden profiline giriş yap!\n\nHadi, şimdi harekete geçme zamanı! ⏳✨`;
-      } else if (smsModal.type === 'results') {
-          text = `Tebrikler! ${student.fullName || 'Öğrencimiz'}, sınav sonuçlarınız açıklanmıştır.\nPuan ve derecenizi odullusinav.net üzerinden öğrenebilirsiniz.\nBirebir analiz ve ödülleriniz için sınav merkezimizden randevu alabilirsiniz.\nSınav Merkezi: ${stdCenter.centerName}\nİletişim: ${stdCenter.phone}\nAdres: ${stdCenter.address}\nKonum: ${stdCenter.mapLink}`;
-      }
+           const hoodMappings = mappings.filter(m => m.district === dist && m.neighborhood === hood);
+           const hasTumu = hoodMappings.some(m => m.gender === 'Tümü' || !m.gender);
 
-      text += SMS_FOOTER;
-      return { tel: [student.phone], msg: text };
-    });
+           if (hasTumu) return; 
 
-    const result = await sendSMS(msgDataArray);
-    if(result !== false) alert(`${msgDataArray.length} öğrenciye SMS iletildi!`);
-    else alert("SMS gönderimi başarısız.");
-    
-    setSmsModal({ isOpen: false, type: 'custom', customMsg: '', loading: false, targetStudent: null });
-  };
+           let missingGenders = [];
+           requiredGenders.forEach(reqGen => {
+               if (!hoodMappings.some(m => m.gender === reqGen)) {
+                   missingGenders.push(reqGen);
+               }
+           });
+           
+           if (missingGenders.length > 0) {
+               if (missingGenders.length === requiredGenders.length) {
+                   missing.push({ zone: z.name, district: dist, neighborhood: hood, status: 'Hiç Tanımlanmamış', missingGenders });
+               } else {
+                   missing.push({ zone: z.name, district: dist, neighborhood: hood, status: `Eksik: ${missingGenders.join(', ')}`, missingGenders });
+               }
+           }
+        };
 
-  const handleExportExcel = () => {
-     let csvContent = "Ogrenci Isim Soyisim;Veli Isim Soyisim;Telefon;Sinif;Cinsiyet;Okul Bilgisi;Ilce;Mahalle;Atanan Sinav Merkezi;Kayitli Sinav ve Seans;Aciklanan Puan;Derece;Katilim Odulu;Katilim Durumu;Gorusme Durumu;Gorusme Sonucu\n";
-     students.forEach(s => {
-        const stdZone = isSuperAdmin ? (zones.find(z => z.id === s.zone?.id) || s.zone) : adminZoneData;
-        const center = getNeighborhoodDetails(stdZone, s.district, s.neighborhood, s.gender, s.grade)?.centerName || 'Bekleniyor';
-        const hasPast = s.pastExams && s.pastExams.length > 0;
-        const lastPast = hasPast ? s.pastExams[s.pastExams.length-1] : null;
-        const activeExam = (s.examTitle || s.exam?.title) ? `${s.examTitle || s.exam?.title} (${s.selectedDate || s.exam?.date} ${s.selectedTime || s.slot})` : 'Yok / Beklemede';
-        const score = lastPast ? lastPast.score : '-';
-        const rank = lastPast ? lastPast.rank : '-';
-        
-        const prize = s.selectedParticipationPrize || 'Secilmedi';
-
-        const clean = str => String(str || '').replace(/;/g, ' ').replace(/\n/g, ' ');
-        
-        csvContent += `${clean(s.fullName)};${clean(s.parentName)};${clean(s.phone)};${clean(s.grade)};${clean(s.gender)};${clean(s.schoolName)};${clean(s.district)};${clean(s.neighborhood)};${clean(center)};${clean(activeExam)};${clean(score)};${clean(rank)};${clean(prize)};${clean(s.attendance)};${clean(s.interview)};${clean(s.interviewResult)}\n`;
+        if (z.districts) {
+           z.districts.forEach(d => {
+              let hoods = [];
+              for(let prov in LOCATIONS) { if(LOCATIONS[prov][d]) hoods = LOCATIONS[prov][d]; }
+              hoods.forEach(h => checkDistrictHood(d, h));
+           });
+        }
+        if (z.partialDistricts) {
+           Object.keys(z.partialDistricts).forEach(d => {
+              z.partialDistricts[d].forEach(h => checkDistrictHood(d, h));
+           });
+        }
      });
-     const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-     const url = URL.createObjectURL(blob);
-     const link = document.createElement("a");
-     link.setAttribute("href", url);
-     link.setAttribute("download", "Ogrenci_Listesi.csv");
-     document.body.appendChild(link); link.click(); document.body.removeChild(link);
+     return missing;
   };
+
+  const getGlobalMissingDistricts = (gender) => {
+     const missing = getMissingMappings();
+     let filtered = missing;
+     if (gender === 'Tümü') filtered = missing.filter(m => m.status === 'Hiç Tanımlanmamış');
+     else filtered = missing.filter(m => m.missingGenders && m.missingGenders.includes(gender));
+     return [...new Set(filtered.map(m => m.district))].sort();
+  };
+
+  const getGlobalMissingNeighborhoods = (district, gender) => {
+     if(!district) return [];
+     const missing = getMissingMappings();
+     let filtered = missing.filter(m => m.district === district);
+     
+     if (gender === 'Tümü') filtered = filtered.filter(m => m.status === 'Hiç Tanımlanmamış');
+     else filtered = filtered.filter(m => m.missingGenders && m.missingGenders.includes(gender));
+     
+     return filtered.map(m => m.neighborhood).sort();
+  };
+
+  const openExceptionModal = (center, sourceZone) => {
+     setExceptionModal({ isOpen: true, center, sourceZone });
+     setExceptionData({ gender: 'Tümü', district: '', neighborhood: '', contactName: '', phone: '' });
+  };
+
+  const handleAddException = async () => {
+      const { gender, district, neighborhood, contactName, phone } = exceptionData;
+      if(!district || !neighborhood || !gender) return alert("Eksik alan seçtiniz.");
+      
+      const targetZoneName = getMissingMappings().find(m => m.district === district && m.neighborhood === neighborhood)?.zone;
+      const targetZone = zones.find(z => z.name === targetZoneName);
+      
+      if(!targetZone) return alert("Hedef mıntıka bulunamadı.");
+
+      let newMappings = [...(targetZone.mappings || [])];
+      let newCenters = [...(targetZone.centers || [])];
+
+      if (!newCenters.some(c => c.id === exceptionModal.center.id)) {
+          newCenters.push(exceptionModal.center);
+      }
+
+      const newMapObj = { district, neighborhood, gender, centerId: exceptionModal.center.id, contactName, phone: phone || "0553 973 54 40" };
+      newMappings.push(newMapObj);
+
+      try {
+          setHasMadeChanges(true);
+          await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', targetZone.id.toString()), { mappings: newMappings, centers: newCenters });
+          alert("İstisna ataması başarıyla tamamlandı!");
+          setExceptionModal({ isOpen: false, center: null, sourceZone: null });
+      } catch(e) { console.error(e) }
+  };
+
+  let missingListRaw = getMissingMappings();
+  if (missingFilterZone !== 'All') missingListRaw = missingListRaw.filter(m => m.zone === missingFilterZone);
+  
+  if (missingFilterStatus === 'Hiç Tanımlanmamış') {
+      missingListRaw = missingListRaw.filter(m => m.status === 'Hiç Tanımlanmamış');
+  } else if (missingFilterStatus !== 'All') {
+      missingListRaw = missingListRaw.filter(m => m.missingGenders && m.missingGenders.includes(missingFilterStatus));
+  }
+  
+  const groupedMissing = {};
+  missingListRaw.forEach(m => {
+      if(!groupedMissing[m.zone]) groupedMissing[m.zone] = [];
+      groupedMissing[m.zone].push(m);
+  });
 
   return (
-    <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 p-10 overflow-hidden relative animate-in fade-in zoom-in-95 duration-300">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
-        <h2 className="text-3xl font-black text-slate-800">{isSuperAdmin ? "Tüm Türkiye Kayıtları" : "Bölge Kayıtları"} ({displayStudents.length})</h2>
-        <div className="flex flex-wrap gap-3">
-          <button onClick={handleExportExcel} className="bg-green-50 font-black px-6 py-3 rounded-2xl text-green-700 border-2 border-green-200 hover:bg-green-100 transition flex items-center">
-            <Download className="w-5 h-5 mr-2" /> Excel İndir
-          </button>
-          <button 
-            onClick={() => setSmsModal({ isOpen: true, type: 'custom', customMsg: '', loading: false, targetStudent: null })}
-            className="bg-indigo-600 font-black px-6 py-3 rounded-2xl text-white hover:bg-indigo-700 flex items-center shadow-xl shadow-indigo-200 transition">
-            <MessageSquare className="w-5 h-5 mr-3"/> Bölgeye Toplu SMS
-          </button>
-        </div>
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-4 mb-6 bg-slate-50 p-5 rounded-3xl border border-slate-200 shadow-inner">
-         <div className="flex items-center text-slate-500 font-black mr-2"><Filter className="w-5 h-5 mr-2"/> Filtreler:</div>
-         
-         {isSuperAdmin && (
-             <select value={filterZone} onChange={e=>setFilterZone(e.target.value)} className="p-3 rounded-xl border-2 border-slate-200 font-bold text-sm outline-none focus:border-indigo-500 bg-white">
-                <option value="">Tüm Mıntıkalar</option>
-                {zones.filter(z=>z.active).map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
-             </select>
-         )}
-
-         <select value={filterGrade} onChange={e=>setFilterGrade(e.target.value)} className="p-3 rounded-xl border-2 border-slate-200 font-bold text-sm outline-none focus:border-indigo-500 bg-white">
-            <option value="">Tüm Sınıflar</option>
-            {[8,7,6,5,4,3].map(g => <option key={g} value={g}>{g}. Sınıflar</option>)}
-         </select>
-
-         <select value={filterSchool} onChange={e=>setFilterSchool(e.target.value)} className="p-3 rounded-xl border-2 border-slate-200 font-bold text-sm outline-none focus:border-indigo-500 bg-white max-w-sm flex-1 truncate">
-            <option value="">Tüm Kurumlar / Okullar</option>
-            {uniqueSchools.map(sch => <option key={sch} value={sch}>{sch}</option>)}
-         </select>
-      </div>
-
-      <div className="overflow-x-auto rounded-3xl border-2 border-slate-100">
+    <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12 animate-in fade-in zoom-in-95 duration-300">
+      <h3 className="font-black text-3xl text-slate-900 mb-6 flex items-center"><Map className="mr-3 w-8 h-8 text-indigo-600"/> Mıntıka ve Mahalle İstatistikleri</h3>
+      
+      <div className="overflow-x-auto rounded-3xl border-2 border-slate-100 mb-10">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 text-slate-500 text-sm uppercase tracking-widest border-b-2 border-slate-100">
-              <th className="p-6 font-black">Öğrenci Adı</th>
-              <th className="p-6 font-black">Konum / Okul</th>
-              <th className="p-6 font-black">Aktif Sınav & Merkez</th>
-              <th className="p-6 font-black">Durum & Notlar</th>
-              <th className="p-6 font-black text-right">İşlem</th>
+              <th className="p-4 font-black">Mıntıka Adı</th>
+              <th className="p-4 font-black text-center">Sorumlu Mah.</th>
+              <th className="p-4 font-black text-center text-indigo-600">Atanan Mah.</th>
+              <th className="p-4 font-black text-center text-blue-600">Erkek S.Yeri</th>
+              <th className="p-4 font-black text-center text-orange-600">8. Sınıf Erkek S.Yeri</th>
+              <th className="p-4 font-black text-center text-pink-600">Kız S.Yeri</th>
+              <th className="p-4 font-black text-center text-emerald-600">Karma (Tümü)</th>
             </tr>
           </thead>
           <tbody className="divide-y-2 divide-slate-50">
-            {sortedGrades.length === 0 ? (
-              <tr><td colSpan="5" className="p-16 text-center text-slate-400 font-bold text-lg">Bu filtrelere uygun öğrenci bulunmuyor.</td></tr>
-            ) : (
-               sortedGrades.map(grade => (
-                  <React.Fragment key={`grade-${grade}`}>
-                     <tr className="bg-indigo-50/70 border-y-4 border-white">
-                        <td colSpan="5" className="p-4 px-6 font-black text-indigo-900 text-lg">
-                           {grade === 'Belirtilmemiş' ? 'Sınıfı Belirtilmeyenler' : `${grade}. Sınıflar`} 
-                           <span className="text-sm font-bold text-indigo-500 ml-2">({groupedStudents[grade].length} Öğrenci)</span>
-                        </td>
-                     </tr>
-                     
-                     {groupedStudents[grade].map(student => {
-                        const hasActiveExam = !!(student.examId || student.examTitle || student.exam);
-                        const realZoneData = isSuperAdmin ? (zones.find(z => z.id === student.zone?.id) || student.zone) : adminZoneData;
-                        const stdCenter = getNeighborhoodDetails(realZoneData, student.district, student.neighborhood, student.gender, student.grade);
-                        
-                        return (
-                          <tr key={student.firebaseId} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
-                            <td className="p-6 font-black text-slate-900 text-lg">
-                              {student.fullName}
-                              <div className="text-xs font-bold text-slate-400">{student.gender} - {student.phone}</div>
-                            </td>
-                            <td className="p-6 font-bold text-slate-600">
-                               {student.district} / {student.neighborhood}
-                               <div className="text-xs font-bold text-indigo-500 mt-1 truncate max-w-[200px]" title={student.schoolName}>{student.schoolName || 'Okul Belirtilmemiş'}</div>
-                            </td>
-                            <td className="p-6">
-                              {hasActiveExam ? (
-                                <>
-                                  <div className="font-bold text-slate-800">{stdCenter.centerName}</div>
-                                  <div className="text-xs font-black text-indigo-600">{student.examTitle || student.exam?.title} ({student.selectedDate || student.exam?.date} - {student.selectedTime || student.slot})</div>
-                                </>
-                              ) : (
-                                <span className="text-sm font-bold text-slate-400">Bekleme Havuzunda</span>
-                              )}
-                            </td>
-                            
-                            <td className="p-4 flex flex-col gap-1">
-                              <select value={student.attendance || ''} onChange={e => handleUpdateStudentStatus(student.firebaseId, 'attendance', e.target.value)} className="text-xs border border-slate-200 rounded p-1 outline-none text-slate-700 font-bold">
-                                 <option value="">Katılım Durumu</option>
-                                 <option value="Katıldı">Katıldı</option>
-                                 <option value="Katılmadı">Katılmadı</option>
-                              </select>
-                              <select value={student.interview || ''} onChange={e => handleUpdateStudentStatus(student.firebaseId, 'interview', e.target.value)} className="text-xs border border-slate-200 rounded p-1 outline-none text-slate-700 font-bold">
-                                 <option value="">Görüşme</option>
-                                 <option value="Görüşüldü">Görüşüldü</option>
-                                 <option value="Görüşülmedi">Görüşülmedi</option>
-                              </select>
-                              <select value={student.interviewResult || ''} onChange={e => handleUpdateStudentStatus(student.firebaseId, 'interviewResult', e.target.value)} className="text-xs border border-slate-200 rounded p-1 outline-none text-slate-700 font-bold">
-                                 <option value="">Netice</option>
-                                 <option value="Sıbyan">Sıbyan</option>
-                                 <option value="Nehari">Nehari</option>
-                                 <option value="Yatılı">Yatılı</option>
-                                 <option value="Olumsuz">Olumsuz</option>
-                              </select>
-                            </td>
+            {zones.map(z => {
+              const totalHoods = getZoneTotalHoods(z);
+              const mappings = z.mappings || [];
+              const atananHoods = new Set(mappings.map(m => `${m.district}-${m.neighborhood}`)).size;
 
-                            <td className="p-6 text-right space-x-2 whitespace-nowrap">
-                              {hasActiveExam && (
-                                <button onClick={() => setResultModal({ isOpen: true, student, score: '', rank: '' })} className="bg-yellow-100 text-yellow-700 font-black px-4 py-2 rounded-xl text-sm hover:bg-yellow-200 transition">
-                                  Sonuç Gir
-                                </button>
-                              )}
-                              
-                              {/* 🚀 YENİ: Başka Mıntıkaya Aktarma Butonu */}
-                              <button onClick={() => setTransferModal({ isOpen: true, student, targetZoneId: '' })} className="text-blue-500 hover:text-blue-700 bg-white border border-blue-200 hover:bg-blue-50 p-2 rounded-xl transition" title="Öğrenciyi Başka Mıntıkaya Gönder">
-                                <ArrowRightLeft className="w-5 h-5"/>
-                              </button>
+              const erkekCenters = new Set(mappings.filter(m => m.gender === 'Erkek').map(m => m.centerId)).size;
+              const erkek8Centers = new Set(mappings.filter(m => m.gender === '8. Sınıf Erkek').map(m => m.centerId)).size;
+              const kizCenters = new Set(mappings.filter(m => m.gender === 'Kız').map(m => m.centerId)).size;
+              const tumuCenters = new Set(mappings.filter(m => m.gender === 'Tümü' || !m.gender).map(m => m.centerId)).size;
 
-                              <button onClick={() => setSmsModal({ isOpen: true, type: 'custom', customMsg: '', loading: false, targetStudent: student })} className="text-indigo-400 hover:text-indigo-600 bg-white border border-indigo-200 hover:bg-indigo-50 p-2 rounded-xl transition" title="Özel SMS Gönder"><Send className="w-5 h-5"/></button>
-                              <button onClick={() => handleDeleteStudent(student.firebaseId, student.fullName)} className="text-red-400 hover:text-red-600 bg-white border border-red-200 hover:bg-red-50 p-2 rounded-xl transition" title="Öğrenciyi Sil"><Trash2 className="w-5 h-5"/></button>
-                            </td>
-                          </tr>
-                        );
-                     })}
-                  </React.Fragment>
-               ))
-            )}
+              const isExpanded = expandedZoneId === z.id;
+
+              return (
+                <React.Fragment key={z.id}>
+                  <tr className="hover:bg-slate-50 cursor-pointer transition-colors" onClick={() => setExpandedZoneId(isExpanded ? null : z.id)}>
+                    <td className="p-4 font-black text-slate-800 flex items-center">
+                       {isExpanded ? <ChevronDown className="w-5 h-5 mr-2 text-slate-400"/> : <ChevronRight className="w-5 h-5 mr-2 text-slate-400"/>} {z.name}
+                    </td>
+                    <td className="p-4 font-bold text-slate-600 text-center">{totalHoods}</td>
+                    <td className="p-4 font-black text-indigo-600 text-center">{atananHoods}</td>
+                    <td className="p-4 font-black text-blue-600 text-center">{erkekCenters}</td>
+                    <td className="p-4 font-black text-orange-600 text-center">{erkek8Centers}</td>
+                    <td className="p-4 font-black text-pink-600 text-center">{kizCenters}</td>
+                    <td className="p-4 font-black text-emerald-600 text-center">{tumuCenters}</td>
+                  </tr>
+                  {isExpanded && (
+                    <tr>
+                      <td colSpan="7" className="bg-slate-50/50 p-6 border-b-4 border-slate-100">
+                        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                           <h4 className="font-black text-xl mb-4 text-slate-800">{z.name} - Kurum İstatislikleri</h4>
+                           {z.centers?.length > 0 ? (
+                              <table className="w-full text-sm text-left">
+                                 <thead>
+                                    <tr className="text-slate-500 uppercase tracking-wider border-b-2 border-slate-100">
+                                       <th className="py-3 font-black">Kurum Adı</th>
+                                       <th className="py-3 font-black text-center text-blue-600">Erkek Ataması</th>
+                                       <th className="py-3 font-black text-center text-orange-600">8. Sınıf Erkek</th>
+                                       <th className="py-3 font-black text-center text-pink-600">Kız Ataması</th>
+                                       <th className="py-3 font-black text-center text-emerald-600">Karma Ataması</th>
+                                       <th className="py-3 font-black text-right">İşlem</th>
+                                    </tr>
+                                 </thead>
+                                 <tbody className="divide-y divide-slate-100">
+                                    {z.centers.map(c => {
+                                       const cMap = mappings.filter(m => m.centerId === c.id);
+                                       const cErkek = cMap.filter(m => m.gender === 'Erkek').length;
+                                       const cErkek8 = cMap.filter(m => m.gender === '8. Sınıf Erkek').length;
+                                       const cKiz = cMap.filter(m => m.gender === 'Kız').length;
+                                       const cTumu = cMap.filter(m => m.gender === 'Tümü' || !m.gender).length;
+                                       return (
+                                          <tr key={c.id} className="hover:bg-slate-50">
+                                             <td className="py-3 font-bold text-slate-700">{c.name}</td>
+                                             <td className="py-3 text-center font-black text-blue-600">{cErkek}</td>
+                                             <td className="py-3 text-center font-black text-orange-600">{cErkek8}</td>
+                                             <td className="py-3 text-center font-black text-pink-600">{cKiz}</td>
+                                             <td className="py-3 text-center font-black text-emerald-600">{cTumu}</td>
+                                             <td className="py-3 text-right">
+                                                <button onClick={(e) => { e.stopPropagation(); openExceptionModal(c, z); }} className="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-xl font-bold text-xs hover:bg-indigo-200 transition">
+                                                   İstisna Atama
+                                                </button>
+                                             </td>
+                                          </tr>
+                                       )
+                                    })}
+                                 </tbody>
+                              </table>
+                           ) : (
+                              <p className="text-slate-500 font-bold text-sm bg-slate-50 p-4 rounded-xl border border-slate-100">Bu mıntıkada henüz kurum bulunmuyor.</p>
+                           )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              )
+            })}
           </tbody>
         </table>
       </div>
 
-      {/* 🚀 YENİ: Öğrenci Aktarma Modalı */}
-      {transferModal.isOpen && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-md relative animate-in zoom-in-95">
-            <button onClick={() => setTransferModal({ isOpen: false, student: null, targetZoneId: '' })} className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"><Plus className="w-8 h-8 transform rotate-45"/></button>
-            <ArrowRightLeft className="w-16 h-16 text-blue-500 mx-auto mb-6" />
-            <h3 className="text-3xl font-black text-center text-slate-900 mb-2">Öğrenciyi Aktar</h3>
-            <p className="text-center text-slate-500 font-bold mb-8">
-              <span className="text-indigo-600">{transferModal.student?.fullName}</span> isimli öğrenciyi hangi mıntıkaya göndermek istiyorsunuz?
-            </p>
-            <div className="space-y-4 mb-8">
-              <select value={transferModal.targetZoneId} onChange={e => setTransferModal({...transferModal, targetZoneId: e.target.value})} className="w-full border-4 border-slate-100 rounded-2xl px-6 py-4 text-lg font-bold focus:border-blue-500 outline-none">
-                <option value="">Hedef Mıntıkayı Seçin</option>
-                {zones.filter(z => z.id !== transferModal.student?.zone?.id).map(z => (
-                   <option key={z.id} value={z.id}>{z.name}</option>
-                ))}
-              </select>
+      <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 mb-6 pt-10 border-t-2 border-slate-100">
+         <h3 className="text-2xl font-black text-slate-800">Sınav Yeri Tanımlanmamış / Eksik Mahalleler</h3>
+         <div className="flex flex-wrap gap-4">
+            <select value={missingFilterZone} onChange={e=>setMissingFilterZone(e.target.value)} className="p-3 border-2 border-slate-200 rounded-xl font-bold text-sm outline-none focus:border-indigo-500">
+               <option value="All">Tüm Mıntıkalar</option>
+               {zones.map(z => <option key={z.id} value={z.name}>{z.name}</option>)}
+            </select>
+            <select value={missingFilterStatus} onChange={e=>setMissingFilterStatus(e.target.value)} className="p-3 border-2 border-slate-200 rounded-xl font-bold text-sm outline-none focus:border-indigo-500">
+               <option value="All">Tüm Durumlar (Tüm Eksikler)</option>
+               <option value="Hiç Tanımlanmamış">Hiç Atama Yapılmamış Olanlar</option>
+               <option value="Erkek">Erkek Ataması Eksik Olanlar</option>
+               <option value="Kız">Kız Ataması Eksik Olanlar</option>
+               <option value="8. Sınıf Erkek">8. Sınıf Erkek Ataması Eksik Olanlar</option>
+            </select>
+         </div>
+      </div>
+
+      {Object.keys(groupedMissing).length > 0 ? (
+         Object.keys(groupedMissing).map(zoneName => (
+            <div key={zoneName} className="mb-10">
+               <h4 className="font-black text-xl text-indigo-900 mb-4 bg-indigo-50 p-4 rounded-2xl border border-indigo-100">{zoneName} Eksiklikleri</h4>
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                 {groupedMissing[zoneName].map((m, idx) => (
+                   <div key={idx} className="bg-red-50 border border-red-100 p-4 rounded-2xl flex flex-col shadow-sm">
+                     <span className="font-bold text-slate-800">{m.district} / {m.neighborhood}</span>
+                     <span className="mt-2 text-sm font-black text-red-600 bg-red-100 px-3 py-1 rounded-lg w-max">{m.status}</span>
+                   </div>
+                 ))}
+               </div>
             </div>
-            <button onClick={handleTransferStudent} className="w-full bg-blue-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-blue-700 transition shadow-xl shadow-blue-500/30">
-              Öğrenciyi Aktar
-            </button>
-          </div>
-        </div>
+         ))
+      ) : (
+         <div className="text-center py-10 font-bold text-emerald-500 bg-emerald-50 rounded-2xl border border-emerald-100">
+            Bu filtreye uygun eksik mahalle bulunamadı!
+         </div>
       )}
 
-      {smsModal.isOpen && (
+      {exceptionModal.isOpen && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-2xl relative animate-in zoom-in-95">
-            <button onClick={() => setSmsModal({ ...smsModal, isOpen: false })} className="absolute top-8 right-8 text-slate-400 hover:text-slate-800"><Plus className="w-8 h-8 transform rotate-45"/></button>
-            <MessageSquare className="w-16 h-16 text-indigo-500 mx-auto mb-6" />
-            <h3 className="text-3xl font-black text-center text-slate-900 mb-2">Akıllı SMS Gönderimi</h3>
-            <div className="space-y-6 mb-8 mt-6">
-              <div>
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Mesaj Şablonu Seçin</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button onClick={() => setSmsModal({...smsModal, type: 'announcement'})} className={`p-4 rounded-2xl font-bold border-4 transition-all text-sm ${smsModal.type === 'announcement' ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : 'border-slate-100 text-slate-600 hover:border-slate-200'}`}>Sınav Duyurusu</button>
-                  <button onClick={() => setSmsModal({...smsModal, type: 'reminder'})} className={`p-4 rounded-2xl font-bold border-4 transition-all text-sm ${smsModal.type === 'reminder' ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : 'border-slate-100 text-slate-600 hover:border-slate-200'}`}>Sınav Hatırlatması</button>
-                  <button onClick={() => setSmsModal({...smsModal, type: 'results'})} className={`p-4 rounded-2xl font-bold border-4 transition-all text-sm ${smsModal.type === 'results' ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : 'border-slate-100 text-slate-600 hover:border-slate-200'}`}>Sonuç ve Randevu</button>
-                  <button onClick={() => setSmsModal({...smsModal, type: 'custom'})} className={`p-4 rounded-2xl font-bold border-4 transition-all text-sm ${smsModal.type === 'custom' ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : 'border-slate-100 text-slate-600 hover:border-slate-200'}`}>Özel Mesaj</button>
-                </div>
-              </div>
-              {smsModal.type === 'custom' && (
-                <div>
-                  <textarea rows="4" value={smsModal.customMsg} onChange={e => setSmsModal({...smsModal, customMsg: e.target.value})} className="w-full border-4 border-slate-100 rounded-2xl px-6 py-4 text-base font-bold focus:border-indigo-500 outline-none resize-none" placeholder="Mesajınızı buraya yazın..." />
-                </div>
-              )}
-            </div>
-            <button onClick={handleBulkSMS} disabled={smsModal.loading} className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 transition shadow-xl shadow-indigo-500/30 flex items-center justify-center">
-              {smsModal.loading ? "Gönderiliyor..." : "Mesajı Gönder"} {!smsModal.loading && <Send className="ml-3 w-6 h-6"/>}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {resultModal.isOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-md relative animate-in zoom-in-95">
-            <button onClick={() => setResultModal({ isOpen: false, student: null, score: '', rank: '' })} className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"><Plus className="w-8 h-8 transform rotate-45"/></button>
-            <Trophy className="w-16 h-16 text-yellow-500 mx-auto mb-6" />
-            <h3 className="text-2xl font-black text-center text-slate-900 mb-2">Sınav Sonucu Ekle</h3>
+            <button onClick={() => setExceptionModal({ isOpen: false, center: null, sourceZone: null })} className="absolute top-8 right-8 text-slate-400 hover:text-slate-800"><Plus className="w-8 h-8 transform rotate-45"/></button>
+            <Map className="w-16 h-16 text-indigo-500 mx-auto mb-6" />
+            <h3 className="text-3xl font-black text-center text-slate-900 mb-2">İstisna Mahalle Ataması</h3>
+            <p className="text-center text-slate-500 font-bold mb-8">
+              <strong className="text-indigo-600">{exceptionModal.center?.name}</strong> kurumuna, farklı mıntıkalardan eksik kalan mahalleleri atayabilirsiniz.
+            </p>
+            
             <div className="space-y-4 mb-8">
-              <div>
-                <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">Sınav Puanı</label>
-                <input type="number" value={resultModal.score} onChange={e => setResultModal({...resultModal, score: e.target.value})} className="w-full border-4 border-slate-100 rounded-2xl px-6 py-4 text-xl font-bold focus:border-indigo-500 outline-none" placeholder="Örn: 450.5" />
-              </div>
-              <div>
-                <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">Sıralama (Derece)</label>
-                <input type="number" value={resultModal.rank} onChange={e => setResultModal({...resultModal, rank: e.target.value})} className="w-full border-4 border-slate-100 rounded-2xl px-6 py-4 text-xl font-bold focus:border-indigo-500 outline-none" placeholder="Örn: 1" />
-              </div>
+               <select 
+                 className="w-full text-sm font-bold p-4 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white"
+                 value={exceptionData.gender}
+                 onChange={e => setExceptionData({...exceptionData, gender: e.target.value, district: '', neighborhood: ''})}>
+                 <option value="Tümü">Tümü (Karma)</option>
+                 <option value="Erkek">Erkek</option>
+                 <option value="Kız">Kız</option>
+                 <option value="8. Sınıf Erkek">8. Sınıf Erkek</option>
+               </select>
+
+               <select 
+                 className="w-full text-sm font-bold p-4 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white disabled:opacity-50"
+                 value={exceptionData.district}
+                 onChange={e => setExceptionData({...exceptionData, district: e.target.value, neighborhood: ''})}>
+                 <option value="">Atanmamış İlçe Seçin (Türkiye Geneli)</option>
+                 {getGlobalMissingDistricts(exceptionData.gender).map(d => <option key={d} value={d}>{d}</option>)}
+               </select>
+
+               <select 
+                 className="w-full text-sm font-bold p-4 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white disabled:opacity-50"
+                 disabled={!exceptionData.district}
+                 value={exceptionData.neighborhood}
+                 onChange={e => setExceptionData({...exceptionData, neighborhood: e.target.value})}>
+                 <option value="">Eksik Mahalle Seçin</option>
+                 {getGlobalMissingNeighborhoods(exceptionData.district, exceptionData.gender).map(h => <option key={h} value={h}>{h} Mah.</option>)}
+               </select>
+
+               <input type="text" value={exceptionData.contactName} onChange={e=>setExceptionData({...exceptionData, contactName: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white" placeholder="Sorumlu İsim"/>
+               <input type="tel" value={exceptionData.phone} onChange={e=>setExceptionData({...exceptionData, phone: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 bg-white" placeholder="Sorumlu Tel"/>
             </div>
-            <button onClick={handleSaveResult} className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 transition shadow-xl shadow-indigo-500/30">Sonucu Kaydet</button>
+            
+            <button onClick={handleAddException} disabled={!exceptionData.district || !exceptionData.neighborhood || !exceptionData.gender} className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 transition shadow-xl shadow-indigo-500/30 flex items-center justify-center disabled:opacity-50">
+              İstisna Atamasını Tamamla
+            </button>
           </div>
         </div>
       )}
     </div>
-  );
+  )
 }
