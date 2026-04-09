@@ -16,7 +16,7 @@ export const LOCATIONS = {
     "Körfez": ["Mimar Sinan", "Yarımca", "Tütünçiftlik", "Hacı Osman", "Atalar", "Ağadere", "Barbaros", "Çamlıtepe", "Esentepe", "Fatih", "Güney", "İlimtepe", "Kuzey", "Şirinyalı", "Yavuz Selim", "Yeniyalı", "Yavuz Sultan Selim", "Cumhuriyet", "17 Ağustos", "Kirazlıyalı", "Yukarı Hereke", "Kışladüzü", "Hacı Akif", "Agah Ateş"]
   },
   "Sakarya": {
-    "Adapazarı": ["Akköy", "Alancık", "Aşırlar", "Bağlar", "Bileciler", "Büyükhataplı", "Camili", "Cumhuriyet", "Çaltıcak", "Çamyolu", "Çerçiler", "Çökekler", "Çukurahmediye", "Dağdibi", "Demirbey", "Doğancılar", "Elmalı", "Evrenköy", "Göktepe", "Güllük", "Güneşler", "Hacılar", "Hızırtepe", "Işıklar", "İlyaslar", "İstiklal", "Karaköy", "Karaman", "Karasoku", "Kasımlar", "Kavaklıorman", "Korucuk", "Kurtbeyler", "Kurtuluş", "Küçükhataplı", "Maltepe", "Mithatpaşa", "Nasuhlar", "Ozanlar", "Örentepe", "Pabuççular", "Poyrazlar", "Rüstemler", "Sakarya", "Salmanlı", "Semerciler", "Solaklar", "Süleymanbey", "Şeker", "Şirinevler", "Taşkısığı", "Tekeler", "Tepekum", "Tığcılar", "Turnadere", "Tuzla", "Yağcılar", "Yahyalar", "Yenicami", "Yenigün", "Yeniköy", "15 Temmuz Camili", "Güneşler Merkez", "Karaosman", "Orta", "Güneşler Yeni", "Yenidoğan", "Akıncılar", "Papuççular", "Köprübaşı", "Taşlık", "Budaklar", "Karakamış", "Alandüzü", "Kayrancık", "Bayraktar", "Abalı", "Karapınar", "Karadere"],
+    "Adapazarı": ["Akköy", "Alancık", "Aşırlar", "Bağlar", "Bileciler", "Büyükhataplı", "Camili", "Cumhuriyet", "Çaltıcak", "Çamyolu", "Çerçiler", "Çökekler", "Çukurahmediye", "Dağdibi", "Demirbey", "Doğancılar", "Elmalı", "Evrenköy", "Göktepe", "Güllük", "Güneşler", "Hacılar", "Hızırtepe", "Işıklar", "İlyaslar", "İstiklal", "Karaköy", "Karaman", "Karasoku", "Kasımlar", "Kavaklıorman", "Korucuk", "Kurtbeyler", "Kurtuluş", "Küçükhataplı", "Maltepe", "Mahmudiye", "Mithatpaşa", "Nasuhlar", "Ozanlar", "Örentepe", "Pabuççular", "Poyrazlar", "Rüstemler", "Sakarya", "Salmanlı", "Semerciler", "Solaklar", "Süleymanbey", "Şeker", "Şirinevler", "Taşkısığı", "Tekeler", "Tepekum", "Tığcılar", "Turnadere", "Tuzla", "Yağcılar", "Yahyalar", "Yenicami", "Yenigün", "Yeniköy", "15 Temmuz Camili", "Güneşler Merkez", "Karaosman", "Orta", "Güneşler Yeni", "Yenidoğan", "Akıncılar", "Papuççular", "Köprübaşı", "Taşlık", "Budaklar", "Karakamış", "Alandüzü", "Kayrancık", "Bayraktar", "Abalı", "Karapınar", "Karadere"],
     "Ferizli": ["İnönü", "Devlet", "Kemalpaşa", "Gölkent", "Sinanoğlu", "Ağacık", "Bakırlı", "İstiklal", "Değirmencik", "Damlık", "Ceylandere", "Abdürrezzak"],
     "Karasu": ["Aziziye", "İncilli", "Kabakoz", "Kuzuluk", "Yalı", "Yeni", "Adatepe", "Darıçayırı", "Kurudere", "Limandere", "Karasu", "Kuyumcullu", "Tepetarla", "Resuller", "Yuvalıdere", "Manavpınarı", "Karapınar", "Yassıgeçit", "Kızılcık", "İhsaniye", "Taşlıgeçit", "Çatalövez", "Gölköprü", "Konacık"],
     "Kaynarca": ["Orta", "Konak", "Büyükyanık", "Hatipler", "Topçu", "Turnalı", "Merkez", "Yeşilova", "Karaçalı", "Kertil", "Birlik", "Şeyhtımarı", "Karamanlar", "Ziahmet", "Arifağa"],
@@ -48,23 +48,36 @@ export const INITIAL_ZONES = [
     id: 1, 
     name: "Adapazarı", 
     active: true, 
-    // DÜZELTME: Adapazarı ilçesi tekrar tam yetkiyle Adapazarı mıntıkasına eklendi.
-    districts: ["Adapazarı", "Ferizli", "Karasu", "Kaynarca", "Kocaali", "Söğütlü"], 
-    partialDistricts: {}, 
+    districts: ["Ferizli", "Karasu", "Kaynarca", "Kocaali", "Söğütlü"], 
+    // DÜZELTME 1: Mahmudiye, Adapazarı'nın yetkisinden tamamen çıkarıldı.
+    partialDistricts: {
+      "Adapazarı": ["Akköy", "Alancık", "Aşırlar", "Bağlar", "Bileciler", "Büyükhataplı", "Camili", "Cumhuriyet", "Çaltıcak", "Çamyolu", "Çerçiler", "Çökekler", "Çukurahmediye", "Dağdibi", "Demirbey", "Doğancılar", "Elmalı", "Evrenköy", "Göktepe", "Güllük", "Güneşler", "Hacılar", "Hızırtepe", "Işıklar", "İlyaslar", "İstiklal", "Karaköy", "Karaman", "Karasoku", "Kasımlar", "Kavaklıorman", "Korucuk", "Kurtbeyler", "Kurtuluş", "Küçükhataplı", "Mithatpaşa", "Nasuhlar", "Ozanlar", "Örentepe", "Pabuççular", "Poyrazlar", "Rüstemler", "Sakarya", "Salmanlı", "Semerciler", "Solaklar", "Süleymanbey", "Şeker", "Şirinevler", "Taşkısığı", "Tekeler", "Tepekum", "Tığcılar", "Turnadere", "Tuzla", "Yağcılar", "Yahyalar", "Yenicami", "Yenigün", "Yeniköy", "15 Temmuz Camili", "Güneşler Merkez", "Karaosman", "Orta", "Güneşler Yeni", "Yenidoğan", "Akıncılar", "Papuççular", "Köprübaşı", "Taşlık", "Budaklar", "Karakamış", "Alandüzü", "Kayrancık", "Bayraktar", "Abalı", "Karapınar", "Karadere"]
+    }, 
     prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] 
   },
   { id: 2, name: "Akarçeşme", active: true, districts: ["Derince", "İzmit", "Kandıra"], partialDistricts: { "Körfez": ["Yavuz Sultan Selim", "Mimar Sinan", "Güney", "Hacı Osman", "Fatih", "Yeniyalı", "Çamlıtepe", "Esentepe", "Atalar", "İlimtepe", "Kuzey", "Barbaros", "Kirazlıyalı", "17 Ağustos", "Cumhuriyet"] }, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] },
-  { id: 3, name: "Erenler", active: true, districts: ["Akyazı", "Erenler", "Hendek", "Karapürçek"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] },
+  { 
+    id: 3, 
+    name: "Erenler", 
+    active: true, 
+    districts: ["Akyazı", "Erenler", "Hendek", "Karapürçek"], 
+    // DÜZELTME 2: Çaybaşıfautpaşa, Erenler mıntıkasına eklendi.
+    partialDistricts: {
+       "Arifiye": ["Çaybaşıfautpaşa"]
+    }, 
+    prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] 
+  },
   { id: 4, name: "Gebze", active: true, districts: ["Çayırova", "Darıca", "Dilovası", "Gebze"], partialDistricts: { "Körfez": ["Yukarı Hereke", "Kışladüzü", "Hacı Akif", "Agah Ateş", "17 Ağustos", "Cumhuriyet"] }, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] },
   { id: 5, name: "Kartepe", active: true, districts: ["Başiskele", "Gölcük", "Kartepe"], partialDistricts: {}, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] },
   { 
     id: 6, 
     name: "Serdivan", 
     active: true, 
-    districts: ["Arifiye", "Geyve", "Pamukova", "Sapanca", "Serdivan", "Taraklı"], 
-    // Maltepe mahallesi Serdivan'a da eklendi
+    districts: ["Geyve", "Pamukova", "Sapanca", "Serdivan", "Taraklı"], 
+    // DÜZELTME 3: Arifiye ilçesi tam yetkiden çıkarıldı, Çaybaşıfautpaşa hariç diğer tüm mahalleler ile Mahmudiye Serdivan'a bağlandı.
     partialDistricts: {
-      "Adapazarı": ["Maltepe"]
+      "Adapazarı": ["Maltepe", "Mahmudiye"],
+      "Arifiye": ["Adliye", "Arifbey", "Bozacı", "Cumhuriyet", "Çınardibi", "Fatih", "Hanlı", "Karaaptiler", "Kemaliye", "Kirazca", "Kumbaşı", "Neviye", "Yukarıdereköy", "Yukarıkirazca", "Hanlı Merkez", "Hanlıköy", "Hanlı Sakarya", "Aşağı Kirazca", "Hacıköy", "Ahmediye", "Çaybaşı Fuadiye"]
     }, 
     prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] 
   },
