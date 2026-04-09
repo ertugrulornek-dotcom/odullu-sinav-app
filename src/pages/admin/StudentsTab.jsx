@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Download, MessageSquare, Plus, Trash2, Send, Trophy, Filter } from 'lucide-react';
+import { Download, MessageSquare, Plus, Trash2, Send, Trophy, Filter, ArrowRightLeft } from 'lucide-react';
 import { db, appId } from '../../services/firebase';
 import { doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { sendSMS, SMS_FOOTER } from '../../services/smsService';
@@ -8,6 +8,9 @@ import { getNeighborhoodDetails } from '../../utils/helpers';
 export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zones, setHasMadeChanges }) {
   const [resultModal, setResultModal] = useState({ isOpen: false, student: null, score: '', rank: '' });
   const [smsModal, setSmsModal] = useState({ isOpen: false, type: 'custom', customMsg: '', loading: false, targetStudent: null });
+  
+  // 🚀 YENİ: Öğrenci Aktarma (Transfer) Modalı State'i
+  const [transferModal, setTransferModal] = useState({ isOpen: false, student: null, targetZoneId: '' });
 
   const [filterGrade, setFilterGrade] = useState('');
   const [filterSchool, setFilterSchool] = useState('');
@@ -59,6 +62,41 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
     } catch (err) { console.error(err); }
   };
 
+  const handleDeleteStudent = async (studentId, studentName) => {
+    if(window.confirm(`${studentName} silinsin mi?`)) {
+      try {
+        setHasMadeChanges(true);
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', studentId));
+      } catch (e) { console.error(e); }
+    }
+  };
+
+  // 🚀 YENİ: Öğrenciyi Başka Mıntıkaya Aktarma Fonksiyonu
+  const handleTransferStudent = async () => {
+    if (!transferModal.targetZoneId) return alert("Lütfen hedef mıntıkayı seçin.");
+    
+    const targetZone = zones.find(z => z.id.toString() === transferModal.targetZoneId.toString());
+    if (!targetZone) return;
+
+    try {
+      setHasMadeChanges(true);
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', transferModal.student.firebaseId), {
+        zone: targetZone,
+        examId: null,
+        examTitle: null,
+        selectedDate: null,
+        selectedTime: null,
+        notifiedCenter: null,
+        isWaitingPool: true // Öğrenci yeni mıntıkanın havuzuna düşer
+      });
+      alert(`${transferModal.student.fullName} adlı öğrenci başarıyla ${targetZone.name} mıntıkasına aktarıldı. Öğrenci artık o bölgenin havuzunda bekliyor.`);
+      setTransferModal({ isOpen: false, student: null, targetZoneId: '' });
+    } catch(e) { 
+      console.error(e); 
+      alert("Aktarım sırasında bir hata oluştu."); 
+    }
+  };
+
   const handleBulkSMS = async () => {
     setSmsModal({ ...smsModal, loading: true });
     
@@ -73,7 +111,6 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
 
     const msgDataArray = validStudents.map(student => {
       const zone = isSuperAdmin ? (zones.find(z => z.id === student.zone?.id) || student.zone) : adminZoneData;
-      // DÜZELTME: Sınıf (grade) bilgisi eklendi
       const stdCenter = getNeighborhoodDetails(zone, student.district, student.neighborhood, student.gender, student.grade);
       let text = "";
 
@@ -102,7 +139,6 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
      let csvContent = "Ogrenci Isim Soyisim;Veli Isim Soyisim;Telefon;Sinif;Cinsiyet;Okul Bilgisi;Ilce;Mahalle;Atanan Sinav Merkezi;Kayitli Sinav ve Seans;Aciklanan Puan;Derece;Katilim Odulu;Katilim Durumu;Gorusme Durumu;Gorusme Sonucu\n";
      students.forEach(s => {
         const stdZone = isSuperAdmin ? (zones.find(z => z.id === s.zone?.id) || s.zone) : adminZoneData;
-        // DÜZELTME: Sınıf (grade) bilgisi eklendi
         const center = getNeighborhoodDetails(stdZone, s.district, s.neighborhood, s.gender, s.grade)?.centerName || 'Bekleniyor';
         const hasPast = s.pastExams && s.pastExams.length > 0;
         const lastPast = hasPast ? s.pastExams[s.pastExams.length-1] : null;
@@ -122,15 +158,6 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
      link.setAttribute("href", url);
      link.setAttribute("download", "Ogrenci_Listesi.csv");
      document.body.appendChild(link); link.click(); document.body.removeChild(link);
-  };
-
-  const handleDeleteStudent = async (studentId, studentName) => {
-    if(window.confirm(`${studentName} silinsin mi?`)) {
-      try {
-        setHasMadeChanges(true);
-        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', studentId));
-      } catch (e) { console.error(e); }
-    }
   };
 
   return (
@@ -197,8 +224,6 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
                      {groupedStudents[grade].map(student => {
                         const hasActiveExam = !!(student.examId || student.examTitle || student.exam);
                         const realZoneData = isSuperAdmin ? (zones.find(z => z.id === student.zone?.id) || student.zone) : adminZoneData;
-                        
-                        // DÜZELTME: Sınıf (grade) bilgisi eklendi
                         const stdCenter = getNeighborhoodDetails(realZoneData, student.district, student.neighborhood, student.gender, student.grade);
                         
                         return (
@@ -248,6 +273,12 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
                                   Sonuç Gir
                                 </button>
                               )}
+                              
+                              {/* 🚀 YENİ: Başka Mıntıkaya Aktarma Butonu */}
+                              <button onClick={() => setTransferModal({ isOpen: true, student, targetZoneId: '' })} className="text-blue-500 hover:text-blue-700 bg-white border border-blue-200 hover:bg-blue-50 p-2 rounded-xl transition" title="Öğrenciyi Başka Mıntıkaya Gönder">
+                                <ArrowRightLeft className="w-5 h-5"/>
+                              </button>
+
                               <button onClick={() => setSmsModal({ isOpen: true, type: 'custom', customMsg: '', loading: false, targetStudent: student })} className="text-indigo-400 hover:text-indigo-600 bg-white border border-indigo-200 hover:bg-indigo-50 p-2 rounded-xl transition" title="Özel SMS Gönder"><Send className="w-5 h-5"/></button>
                               <button onClick={() => handleDeleteStudent(student.firebaseId, student.fullName)} className="text-red-400 hover:text-red-600 bg-white border border-red-200 hover:bg-red-50 p-2 rounded-xl transition" title="Öğrenciyi Sil"><Trash2 className="w-5 h-5"/></button>
                             </td>
@@ -260,6 +291,31 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
           </tbody>
         </table>
       </div>
+
+      {/* 🚀 YENİ: Öğrenci Aktarma Modalı */}
+      {transferModal.isOpen && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-md relative animate-in zoom-in-95">
+            <button onClick={() => setTransferModal({ isOpen: false, student: null, targetZoneId: '' })} className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"><Plus className="w-8 h-8 transform rotate-45"/></button>
+            <ArrowRightLeft className="w-16 h-16 text-blue-500 mx-auto mb-6" />
+            <h3 className="text-3xl font-black text-center text-slate-900 mb-2">Öğrenciyi Aktar</h3>
+            <p className="text-center text-slate-500 font-bold mb-8">
+              <span className="text-indigo-600">{transferModal.student?.fullName}</span> isimli öğrenciyi hangi mıntıkaya göndermek istiyorsunuz?
+            </p>
+            <div className="space-y-4 mb-8">
+              <select value={transferModal.targetZoneId} onChange={e => setTransferModal({...transferModal, targetZoneId: e.target.value})} className="w-full border-4 border-slate-100 rounded-2xl px-6 py-4 text-lg font-bold focus:border-blue-500 outline-none">
+                <option value="">Hedef Mıntıkayı Seçin</option>
+                {zones.filter(z => z.id !== transferModal.student?.zone?.id).map(z => (
+                   <option key={z.id} value={z.id}>{z.name}</option>
+                ))}
+              </select>
+            </div>
+            <button onClick={handleTransferStudent} className="w-full bg-blue-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-blue-700 transition shadow-xl shadow-blue-500/30">
+              Öğrenciyi Aktar
+            </button>
+          </div>
+        </div>
+      )}
 
       {smsModal.isOpen && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
