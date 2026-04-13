@@ -11,6 +11,9 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
   const [newPassword, setNewPassword] = useState('');
   const [newEmail, setNewEmail] = useState(currentUser?.email || '');
   const [newPrize, setNewPrize] = useState(currentUser?.selectedParticipationPrize || '');
+  
+  // 🚀 YENİ EKLENDİ: Merkez Değiştirme State'i
+  const [newCenterId, setNewCenterId] = useState(currentUser?.selectedCenterId || '');
 
   if (!currentUser) return <div className="text-center py-32 text-2xl font-black text-slate-500">Lütfen önce giriş yapın veya kayıt oluşturun.</div>;
 
@@ -20,12 +23,35 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
       actualExam = exams.find(e => (e.firebaseId === targetId || e.id === targetId) && e.active !== false);
   }
   const hasActiveExam = !!actualExam && !!currentUser?.selectedDate && !!currentUser?.selectedTime;
-
   const pastExams = currentUser.pastExams || [];
-  const matchedZone = findZoneByName(zones, currentUser?.zone?.name || '') || currentUser?.zone;
-  const neighborhoodDetails = getNeighborhoodDetails(matchedZone, currentUser.district, currentUser.neighborhood, currentUser.gender, currentUser.grade);
-  const zoneExams = exams.filter(e => e.zoneId === matchedZone?.id);
-  const partPrizesList = parsePrizeArray(matchedZone?.prizes?.participation);
+
+  // 🚀 DÜZELTME: Öğrencinin "Seçtiği" Çoklu Merkez Varsa Onu Önceliklendir
+  let actualZone = findZoneByName(zones, currentUser?.zone?.name || '') || currentUser?.zone;
+  let actualCenterObj = null;
+  let actualCenterMapping = null;
+
+  if (currentUser?.selectedCenterId) {
+      actualZone = zones.find(z => z.mappings?.some(m => m.centerId === currentUser.selectedCenterId)) || actualZone;
+      actualCenterMapping = actualZone?.mappings?.find(m => m.centerId === currentUser.selectedCenterId);
+      actualCenterObj = actualZone?.centers?.find(c => c.id === currentUser.selectedCenterId);
+  }
+
+  const fallbackDetails = getNeighborhoodDetails(actualZone, currentUser.district, currentUser.neighborhood, currentUser.gender, currentUser.grade);
+  const neighborhoodDetails = actualCenterObj ? {
+      phone: actualCenterMapping?.phone || fallbackDetails.phone,
+      contactName: actualCenterMapping?.contactName || fallbackDetails.contactName,
+      mapLink: actualCenterObj?.mapLink || fallbackDetails.mapLink,
+      centerName: actualCenterObj?.name || fallbackDetails.centerName,
+      address: actualCenterObj?.address || fallbackDetails.address
+  } : fallbackDetails;
+
+  const zoneExams = exams.filter(e => e.zoneId === actualZone?.id);
+  const partPrizesList = parsePrizeArray(actualZone?.prizes?.participation);
+
+  // 🚀 YENİ EKLENDİ: Öğrencinin Mahallesindeki Alternatif Kurumları Bul
+  const availableMappings = zones.flatMap(z => (z.mappings || []).map(m => ({...m, zoneId: z.id, zoneName: z.name})))
+      .filter(m => m.district === currentUser?.district && m.neighborhood === currentUser?.neighborhood && 
+        (m.gender === currentUser?.gender || m.gender === 'Tümü' || (m.gender === '8. Sınıf Erkek' && currentUser?.grade === '8' && currentUser?.gender === 'Erkek')));
 
   useEffect(() => {
     if (currentUser && partPrizesList.length > 0 && !currentUser.selectedParticipationPrize) {
@@ -60,14 +86,36 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
       if (newEmail !== currentUser.email) updates.email = newEmail;
       if (newPrize !== currentUser.selectedParticipationPrize) updates.selectedParticipationPrize = newPrize;
 
+      // 🚀 YENİ: Merkez değiştirildiyse
+      if (newCenterId && newCenterId !== (currentUser.selectedCenterId || '')) {
+          const newZ = zones.find(z => z.mappings?.some(m => m.centerId === newCenterId));
+          updates.selectedCenterId = newCenterId;
+          updates.zone = newZ;
+          updates.examId = null;
+          updates.examTitle = null;
+          updates.selectedDate = null;
+          updates.selectedTime = null;
+          updates.isWaitingPool = true;
+          
+          // Yeni kurumu kaydet
+          const newMapping = newZ?.mappings?.find(m => m.centerId === newCenterId);
+          const newCenterObj = newZ?.centers?.find(c => c.id === newCenterId);
+          if(newCenterObj) updates.notifiedCenter = newCenterObj.name;
+      }
+
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', currentUser.firebaseId), updates);
       setCurrentUser({ ...currentUser, ...updates });
-      alert("Profil ayarlarınız başarıyla güncellendi!");
+      
+      if (updates.selectedCenterId && updates.selectedCenterId !== currentUser.selectedCenterId) {
+         alert("Sınav merkeziniz güncellendi! Mevcut sınav oturumunuz iptal edildiği için lütfen yeni merkezinize uygun bir oturum seçin.");
+      } else {
+         alert("Profil ayarlarınız başarıyla güncellendi!");
+      }
+      
       setShowSettings(false); setNewPassword('');
     } catch(e) { console.error(e); alert("Bir hata oluştu."); }
   };
 
-  // DÜZELTME: Profil kartındaki numarayı tıklanabilir, garantili +90 formatına dönüştürür.
   let rawContactPhone = neighborhoodDetails?.phone || "0553 973 54 40";
   let cleanContactPhone = String(rawContactPhone).replace(/\D/g, '');
   if (cleanContactPhone.startsWith('90')) cleanContactPhone = cleanContactPhone.substring(2);
@@ -78,11 +126,29 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
     <div className="max-w-7xl mx-auto px-4 py-16 relative">
       {showSettings && (
          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-md relative animate-in zoom-in-95">
+            <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-md relative animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
                <button onClick={() => setShowSettings(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"><Plus className="w-8 h-8 transform rotate-45"/></button>
                <Settings className="w-16 h-16 text-indigo-500 mx-auto mb-6" />
                <h3 className="text-3xl font-black text-center text-slate-900 mb-6">Profil Ayarları</h3>
                <div className="space-y-4 mb-8">
+                 
+                 {/* 🚀 YENİ EKLENDİ: Merkez Seçimi (Eğer birden fazla kurum varsa görünür) */}
+                 {availableMappings.length > 1 && (
+                   <div className="bg-amber-50 p-4 rounded-2xl border-2 border-amber-200">
+                     <label className="block text-sm font-black text-amber-800 mb-2 uppercase tracking-wider">Sınav Merkezi Tercihiniz</label>
+                     <select value={newCenterId} onChange={e=>setNewCenterId(e.target.value)} className="w-full text-base border-4 border-white bg-white rounded-xl px-4 py-3 font-bold focus:border-amber-500 outline-none">
+                        <option value="">Merkez Seçiniz</option>
+                        {availableMappings.map(m => {
+                           const c = zones.find(z => z.id === m.zoneId)?.centers?.find(x => x.id === m.centerId);
+                           return <option key={m.centerId} value={m.centerId}>{c?.name} ({m.zoneName})</option>
+                        })}
+                     </select>
+                     {newCenterId !== (currentUser.selectedCenterId || '') && (
+                        <p className="text-xs font-bold text-red-500 mt-2">Uyarı: Merkezi değiştirirseniz mevcut sınav kaydınız iptal edilir ve yeniden oturum seçmeniz gerekir!</p>
+                     )}
+                   </div>
+                 )}
+
                  <div>
                    <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">E-Posta Adresi</label>
                    <input type="email" value={newEmail} onChange={e=>setNewEmail(e.target.value)} className="w-full text-lg border-4 border-slate-100 rounded-2xl px-5 py-4 font-bold focus:border-indigo-500 outline-none" placeholder="Örn: isim@domain.com" />
@@ -116,7 +182,7 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
                   title="Ayarlar / Şifre Değiştir"
               >
                  <Settings className="w-6 h-6"/>
-                 {(!currentUser?.email || !currentUser?.selectedParticipationPrize) && !hasViewedSettings && (
+                 {(!currentUser?.email || !currentUser?.selectedParticipationPrize || (!currentUser?.selectedCenterId && availableMappings.length > 1)) && !hasViewedSettings && (
                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse border-2 border-indigo-900 shadow-sm"></span>
                  )}
               </button>
@@ -173,7 +239,6 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
                   <div className="flex flex-col sm:flex-row gap-4 mt-6">
                       {neighborhoodDetails.mapLink && ( <a href={neighborhoodDetails.mapLink} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center text-sm font-black bg-white/10 px-5 py-3 rounded-xl hover:bg-white/20 transition"><Map className="w-5 h-5 mr-2"/> Haritada Konumu Aç</a> )}
                       
-                      {/* DÜZELTME BURADA: Hoca ismi ve tıklandığında kesin çalışacak +90 numaralı bağlantı */}
                       <a href={`tel:+90${cleanContactPhone}`} className="inline-flex items-center justify-center text-sm font-black bg-white/10 px-5 py-3 rounded-xl hover:bg-white/20 transition">
                          <Phone className="w-5 h-5 mr-2"/> {neighborhoodDetails.contactName ? `${neighborhoodDetails.contactName}: ` : ''}0{cleanContactPhone}
                       </a>
@@ -196,7 +261,7 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
             </div>
           )}
 
-          <div className="mt-12"><TimelineCalendar zoneExams={zoneExams} currentUser={currentUser} defaultContact={matchedZone?.mappings?.[0]} /></div>
+          <div className="mt-12"><TimelineCalendar zoneExams={zoneExams} currentUser={currentUser} defaultContact={actualZone?.mappings?.[0]} /></div>
 
           {pastExams.length > 0 && (
             <div className="mt-12">

@@ -42,16 +42,13 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
     }
     
     return allHoods.filter(hood => {
-       // KÖRFEZ İSTİSNASI
        if (district === 'Körfez' && (hood === '17 Ağustos' || hood === 'Cumhuriyet')) {
           if (adminZoneData.name === 'Gebze' && (gender === 'Kız' || gender === '8. Sınıf Erkek' || gender === 'Tümü')) return false;
           if (adminZoneData.name === 'Akarçeşme' && (gender === 'Erkek' || gender === 'Tümü')) return false; 
        }
-
-       // 🚀 ADAPAZARI / MALTEPE İSTİSNASI (Yanlış atama yapmayı engeller)
        if (district === 'Adapazarı' && hood === 'Maltepe') {
-          if (adminZoneData.name === 'Adapazarı' && (gender === 'Erkek' || gender === 'Tümü')) return false; // Adapazarı 3-7 Erkek atayamaz
-          if (adminZoneData.name === 'Serdivan' && (gender === 'Kız' || gender === '8. Sınıf Erkek' || gender === 'Tümü')) return false; // Serdivan Kız ve 8 atayamaz
+          if (adminZoneData.name === 'Adapazarı' && (gender === 'Erkek' || gender === 'Tümü')) return false; 
+          if (adminZoneData.name === 'Serdivan' && (gender === 'Kız' || gender === '8. Sınıf Erkek' || gender === 'Tümü')) return false; 
        }
 
        const hoodMappings = localMappings.filter(m => m.district === district && m.neighborhood === hood);
@@ -61,12 +58,10 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
        const has8Erkek = hoodMappings.some(m => m.gender === '8. Sınıf Erkek');
 
        if (hasTumu) return false; 
-       
        if (gender === 'Tümü') return !(hasErkek || hasKiz || has8Erkek);
        if (gender === 'Erkek') return !hasErkek;
        if (gender === 'Kız') return !hasKiz;
        if (gender === '8. Sınıf Erkek') return !has8Erkek;
-       
        return true;
     }).sort();
   };
@@ -81,6 +76,15 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
       if (phone.length > 10) phone = phone.substring(0, 10);
       return phone;
   };
+
+  // 🚀 YENİ: Hoca ve Telefon Önerisi Mantığı
+  const contactPresets = localMappings
+    .filter(m => m.centerId === mappingData.centerId && m.contactName)
+    .map(m => ({ name: m.contactName, phone: m.phone }));
+  
+  const uniquePresets = Array.from(new Set(contactPresets.map(p => p.name))).map(name => {
+    return contactPresets.find(p => p.name === name);
+  });
 
   const handleAddCenter = async () => {
     if(!newCenter.name || !newCenter.address) return alert("Kurum adı ve açık adres zorunludur.");
@@ -134,7 +138,6 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
 
   const handleBulkUploadExcel = async () => {
     if(!bulkExcelData.trim()) return alert("Lütfen veriyi yapıştırın.");
-    
     const rows = bulkExcelData.split('\n');
     let updatedCenters = [...localCenters];
     let updatedMappings = [...localMappings];
@@ -144,13 +147,11 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
     for (let i = 0; i < rows.length; i++) {
        let row = rows[i];
        if(!row.trim()) continue;
-       
        const cols = row.split('\t');
        if(cols.length < 3) { errors.push(`Satır ${i+1}: Sütunlar eksik.`); continue; }
        
        let rawDistrict = cols[0]?.trim();
        let rawNeighborhood = cols[1]?.trim();
-
        if (rawDistrict.includes('/') && !rawNeighborhood) {
            const parts = rawDistrict.split('/');
            rawDistrict = parts[0].trim();
@@ -159,7 +160,6 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
 
        let rawGender = "Tümü";
        let colOffset = 2; 
-       
        if (cols.length > 3) {
            const potentialGender = String(cols[2] || '').trim().toLowerCase();
            if (potentialGender === 'erkek' || potentialGender === 'sadece erkek') { rawGender = 'Erkek'; colOffset = 3; } 
@@ -192,24 +192,13 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
 
        if (!matchedDistrict || !matchedNeighborhood) { errors.push(`Satır ${i+1}: Veritabanında "${rawDistrict}" ilçesinde "${rawNeighborhood}" bulunamadı.`); continue; }
        
-       // KÖRFEZ İSTİSNASI (Excel yüklemesinde engelleme)
        if (matchedDistrict === 'Körfez' && (matchedNeighborhood === '17 Ağustos' || matchedNeighborhood === 'Cumhuriyet')) {
-          if (adminZoneData.name === 'Gebze' && (rawGender === 'Kız' || rawGender === '8. Sınıf Erkek' || rawGender === 'Tümü')) {
-              errors.push(`Satır ${i+1}: Gebze mıntıkası bu mahalleye Kız veya 8. Sınıf atayamaz.`); continue;
-          }
-          if (adminZoneData.name === 'Akarçeşme' && (rawGender === 'Erkek' || rawGender === 'Tümü')) {
-              errors.push(`Satır ${i+1}: Akarçeşme mıntıkası bu mahalleye 3-7 Erkek atayamaz.`); continue;
-          }
+          if (adminZoneData.name === 'Gebze' && (rawGender === 'Kız' || rawGender === '8. Sınıf Erkek' || rawGender === 'Tümü')) { errors.push(`Satır ${i+1}: Gebze mıntıkası bu mahalleye Kız veya 8. Sınıf atayamaz.`); continue; }
+          if (adminZoneData.name === 'Akarçeşme' && (rawGender === 'Erkek' || rawGender === 'Tümü')) { errors.push(`Satır ${i+1}: Akarçeşme mıntıkası bu mahalleye 3-7 Erkek atayamaz.`); continue; }
        }
-
-       // 🚀 ADAPAZARI / MALTEPE İSTİSNASI (Excel yüklemesinde engelleme)
        if (matchedDistrict === 'Adapazarı' && matchedNeighborhood === 'Maltepe') {
-          if (adminZoneData.name === 'Adapazarı' && (rawGender === 'Erkek' || rawGender === 'Tümü')) {
-              errors.push(`Satır ${i+1}: Adapazarı mıntıkası bu mahalleye 3-7 Erkek atayamaz.`); continue;
-          }
-          if (adminZoneData.name === 'Serdivan' && (rawGender === 'Kız' || rawGender === '8. Sınıf Erkek' || rawGender === 'Tümü')) {
-              errors.push(`Satır ${i+1}: Serdivan mıntıkası bu mahalleye Kız veya 8. Sınıf atayamaz.`); continue;
-          }
+          if (adminZoneData.name === 'Adapazarı' && (rawGender === 'Erkek' || rawGender === 'Tümü')) { errors.push(`Satır ${i+1}: Adapazarı mıntıkası bu mahalleye 3-7 Erkek atayamaz.`); continue; }
+          if (adminZoneData.name === 'Serdivan' && (rawGender === 'Kız' || rawGender === '8. Sınıf Erkek' || rawGender === 'Tümü')) { errors.push(`Satır ${i+1}: Serdivan mıntıkası bu mahalleye Kız veya 8. Sınıf atayamaz.`); continue; }
        }
 
        let center = updatedCenters.find(c => normalizeForSearch(c.name) === normalizeForSearch(centerName));
@@ -305,14 +294,33 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
                       {getAdminUnmappedNeighborhoods(mappingData.district, mappingData.gender).map(h => <option key={h} value={h}>{h}</option>)}
                     </select>
                   </div>
-                  <div className="flex gap-2">
-                    <input type="text" value={mappingData.contactName} onChange={e=>setMappingData({...mappingData, contactName: e.target.value})} className="w-1/2 text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white" placeholder="Sorumlu İsim"/>
-                    <input type="tel" value={mappingData.phone} onChange={e=>{
-                        let val = e.target.value.replace(/\D/g, '');
-                        if (val.startsWith('90')) val = val.substring(2);
-                        if (val.startsWith('0')) val = val.substring(1);
-                        setMappingData({...mappingData, phone: val});
-                    }} className="w-1/2 text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white" placeholder="Sorumlu Tel"/>
+                  
+                  <div className="flex flex-col gap-2">
+                    {/* 🚀 YENİ EKLENEN ÖNERİ ÇİPLERİ */}
+                    {uniquePresets.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-1">
+                        <span className="text-xs font-bold text-emerald-700/60 w-full">Önceki Hocalar:</span>
+                        {uniquePresets.map(preset => (
+                          <button 
+                            key={preset.name} type="button"
+                            onClick={() => setMappingData({...mappingData, contactName: preset.name, phone: preset.phone})}
+                            className="text-[10px] bg-white border border-emerald-300 text-emerald-700 px-2 py-1.5 rounded-lg hover:bg-emerald-100 font-bold transition shadow-sm"
+                          >
+                            + {preset.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    
+                    <div className="flex gap-2">
+                      <input type="text" value={mappingData.contactName} onChange={e=>setMappingData({...mappingData, contactName: e.target.value})} className="w-1/2 text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white" placeholder="Sorumlu İsim"/>
+                      <input type="tel" value={mappingData.phone} onChange={e=>{
+                          let val = e.target.value.replace(/\D/g, '');
+                          if (val.startsWith('90')) val = val.substring(2);
+                          if (val.startsWith('0')) val = val.substring(1);
+                          setMappingData({...mappingData, phone: val});
+                      }} className="w-1/2 text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white" placeholder="Sorumlu Tel"/>
+                    </div>
                   </div>
                   <button onClick={handleAddMapping} disabled={!mappingData.centerId || !mappingData.neighborhood || !mappingData.gender} className="w-full bg-emerald-600 text-white font-black py-3 rounded-xl hover:bg-emerald-700 transition shadow-md disabled:opacity-50">Mahalleyi Kuruma Ata</button>
                 </div>

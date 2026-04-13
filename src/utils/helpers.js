@@ -18,25 +18,37 @@ export const parsePrizeArray = (data) => {
 
 export const findZoneByName = (zonesList, zoneName) => zonesList.find(z => z.name === zoneName);
 
-export const determineZoneName = (province, district, neighborhood, gender, grade) => {
-  
-  // ÖZEL KÖRFEZ İSTİSNASI (17 Ağustos ve Cumhuriyet)
+// determineZoneName fonksiyonunu bul ve bu şekilde güncelle:
+export const determineZoneName = (province, district, neighborhood, gender, grade, zonesFromDb = []) => {
+  // 1. Önce Veritabanındaki Canlı Atamalara (Mappings) Bak (En Öncelikli)
+  if (zonesFromDb.length > 0) {
+    const possibleMappings = [];
+    zonesFromDb.forEach(z => {
+      const found = z.mappings?.find(m => 
+        m.district === district && 
+        m.neighborhood === neighborhood && 
+        (m.gender === gender || m.gender === 'Tümü' || (m.gender === '8. Sınıf Erkek' && String(grade) === '8' && gender === 'Erkek'))
+      );
+      if (found) possibleMappings.push({ zoneName: z.name, centerId: found.centerId });
+    });
+    
+    // Eğer sadece 1 eşleşme varsa direkt o mıntıkayı döndür
+    if (possibleMappings.length === 1) return possibleMappings[0].zoneName;
+    // Eğer birden fazla varsa 'MULTI' dön ki kayıt ekranı seçim yaptırsın
+    if (possibleMappings.length > 1) return 'MULTI';
+  }
+
+  // 2. Eğer veritabanında atama yoksa statik istisnalara bak (Körfez vb.)
   if (district === 'Körfez' && (neighborhood === '17 Ağustos' || neighborhood === 'Cumhuriyet')) {
-      if (gender === 'Kız') return 'Akarçeşme';
-      if (gender === 'Erkek' && String(grade) === '8') return 'Akarçeşme';
-      return 'Gebze'; // 3, 4, 5, 6 ve 7. Sınıf Erkekler GEBZE'ye gider!
+      if (gender === 'Kız' || (gender === 'Erkek' && String(grade) === '8')) return 'Akarçeşme';
+      return 'Gebze';
   }
-
-  // 🚀 YENİ: ÖZEL ADAPAZARI/MALTEPE İSTİSNASI
-  if (district === 'Adapazarı' && neighborhood === 'Maltepe') {
-      if (gender === 'Kız') return 'Adapazarı';
-      if (gender === 'Erkek' && String(grade) === '8') return 'Adapazarı';
-      return 'Serdivan'; // 3, 4, 5, 6 ve 7. Sınıf Erkekler SERDİVAN'a gider!
-  }
-
-  for (const z of INITIAL_ZONES) {
-    if (z.districts.includes(district)) return z.name;
-    if (z.partialDistricts && z.partialDistricts[district] && z.partialDistricts[district].includes(neighborhood)) return z.name;
+  
+  // 3. Hiçbiri yoksa varsayılan listeye bak
+  const zList = zonesFromDb.length > 0 ? zonesFromDb : INITIAL_ZONES;
+  for (const z of zList) {
+    if (z.districts?.includes(district)) return z.name;
+    if (z.partialDistricts && z.partialDistricts[district]?.includes(neighborhood)) return z.name;
   }
   return null;
 };

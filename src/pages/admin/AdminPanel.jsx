@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Building2, Users, Map, ShieldAlert, LogOut, KeyRound, AlertTriangle, Download, Search } from 'lucide-react';
+import { Settings, Building2, Users, Map, ShieldAlert, LogOut, KeyRound, AlertTriangle, Download, Search, Link } from 'lucide-react';
 import { collection, query, where, getDocs, getCountFromServer } from "firebase/firestore"; 
 import { db, appId } from "../../services/firebase"; 
 import { doc, updateDoc } from "firebase/firestore";
@@ -12,6 +12,7 @@ import CentersTab from './CentersTab';
 import StudentsTab from './StudentsTab';
 import StatsTab from './StatsTab';
 import BlacklistTab from './BlacklistTab';
+import ExceptionsTab from './ExceptionsTab'; // 🚀 YENİ EKLENDİ
 
 export function AdminLogin({ setAdminAuth, zones }) {
   const [username, setUsername] = useState('');
@@ -78,8 +79,6 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
   const [activeTab, setActiveTab] = useState('ayarlar'); 
   const [isSyncing, setIsSyncing] = useState(false); 
   const [hasMadeChanges, setHasMadeChanges] = useState(false);
-  
-  // 🚀 YENİ: KRİZ YÖNETİMİ İÇİN KURTARMA MODU (VARSAYILAN AÇIK)
   const [recoveryMode, setRecoveryMode] = useState(true);
   
   const [fetchedStudents, setFetchedStudents] = useState([]);
@@ -185,8 +184,8 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
            latestZone = zones.find(z => z.id == student.zone.id);
         }
         if (!latestZone) {
-           const zName = determineZoneName(student.province, student.district, student.neighborhood, student.gender, student.grade);
-           latestZone = findZoneByName(zones, zName);
+           const zName = determineZoneName(student.province, student.district, student.neighborhood, student.gender, student.grade, zones);
+           if (zName !== 'MULTI') latestZone = findZoneByName(zones, zName);
         }
         if (!latestZone) continue;
 
@@ -199,11 +198,10 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
         
         updates.zone = latestZone;
 
-        // MERKEZ GÜNCELLEME
         if (hasValidCenter && student.notifiedCenter !== centerInfo.centerName) {
            updates.notifiedCenter = centerInfo.centerName; 
            
-           if (!recoveryMode) { // Kurtarma modu kapalıysa normal şekilde SMS at
+           if (!recoveryMode) { 
                if (student.isWaitingPool === true || (student.notifiedCenter && student.notifiedCenter !== centerInfo.centerName)) {
                    needsSms = true;
                    if (student.isWaitingPool === true) {
@@ -214,36 +212,30 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
                    }
                }
            } else {
-               // Kurtarma modunda sessizce bekleme havuzundan çıkar
                if (student.isWaitingPool === true) updates.isWaitingPool = false;
            }
         }
 
-        // AKILLI İYİLEŞTİRİCİ (AUTO-HEAL) VE SINAV KONTROLÜ
         if (student.examId || student.examTitle) {
            const exam = exams.find(e => e.firebaseId === student.examId || e.id === student.examId);
            let validSlot = false;
            
            if (exam && exam.sessions) {
               const session = exam.sessions.find(s => s.date === student.selectedDate);
-              if (session && session.slots.includes(student.selectedTime)) {
-                 validSlot = true;
-              }
+              if (session && session.slots.includes(student.selectedTime)) validSlot = true;
            }
 
-           // Eğer ID ile bulamadıysa (sınav silinip yeniden açıldıysa) İsim ve Tarih ile bulup bağla!
            if (!validSlot && student.examTitle && student.selectedDate && student.selectedTime) {
               const matchingExam = exams.find(e => e.title === student.examTitle);
               if (matchingExam && matchingExam.sessions) {
                   const session = matchingExam.sessions.find(s => s.date === student.selectedDate);
                   if (session && session.slots.includes(student.selectedTime)) {
                       validSlot = true;
-                      updates.examId = matchingExam.firebaseId || matchingExam.id; // Yeni ID'yi öğrenciye yama yap
+                      updates.examId = matchingExam.firebaseId || matchingExam.id; 
                   }
               }
            }
 
-           // Kurtarma modu kapalıysa ve gerçekten geçersizse öğrencinin sınavını sil ve SMS at
            if (!validSlot && student.selectedDate && student.selectedTime && !recoveryMode) {
               updates.selectedDate = null;
               updates.selectedTime = null;
@@ -256,12 +248,11 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
            }
         }
 
-        // ÖDÜL KONTROLÜ
         if (student.selectedParticipationPrize) {
            const partPrizesList = parsePrizeArray(latestZone.prizes?.participation);
            const prizeExists = partPrizesList.some(p => p.title === student.selectedParticipationPrize);
            
-           if (!prizeExists && !recoveryMode) { // Kurtarma modundaysa ödülünü silme, veriyi koru
+           if (!prizeExists && !recoveryMode) { 
               updates.selectedParticipationPrize = '';
               if (!needsSms) {
                  needsSms = true;
@@ -270,12 +261,10 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
            }
         }
 
-        // GÜNCELLEMELERİ KAYDET
         if (Object.keys(updates).length > 0) {
            dbUpdates.push({ ref: doc(db, 'artifacts', appId, 'public', 'data', 'students', student.firebaseId), data: updates });
         }
         
-        // SMS GÖNDER (KURTARMA MODUNDA ASLA GÖNDERMEZ)
         if (needsSms && student.phone && !recoveryMode) {
            smsQueue.push({ tel: [student.phone], msg: smsText });
         }
@@ -305,39 +294,29 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
           <div className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl text-center border-4 border-amber-400">
             <AlertTriangle className="w-20 h-20 text-amber-500 mx-auto mb-6 animate-pulse" />
             <h3 className="text-2xl font-black text-slate-800 mb-4">Veri İndirme Onayı</h3>
-            <p className="text-slate-600 font-medium mb-6 text-lg">
-              Seçilen bölgedeki tüm öğrencileri görüntülemek için veritabanına bağlanılacaktır.
-            </p>
-            
+            <p className="text-slate-600 font-medium mb-6 text-lg">Seçilen bölgedeki tüm öğrencileri görüntülemek için veritabanına bağlanılacaktır.</p>
             <div className="bg-amber-50 text-amber-800 p-5 rounded-xl font-bold border border-amber-200 mb-8 text-sm">
               <span className="block text-lg mb-2">Günlük 50.000 işlem kotanızdan</span>
               <span className="text-3xl text-amber-600 block mb-2">{pendingCount} okuma eksilecektir.</span>
             </div>
-            
             <div className="flex gap-4">
               <button onClick={() => setShowQuotaWarning(false)} className="flex-1 bg-slate-200 text-slate-700 font-black py-4 rounded-xl hover:bg-slate-300 transition">Vazgeç</button>
-              <button onClick={executeStudentFetch} className="flex-1 bg-amber-500 text-white font-black py-4 rounded-xl hover:bg-amber-600 transition flex justify-center items-center">
-                 Onaylıyorum <Download className="w-5 h-5 ml-2" />
-              </button>
+              <button onClick={executeStudentFetch} className="flex-1 bg-amber-500 text-white font-black py-4 rounded-xl hover:bg-amber-600 transition flex justify-center items-center">Onaylıyorum <Download className="w-5 h-5 ml-2" /></button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 🚀 YENİ BAŞLIK VE KURTARMA MODU BUTONU 🚀 */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-10 border-b-2 border-slate-100 pb-6 gap-4 animate-in fade-in duration-500">
         <div>
-          <div className="inline-flex items-center px-4 py-1.5 rounded-lg bg-indigo-100 text-indigo-800 text-sm font-black mb-3 uppercase tracking-wider">
-            {adminZoneData.name} Yönetimi
-          </div>
+          <div className="inline-flex items-center px-4 py-1.5 rounded-lg bg-indigo-100 text-indigo-800 text-sm font-black mb-3 uppercase tracking-wider">{adminZoneData.name} Yönetimi</div>
           <h1 className="text-4xl font-black text-slate-900">Mıntıka Paneli</h1>
           <p className="text-slate-500 mt-2 font-bold text-lg">Bölgenize ait ayarlar, sınav planlaması, kurum eşleştirmeleri ve kayıtlı öğrenciler.</p>
         </div>
         
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto">
           <label className={`flex items-center justify-center text-sm font-black cursor-pointer px-5 py-3.5 rounded-xl transition-all border-2 shadow-sm ${recoveryMode ? 'bg-amber-50 text-amber-700 border-amber-300 ring-2 ring-amber-100' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}>
-             <input type="checkbox" checked={recoveryMode} onChange={e => setRecoveryMode(e.target.checked)} className="mr-3 w-5 h-5 accent-amber-600" />
-             Kurtarma Modu (Sessiz & Korumalı Çıkış)
+             <input type="checkbox" checked={recoveryMode} onChange={e => setRecoveryMode(e.target.checked)} className="mr-3 w-5 h-5 accent-amber-600" /> Kurtarma Modu (Sessiz & Korumalı Çıkış)
           </label>
           <button onClick={handleLogoutWithSync} disabled={isSyncing} className="flex items-center justify-center text-white bg-slate-800 hover:bg-slate-900 px-6 py-3.5 rounded-xl font-bold transition border border-slate-700 shadow-lg">
             {isSyncing ? "Senkronize Ediliyor..." : <><LogOut className="w-5 h-5 mr-2"/> Güvenli Çıkış</>}
@@ -357,28 +336,33 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
         <button onClick={() => setActiveTab('ogrenci')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'ogrenci' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}>
           <Users className="w-5 h-5 inline mr-2"/> Öğrenci Listesi ({displayCount})
         </button>
+        
         {isSuperAdmin && (
-           <button onClick={() => setActiveTab('mahalleler')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'mahalleler' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>
-             <Map className="w-5 h-5 inline mr-2"/> Mahalle İstatistikleri
-           </button>
-        )}
-        {isSuperAdmin && (
-           <button onClick={() => setActiveTab('karaliste')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'karaliste' ? 'bg-red-600 text-white shadow-lg' : 'bg-white text-red-600 border border-red-200 hover:bg-red-50'}`}>
-             <ShieldAlert className="w-5 h-5 inline mr-2"/> Kara Liste Yönetimi
-           </button>
+           <>
+             <button onClick={() => setActiveTab('istisnalar')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'istisnalar' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>
+               <Link className="w-5 h-5 inline mr-2"/> Paylaşımlı Mahalleler
+             </button>
+             <button onClick={() => setActiveTab('mahalleler')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'mahalleler' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>
+               <Map className="w-5 h-5 inline mr-2"/> Mahalle İstatistikleri
+             </button>
+             <button onClick={() => setActiveTab('karaliste')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'karaliste' ? 'bg-red-600 text-white shadow-lg' : 'bg-white text-red-600 border border-red-200 hover:bg-red-50'}`}>
+               <ShieldAlert className="w-5 h-5 inline mr-2"/> Kara Liste Yönetimi
+             </button>
+           </>
         )}
       </div>
 
       <div className="mt-8 animate-in fade-in duration-300">
         {activeTab === 'ayarlar' && <SettingsTab adminZoneData={adminZoneData} isSuperAdmin={isSuperAdmin} adminZoneId={adminZoneId} setHasMadeChanges={setHasMadeChanges} filteredExams={filteredExams} zones={zones} />}
-        
         {activeTab === 'merkezler' && !isSuperAdmin && <CentersTab adminZoneData={adminZoneData} adminZoneId={adminZoneId} setHasMadeChanges={setHasMadeChanges} />}
+        {activeTab === 'istisnalar' && isSuperAdmin && <ExceptionsTab zones={zones} setHasMadeChanges={setHasMadeChanges} />}
+        {activeTab === 'mahalleler' && isSuperAdmin && <StatsTab zones={zones} setHasMadeChanges={setHasMadeChanges} />}
+        {activeTab === 'karaliste' && isSuperAdmin && <BlacklistTab setHasMadeChanges={setHasMadeChanges} />}
         
         {activeTab === 'ogrenci' && (
            <>
              <div className="bg-white border-4 border-slate-100 rounded-[3rem] p-8 md:p-12 shadow-xl mb-8">
                 <h3 className="text-2xl font-black text-slate-800 mb-6 border-b-2 border-slate-100 pb-4 flex items-center"><Search className="w-6 h-6 mr-3 text-indigo-500"/> Öğrenci Verilerini İndir</h3>
-                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                     <div>
                       <label className="block text-sm font-bold text-slate-500 mb-2 uppercase tracking-wider">Mıntıka / Bölge</label>
@@ -387,7 +371,6 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
                          {zones.filter(z=>z.active).map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
                       </select>
                     </div>
-                    
                     <div>
                       <label className="block text-sm font-bold text-slate-500 mb-2 uppercase tracking-wider">Kurum (Sınav Merkezi) Seçimi</label>
                       <select value={filterCenter} onChange={(e) => setFilterCenter(e.target.value)} disabled={!filterZone} className="w-full border-2 border-slate-200 rounded-xl px-4 py-4 font-bold text-lg focus:border-indigo-500 outline-none bg-slate-50 disabled:opacity-70">
@@ -396,12 +379,10 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
                       </select>
                     </div>
                 </div>
-
                 <button onClick={handleCalculateQuery} disabled={isFetchingData} className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 transition shadow-xl disabled:opacity-50 flex items-center justify-center">
                    {isFetchingData ? "Maliyet Hesaplanıyor..." : <><Download className="w-6 h-6 mr-3"/> Seçilen Bölgedeki Tüm Öğrencileri İndir</>}
                 </button>
              </div>
-
              {fetchedStudents.length > 0 ? (
                 <StudentsTab students={fetchedStudents} isSuperAdmin={isSuperAdmin} adminZoneData={adminZoneData} zones={zones} setHasMadeChanges={setHasMadeChanges} />
              ) : (
@@ -409,9 +390,6 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
              )}
            </>
         )}
-
-        {activeTab === 'mahalleler' && isSuperAdmin && <StatsTab zones={zones} setHasMadeChanges={setHasMadeChanges} />}
-        {activeTab === 'karaliste' && isSuperAdmin && <BlacklistTab setHasMadeChanges={setHasMadeChanges} />}
       </div>
     </div>
   );

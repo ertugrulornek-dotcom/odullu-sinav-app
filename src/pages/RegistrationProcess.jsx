@@ -81,13 +81,16 @@ const RegistrationPrizeSelector = ({ partPrizes, degreePrizes, selectedPrize, on
 export default function RegistrationProcess({ navigateTo, currentUser, setCurrentUser, zones, exams }) {
   const [step, setStep] = useState(1); 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState({ fullName: '', phone: '', grade: '8', parentName: '', gender: '', email: '', province: '', district: '', neighborhood: '', schoolName: '' });
+  const [formData, setFormData] = useState({ fullName: '', phone: '', grade: '8', parentName: '', gender: '', email: '', province: '', district: '', neighborhood: '', schoolName: '', selectedCenterId: '' });
   
   const [blacklist, setBlacklist] = useState([]);
   const [matchedZone, setMatchedZone] = useState(null);
   const [availableExams, setAvailableExams] = useState([]);
   const [selectedExam, setSelectedExam] = useState(null);
   const [selectedSlot, setSelectedSlot] = useState(null); 
+  
+  // 🚀 DÜZELTME 1: isMultiCenter State'i buraya eklendi
+  const [isMultiCenter, setIsMultiCenter] = useState(false);
   
   const [selectedParticipationPrize, setSelectedParticipationPrize] = useState(currentUser?.selectedParticipationPrize || '');
   
@@ -106,20 +109,19 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
 
   useEffect(() => {
     if (currentUser && step === 1) {
-      setFormData({ fullName: currentUser.fullName || '', phone: currentUser.phone || '', grade: currentUser.grade || '8', parentName: currentUser.parentName || '', gender: currentUser.gender || '', email: currentUser.email || '', schoolName: currentUser.schoolName || '', province: currentUser.province || '', district: currentUser.district || '', neighborhood: currentUser.neighborhood || '' });
+      setFormData({ fullName: currentUser.fullName || '', phone: currentUser.phone || '', grade: currentUser.grade || '8', parentName: currentUser.parentName || '', gender: currentUser.gender || '', email: currentUser.email || '', schoolName: currentUser.schoolName || '', province: currentUser.province || '', district: currentUser.district || '', neighborhood: currentUser.neighborhood || '', selectedCenterId: '' });
       if(currentUser.schoolName && !SCHOOLS.some(s => s.name === currentUser.schoolName)) { setIsCustomSchool(true); setCustomSchoolName(currentUser.schoolName); }
       setSelectedParticipationPrize(currentUser.selectedParticipationPrize || '');
       setStep(2);
     }
   }, [currentUser, step]);
 
-  // 🚀 DÜZELTME: Telefon numarası girerken oluşan son 2 rakam silinme hatası düzeltildi
   const handlePhoneInput = (e) => {
     let val = e.target.value.replace(/\D/g, ''); 
-    if (val.startsWith('90')) val = val.substring(2); // Kopya-yapıştırla +90 gelirse sil
-    if (val.startsWith('0')) val = val.substring(1);  // Başındaki 0'ı sil
-    if (val.length > 0 && !val.startsWith('5')) val = '5' + val; // Eğer 5 ile başlamıyorsa, başına 5 koy
-    val = val.substring(0, 10); // Tam 10 haneli standart formata kilitle
+    if (val.startsWith('90')) val = val.substring(2);
+    if (val.startsWith('0')) val = val.substring(1);
+    if (val.length > 0 && !val.startsWith('5')) val = '5' + val;
+    val = val.substring(0, 10);
     setFormData({ ...formData, phone: val });
   };
 
@@ -159,15 +161,24 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
     }
   }, [formData.province, formData.district, formData.grade]);
 
+  // 🚀 DÜZELTME 2: Çoklu Merkez İçin Mıntıka Belirleme (Doğru Yerleşim)
   useEffect(() => {
     if (formData.district && formData.neighborhood) {
-      const zoneName = determineZoneName(formData.province, formData.district, formData.neighborhood, formData.gender, formData.grade);
-      const zone = findZoneByName(zones, zoneName);
-      setMatchedZone(zone);
-      if (zone && zone.active) setAvailableExams(exams.filter(e => e.zoneId == zone.id && e.active !== false));
-      else setAvailableExams([]);
+      const zoneResult = determineZoneName(formData.province, formData.district, formData.neighborhood, formData.gender, formData.grade, zones);
+      
+      if (zoneResult === 'MULTI') {
+        setMatchedZone(null); 
+        setAvailableExams([]);
+        setIsMultiCenter(true); 
+      } else {
+        const zone = findZoneByName(zones, zoneResult);
+        setMatchedZone(zone);
+        setIsMultiCenter(false);
+        if (zone && zone.active) setAvailableExams(exams.filter(e => e.zoneId == zone.id && e.active !== false));
+        else setAvailableExams([]);
+      }
     }
-  }, [formData.district, formData.neighborhood, zones, exams]);
+  }, [formData.district, formData.neighborhood, formData.gender, formData.grade, zones, exams]);
 
   useEffect(() => {
     setSelectedExam(null); setSelectedSlot(null);
@@ -292,8 +303,46 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
               <div><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Mahalle</label><select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 text-xl font-bold outline-none disabled:bg-slate-100" disabled={!formData.district} value={formData.neighborhood} onChange={e => setFormData({...formData, neighborhood: e.target.value})}><option value="">Önce İlçe Seçiniz</option>{availableNeighborhoods.map(hood => (<option key={hood} value={hood}>{hood} Mah.</option>))}</select></div>
             </div>
 
+            {/* 🚀 DÜZELTME 3: Çoklu Merkez UI Doğru Yere Yerleştirildi */}
+            {isMultiCenter && (
+              <div className="bg-amber-50 p-6 rounded-3xl border-2 border-amber-200 mt-4">
+                <label className="block text-sm font-black text-amber-800 mb-2 uppercase">Mahallenizde Birden Fazla Sınav Merkezi Bulunuyor. Lütfen Seçin:</label>
+                <select 
+                  onChange={(e) => {
+                    const centerId = e.target.value;
+                    if (!centerId) {
+                       setMatchedZone(null);
+                       setAvailableExams([]);
+                       return;
+                    }
+                    const selectedMappingZone = zones.find(z => z.mappings?.some(m => m.centerId === centerId));
+                    setMatchedZone(selectedMappingZone); 
+                    setFormData({...formData, selectedCenterId: centerId}); 
+                    if (selectedMappingZone && selectedMappingZone.active) {
+                        setAvailableExams(exams.filter(ex => ex.zoneId == selectedMappingZone.id && ex.active !== false));
+                    } else {
+                        setAvailableExams([]);
+                    }
+                  }}
+                  className="w-full border-4 border-white rounded-2xl px-6 py-4 font-bold text-lg focus:border-amber-500 outline-none bg-white"
+                >
+                  <option value="">Kurum Seçiniz...</option>
+                  {zones.flatMap(z => (z.mappings || []))
+                    .filter(m => m.district === formData.district && m.neighborhood === formData.neighborhood && (m.gender === formData.gender || m.gender === 'Tümü' || (m.gender === '8. Sınıf Erkek' && formData.grade === '8' && formData.gender === 'Erkek')))
+                    .map(m => {
+                      const center = zones.flatMap(z => z.centers).find(c => c.id === m.centerId);
+                      // Sadece var olan ve adı olan merkezleri listele
+                      if(center && center.name) {
+                         return <option key={m.centerId} value={m.centerId}>{center.name} ({findZoneByName(zones, m.zoneName || zones.find(z=>z.mappings.includes(m))?.name)?.name} Mıntıkası)</option>;
+                      }
+                      return null;
+                    })}
+                </select>
+              </div>
+            )}
+
             {formData.district && (
-               <div className="bg-indigo-50 p-6 rounded-3xl border-2 border-indigo-100 animate-in fade-in">
+               <div className="bg-indigo-50 p-6 rounded-3xl border-2 border-indigo-100 animate-in fade-in mt-6">
                   <label className="block text-sm font-black text-indigo-700 mb-3 uppercase tracking-wider flex items-center"><School className="w-5 h-5 mr-2"/> Okulunuz (İsteğe Bağlı)</label>
                   {!isCustomSchool ? (
                      <select className="w-full border-2 border-indigo-200 rounded-2xl px-5 py-4 text-xl font-bold outline-none bg-white" value={formData.schoolName} onChange={e => { if(e.target.value === 'CUSTOM'){ setIsCustomSchool(true); setFormData({...formData, schoolName: ''}); } else { setFormData({...formData, schoolName: e.target.value}); } }}>
@@ -363,7 +412,7 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
                     <AlertCircle className="w-20 h-20 text-amber-500 mx-auto mb-6" />
                     <h4 className="font-black text-amber-900 text-3xl mb-4">Açık Sınav Yok</h4>
                     <p className="text-amber-800 text-xl mb-10 max-w-2xl mx-auto leading-relaxed">
-                      Şu an bölgede aktif sınav bulunmamaktadır. Sisteme "Sınavsız Kayıt" oluşturarak beklemeye geçebilirsiniz.
+                      Şu an bölgede aktif sınav bulunmamaktadır. Sisteme "Sınavsız Kayıt" oluşturarak beklemeye geçebilirsiniz. Veya birden fazla merkez varsa lütfen yukarıdan bir merkez seçin.
                     </p>
                     <button onClick={() => handleComplete(true)} disabled={isSubmitting} className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white font-black py-5 px-8 rounded-2xl text-xl transition shadow-xl shadow-amber-500/40 disabled:opacity-50">
                       Daha Sonra Haber Ver (Sınavsız Kayıt)
