@@ -2,7 +2,7 @@ export const SMS_FOOTER = "\n\nodullusinav.net EFECEL IPTAL LH47W yaz 4609a gond
 
 export const sendSMS = async (msgDataArray) => {
   try {
-    const response = await fetch("/api/sms", {
+    const response = await fetch("/.netlify/functions/sms", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ msgData: msgDataArray })
