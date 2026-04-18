@@ -220,12 +220,14 @@ useEffect(() => {
 
   const isFormValid = selectedSlot !== null && (!needsPartSelection || selectedParticipationPrize !== '');
 
+
+  const handleComplete = async (withoutExam = false) => {
   if (!withoutExam && (!selectedExam || !selectedSlot)) {
   alert("Lütfen bir sınav oturumu seçiniz.");
   setIsSubmitting(false);
   return;
 } 
-  const handleComplete = async (withoutExam = false) => {
+
     setIsSubmitting(true);
     const finalSchoolName = isCustomSchool ? customSchoolName : formData.schoolName;
     const finalPartPrize = withoutExam ? '' : (selectedParticipationPrize || (validPartPrizesList.length === 1 ? validPartPrizesList[0].title : ''));
