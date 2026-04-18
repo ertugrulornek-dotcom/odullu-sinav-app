@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Gift, Trophy, Award, Plus, Trash2, CalendarIcon, CheckCircle2, Edit, AlertCircle } from 'lucide-react';
+import { Gift, Trophy, Award, Plus, Trash2, CalendarIcon, CheckCircle2, Edit, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { db, appId } from '../../services/firebase';
 import { updateDoc, doc, addDoc, collection, deleteDoc, getDocs, query, where } from "firebase/firestore";
 import { INITIAL_ZONES } from '../../data/constants';
@@ -12,7 +12,6 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
   const [examSessions, setExamSessions] = useState([{ date: '', times: '' }]);
   const [editingExamId, setEditingExamId] = useState(null);
 
-  // 🚀 YENİ: Akıllı Eşleştirme Modalı State'i
   const [prizeMappingModal, setPrizeMappingModal] = useState({
       isOpen: false,
       unmatchedOldPrizes: [],
@@ -32,16 +31,15 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
     }
   }, [adminZoneData, isSuperAdmin]);
 
-  // 🚀 DÜZELTME: Akıllı Ödül Güncelleme ve Eşleştirme Sistemi
   const handleUpdatePrizes = async () => {
     try {
       const targetZoneIds = isSuperAdmin ? INITIAL_ZONES.map(z => z.id) : [adminZoneId];
+      // 🚀 DÜZELTME: Eşleştirme yaparken isHidden olanları da saymalıyız ki eski ödüller kaybolmasın
       const newPartPrizes = localPrizes.participation.filter(p => p.title).map(p => p.title);
       const newPartPrizesLower = newPartPrizes.map(p => p.toLowerCase().trim());
 
       let allAffectedStudents = [];
       
-      // 1. Olası tüm öğrencileri çek
       for (const zId of targetZoneIds) {
           const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'students'), where("zone.id", "==", parseInt(zId)));
           const studentsSnap = await getDocs(q);
@@ -53,7 +51,6 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
           });
       }
 
-      // 2. Büyük/Küçük harf toleransı ile eşleşmeyen eski ödülleri bul
       const uniqueOldPrizes = [...new Set(allAffectedStudents.map(s => s.selectedParticipationPrize))];
       const unmatched = [];
 
@@ -65,7 +62,6 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
       });
 
       if (unmatched.length > 0) {
-          // 3. Eşleşmeyen var, Yöneticiye Sor (Modalı Aç)
           const initialMapping = {};
           unmatched.forEach(p => initialMapping[p] = '');
           setPrizeMappingModal({
@@ -77,7 +73,6 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
               currentMapping: initialMapping
           });
       } else {
-          // 4. Hepsi birebir veya harf büyüklüğü olarak eşleşiyor. Sessizce güncelle.
           await executeFinalPrizeUpdate(targetZoneIds, allAffectedStudents, newPartPrizes, {});
       }
     } catch (e) { console.error(e); }
@@ -90,12 +85,10 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
         let smsQueue = [];
         let updatePromises = [];
 
-        // 1. Önce Bölge Ödüllerini (Zones) Güncelle
         for (const zId of targetZoneIds) {
             updatePromises.push(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', zId.toString()), { prizes: localPrizes }));
         }
 
-        // 2. Öğrencileri Güncelle (Sessiz Eşleştirme veya SMS atma)
         const newPrizesLowerMap = {};
         newPrizes.forEach(p => newPrizesLowerMap[p.toLowerCase().trim()] = p);
 
@@ -106,19 +99,15 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
             let finalPrizeForStudent = oldPrize; 
 
             if (newPrizesLowerMap[oldLower]) {
-                // Otomatik eşleşme (sadece harf veya boşluk farkı)
                 finalPrizeForStudent = newPrizesLowerMap[oldLower];
             } else if (manualMapping[oldPrize]) {
-                // Yöneticinin Modal'dan seçtiği eşleşme
                 finalPrizeForStudent = manualMapping[oldPrize];
             }
 
             if (finalPrizeForStudent === 'DELETE') {
-                // Yönetici SMS atılsın dedi
                 updatePromises.push(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', s.firebaseId), { selectedParticipationPrize: '' }));
                 if (s.phone) smsQueue.push({ tel: [s.phone], msg: `Önemli: Bölgenizdeki katılım ödülleri güncellenmiştir. Lütfen odullusinav.net profilinize giriş yaparak yeni ödülünüzü seçiniz.${SMS_FOOTER}` });
             } else if (finalPrizeForStudent !== oldPrize) {
-                // İsim değiştirildi, öğrenciyi sessizce güncelle (SMS YOK)
                 updatePromises.push(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', s.firebaseId), { selectedParticipationPrize: finalPrizeForStudent }));
             }
         }
@@ -235,10 +224,16 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
       } catch(e) { console.error(e); }
   };
 
+  // 🚀 YENİ FONKSİYON: Ödülü Gizle / Göster
+  const togglePrizeVisibility = (category, index) => {
+      const newArr = [...localPrizes[category]];
+      newArr[index].isHidden = !newArr[index].isHidden;
+      setLocalPrizes({ ...localPrizes, [category]: newArr });
+  };
+
   return (
     <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12 animate-in fade-in zoom-in-95 duration-300 relative">
       
-      {/* 🚀 AKILLI EŞLEŞTİRME MODALI BAŞLANGICI */}
       {prizeMappingModal.isOpen && (
           <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[99] flex items-center justify-center p-4">
               <div className="bg-white rounded-[2rem] shadow-2xl p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto border-4 border-indigo-100 animate-in zoom-in-95">
@@ -294,7 +289,6 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
               </div>
           </div>
       )}
-      {/* 🚀 AKILLI EŞLEŞTİRME MODALI BİTİŞİ */}
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b-2 border-slate-100 pb-8 gap-4">
         <div>
@@ -308,40 +302,56 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
           <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider flex items-center"><Gift className="w-6 h-6 mr-2"/> {isSuperAdmin ? 'Tüm Türkiye' : 'Bölge'} Ödüllerini Yönet</div>
           <div className="space-y-6 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
             {/* Büyük Ödül */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative">
               <div className="text-sm font-black text-slate-800 mb-3 flex items-center"><Trophy className="w-5 h-5 text-yellow-500 mr-2"/> Büyük Ödül</div>
               <input type="text" value={localPrizes.grand.title} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, title: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2" placeholder="Ödül Başlığı (Örn: PlayStation 5)"/>
               <textarea rows="2" value={localPrizes.grand.desc} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, desc: e.target.value}})} className="w-full text-sm font-medium p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2 resize-none" placeholder="Açıklama (İsteğe bağlı)"/>
               <input type="text" value={localPrizes.grand.img} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, img: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Resim Linki veya Dosya Adı"/>
             </div>
+
             {/* Derece Ödülleri */}
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
               <div className="text-sm font-black text-slate-800 mb-3 flex justify-between items-center">
                  <span className="flex items-center"><Award className="w-5 h-5 text-indigo-500 mr-2"/> Derece Ödülleri</span>
-                 <button onClick={() => setLocalPrizes({...localPrizes, degree: [...localPrizes.degree, {title:'', desc:'', img:''}]})} className="text-indigo-600 bg-indigo-50 p-1.5 rounded-lg hover:bg-indigo-100"><Plus className="w-4 h-4"/></button>
+                 <button onClick={() => setLocalPrizes({...localPrizes, degree: [...localPrizes.degree, {title:'', desc:'', img:'', isHidden: false}]})} className="text-indigo-600 bg-indigo-50 p-1.5 rounded-lg hover:bg-indigo-100"><Plus className="w-4 h-4"/></button>
               </div>
               {localPrizes.degree.map((pz, idx) => (
-                <div key={idx} className="mb-4 pb-4 border-b border-slate-100 last:border-0 last:mb-0 last:pb-0">
-                  <div className="flex gap-2 mb-2">
-                      <input type="text" value={pz.title} onChange={e => { const newArr=[...localPrizes.degree]; newArr[idx].title=e.target.value; setLocalPrizes({...localPrizes, degree: newArr}); }} className="flex-1 text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder={`${idx+1}. Ödül Başlığı`}/>
-                      {idx > 0 && <button onClick={() => { const newArr=localPrizes.degree.filter((_,i)=>i!==idx); setLocalPrizes({...localPrizes, degree:newArr}); }} className="p-3 text-red-500 bg-red-50 hover:bg-red-100 rounded-xl"><Trash2 className="w-4 h-4"/></button>}
+                <div key={idx} className={`mb-4 pb-4 border-b border-slate-100 last:border-0 last:mb-0 last:pb-0 transition-opacity ${pz.isHidden ? 'opacity-50' : 'opacity-100'}`}>
+                  <div className="flex gap-2 mb-2 items-center">
+                      <span className="text-xs font-black text-slate-400 w-4">{idx+1}.</span>
+                      <input type="text" value={pz.title} onChange={e => { const newArr=[...localPrizes.degree]; newArr[idx].title=e.target.value; setLocalPrizes({...localPrizes, degree: newArr}); }} className={`flex-1 text-sm font-bold p-3 rounded-xl border outline-none focus:border-indigo-500 ${pz.isHidden ? 'border-red-200 bg-red-50 text-red-700 line-through decoration-red-300' : 'border-slate-200 bg-white text-slate-800'}`} placeholder={`${idx+1}. Ödül Başlığı`}/>
+                      
+                      {/* 🚀 GİZLEME (GÖZ) BUTONU */}
+                      <button onClick={() => togglePrizeVisibility('degree', idx)} className={`p-3 rounded-xl transition ${pz.isHidden ? 'text-red-500 bg-red-100 hover:bg-red-200' : 'text-blue-500 bg-blue-50 hover:bg-blue-100'}`} title={pz.isHidden ? "Ödül Gizli (Göstermek İçin Tıkla)" : "Ödülü Gizle"}>
+                          {pz.isHidden ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
+                      </button>
+
+                      <button onClick={() => { const newArr=localPrizes.degree.filter((_,i)=>i!==idx); setLocalPrizes({...localPrizes, degree:newArr}); }} className="p-3 text-red-500 bg-red-50 hover:bg-red-100 rounded-xl" title="Ödülü Tamamen Sil"><Trash2 className="w-4 h-4"/></button>
                   </div>
                   <input type="text" value={pz.img} onChange={e => { const newArr=[...localPrizes.degree]; newArr[idx].img=e.target.value; setLocalPrizes({...localPrizes, degree: newArr}); }} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2" placeholder="Resim Linki veya Dosya Adı"/>
                   <textarea rows="2" value={pz.desc} onChange={e => { const newArr=[...localPrizes.degree]; newArr[idx].desc=e.target.value; setLocalPrizes({...localPrizes, degree: newArr}); }} className="w-full text-sm font-medium p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 resize-none" placeholder="Açıklama"/>
                 </div>
               ))}
             </div>
+
             {/* Katılım Ödülleri */}
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
               <div className="text-sm font-black text-slate-800 mb-3 flex justify-between items-center">
                  <span className="flex items-center"><Gift className="w-5 h-5 text-emerald-500 mr-2"/> Katılım Ödülleri</span>
-                 <button onClick={() => setLocalPrizes({...localPrizes, participation: [...localPrizes.participation, {title:'', desc:'', img:''}]})} className="text-emerald-600 bg-emerald-50 p-1.5 rounded-lg hover:bg-emerald-100"><Plus className="w-4 h-4"/></button>
+                 <button onClick={() => setLocalPrizes({...localPrizes, participation: [...localPrizes.participation, {title:'', desc:'', img:'', isHidden: false}]})} className="text-emerald-600 bg-emerald-50 p-1.5 rounded-lg hover:bg-emerald-100"><Plus className="w-4 h-4"/></button>
               </div>
               {localPrizes.participation.map((pz, idx) => (
-                <div key={idx} className="mb-4 pb-4 border-b border-slate-100 last:border-0 last:mb-0 last:pb-0">
-                  <div className="flex gap-2 mb-2">
-                      <input type="text" value={pz.title} onChange={e => { const newArr=[...localPrizes.participation]; newArr[idx].title=e.target.value; setLocalPrizes({...localPrizes, participation: newArr}); }} className="flex-1 text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder={`${idx+1}. Ödül Başlığı`}/>
-                      {idx > 0 && <button onClick={() => { const newArr=localPrizes.participation.filter((_,i)=>i!==idx); setLocalPrizes({...localPrizes, participation:newArr}); }} className="p-3 text-red-500 bg-red-50 hover:bg-red-100 rounded-xl"><Trash2 className="w-4 h-4"/></button>}
+                <div key={idx} className={`mb-4 pb-4 border-b border-slate-100 last:border-0 last:mb-0 last:pb-0 transition-opacity ${pz.isHidden ? 'opacity-50' : 'opacity-100'}`}>
+                  <div className="flex gap-2 mb-2 items-center">
+                      <span className="text-xs font-black text-slate-400 w-4">{idx+1}.</span>
+                      <input type="text" value={pz.title} onChange={e => { const newArr=[...localPrizes.participation]; newArr[idx].title=e.target.value; setLocalPrizes({...localPrizes, participation: newArr}); }} className={`flex-1 text-sm font-bold p-3 rounded-xl border outline-none focus:border-indigo-500 ${pz.isHidden ? 'border-red-200 bg-red-50 text-red-700 line-through decoration-red-300' : 'border-slate-200 bg-white text-slate-800'}`} placeholder={`${idx+1}. Ödül Başlığı`}/>
+                      
+                      {/* 🚀 GİZLEME (GÖZ) BUTONU */}
+                      <button onClick={() => togglePrizeVisibility('participation', idx)} className={`p-3 rounded-xl transition ${pz.isHidden ? 'text-red-500 bg-red-100 hover:bg-red-200' : 'text-blue-500 bg-blue-50 hover:bg-blue-100'}`} title={pz.isHidden ? "Ödül Gizli (Göstermek İçin Tıkla)" : "Ödülü Gizle"}>
+                          {pz.isHidden ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
+                      </button>
+
+                      {idx > 0 && <button onClick={() => { const newArr=localPrizes.participation.filter((_,i)=>i!==idx); setLocalPrizes({...localPrizes, participation:newArr}); }} className="p-3 text-red-500 bg-red-50 hover:bg-red-100 rounded-xl" title="Ödülü Tamamen Sil"><Trash2 className="w-4 h-4"/></button>}
                   </div>
                   <input type="text" value={pz.img} onChange={e => { const newArr=[...localPrizes.participation]; newArr[idx].img=e.target.value; setLocalPrizes({...localPrizes, participation: newArr}); }} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2" placeholder="Resim Linki veya Dosya Adı"/>
                   <textarea rows="2" value={pz.desc} onChange={e => { const newArr=[...localPrizes.participation]; newArr[idx].desc=e.target.value; setLocalPrizes({...localPrizes, participation: newArr}); }} className="w-full text-sm font-medium p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 resize-none" placeholder="Açıklama"/>

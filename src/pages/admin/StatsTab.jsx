@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Map, ChevronDown, ChevronRight, Plus, FileText, Download } from 'lucide-react';
+import { Map, ChevronDown, ChevronRight, Plus, FileText, Download, Trash2, Users, Phone } from 'lucide-react';
 import { db, appId } from '../../services/firebase';
 import { updateDoc, doc } from "firebase/firestore";
 import { LOCATIONS } from '../../data/constants';
@@ -117,7 +117,8 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
           newCenters.push(exceptionModal.center);
       }
 
-      const newMapObj = { district, neighborhood, gender, centerId: exceptionModal.center.id, contactName, phone: phone || "0553 973 54 40" };
+      // 🚀 YENİ: isException bayrağı eklendi
+      const newMapObj = { district, neighborhood, gender, centerId: exceptionModal.center.id, contactName, phone: phone || "0553 973 54 40", isException: true };
       newMappings.push(newMapObj);
 
       try {
@@ -126,6 +127,22 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
           alert("İstisna ataması başarıyla tamamlandı!");
           setExceptionModal({ isOpen: false, center: null, sourceZone: null });
       } catch(e) { console.error(e) }
+  };
+
+  // 🚀 YENİ FONKSİYON: İstisna Silme İşlemi
+  const handleDeleteException = async (zoneId, district, neighborhood, gender) => {
+      if(!window.confirm(`${district} / ${neighborhood} istisna atamasını silmek istediğinize emin misiniz?`)) return;
+      
+      try {
+          const targetZone = zones.find(z => z.id === zoneId);
+          const updatedMappings = targetZone.mappings.filter(m => !(m.district === district && m.neighborhood === neighborhood && m.gender === gender));
+          
+          setHasMadeChanges(true);
+          await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', zoneId.toString()), { mappings: updatedMappings });
+      } catch(e) { 
+          console.error(e); 
+          alert("Silinirken bir hata oluştu.");
+      }
   };
 
   let missingListRaw = getMissingMappings();
@@ -143,7 +160,10 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
       groupedMissing[m.zone].push(m);
   });
 
+  // Excel ve İstisna Listesi İçin Veri Hazırlığı
   let allAssignments = [];
+  let exceptionAssignments = []; // 🚀 İstisnaları tutacağımız yeni dizi
+
   zones.forEach(z => {
       const zMappings = z.mappings || [];
       const zCenters = z.centers || [];
@@ -153,7 +173,9 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
           for(let prov in LOCATIONS) {
               if (LOCATIONS[prov][m.district]) { province = prov; break; }
           }
-          allAssignments.push({
+          
+          const assignmentObj = {
+              zoneId: z.id,
               zoneName: z.name,
               province: province,
               district: m.district,
@@ -164,7 +186,15 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
               phone: m.phone || "-",
               address: center.address || "-",
               mapLink: center.mapLink || ""
-          });
+          };
+
+          allAssignments.push(assignmentObj);
+
+          // Eğer manuel isException işaretlenmişse VEYA mahalle o mıntıkanın normal sınırlarında değilse İstisna sayılır
+          const isNormalDistrict = z.districts?.includes(m.district) || z.partialDistricts?.[m.district] !== undefined;
+          if (m.isException || !isNormalDistrict) {
+              exceptionAssignments.push(assignmentObj);
+          }
       });
   });
 
@@ -422,6 +452,48 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
             </div>
           </div>
         )}
+      </div>
+
+      {/* 🚀 YENİ BÖLÜM: Kayıtlı İstisna (Paylaşımlı) Mahalleler Listesi */}
+      <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12 animate-in fade-in zoom-in-95 duration-300">
+          <h3 className="font-black text-3xl text-slate-900 mb-2 flex items-center"><MapPin className="mr-3 w-8 h-8 text-amber-500"/> Paylaşımlı (İstisna) Atanan Mahalleler</h3>
+          <p className="text-slate-500 font-bold mb-8">Kendi mıntıkası dışında, başka bir mıntıkanın kurumuna atanan mahallelerin listesi.</p>
+          
+          {exceptionAssignments.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                 {exceptionAssignments.map((exc, idx) => {
+                     let p = String(exc.phone || "").replace(/\D/g, '');
+                     return (
+                       <div key={idx} className="bg-amber-50 border-2 border-amber-200 p-5 rounded-3xl relative group hover:shadow-lg transition-all">
+                          <button 
+                             onClick={() => handleDeleteException(exc.zoneId, exc.district, exc.neighborhood, exc.gender)}
+                             className="absolute top-4 right-4 bg-white p-2 rounded-xl text-red-400 hover:text-white hover:bg-red-500 shadow-sm transition-colors"
+                             title="İstisna Atamasını Sil"
+                          >
+                             <Trash2 className="w-5 h-5" />
+                          </button>
+                          
+                          <div className="pr-12">
+                             <div className="flex items-center gap-2 mb-2">
+                                <span className="bg-amber-200 text-amber-800 text-xs font-black px-2 py-1 rounded-lg uppercase">{exc.zoneName} Mıntıkasına Bağlandı</span>
+                             </div>
+                             <h4 className="font-black text-xl text-slate-800">{exc.district} / {exc.neighborhood}</h4>
+                             <p className="text-sm font-bold text-indigo-600 mb-3 flex items-center"><MapPin className="w-4 h-4 mr-1"/> {exc.centerName} <span className="ml-2 bg-indigo-100 px-2 py-0.5 rounded-md text-xs">{exc.gender}</span></p>
+                             
+                             <div className="bg-white p-3 rounded-2xl border border-amber-100 text-sm">
+                                <p className="font-bold text-slate-700 flex items-center mb-1"><Users className="w-4 h-4 mr-2 text-slate-400"/> {exc.contactName || "İsim Yok"}</p>
+                                <p className="font-bold text-slate-700 flex items-center"><Phone className="w-4 h-4 mr-2 text-slate-400"/> 0{p}</p>
+                             </div>
+                          </div>
+                       </div>
+                     )
+                 })}
+              </div>
+          ) : (
+              <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl p-10 text-center">
+                  <p className="text-slate-500 font-bold">Şu an aktif bir istisna ataması bulunmuyor.</p>
+              </div>
+          )}
       </div>
 
       <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-[3rem] shadow-xl p-8 md:p-12 text-white flex flex-col md:flex-row justify-between items-center animate-in fade-in zoom-in-95 duration-300">

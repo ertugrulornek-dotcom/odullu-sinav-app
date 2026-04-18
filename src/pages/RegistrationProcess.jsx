@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'; //7
+import React, { useState, useEffect, useRef } from 'react';
 import { Phone, Plus, MapPin, AlertCircle, CalendarIcon, Clock, CheckCircle2, Gift, ChevronRight, School, Trophy } from 'lucide-react';
 import { Image as ImageIcon } from 'lucide-react';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, onSnapshot } from "firebase/firestore";
@@ -89,7 +89,6 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
   const [selectedExam, setSelectedExam] = useState(null);
   const [selectedSlot, setSelectedSlot] = useState(null); 
   
-  // 🚀 DÜZELTME 1: isMultiCenter State'i buraya eklendi
   const [isMultiCenter, setIsMultiCenter] = useState(false);
   
   const [selectedParticipationPrize, setSelectedParticipationPrize] = useState(currentUser?.selectedParticipationPrize || '');
@@ -108,13 +107,13 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
   }, []);
 
   const didPrefill = useRef(false);
-useEffect(() => {
-  if (currentUser && !didPrefill.current) {
-    didPrefill.current = true;
-    setFormData({ fullName: currentUser.fullName || '', phone: currentUser.phone || '', grade: currentUser.grade || '8', parentName: currentUser.parentName || '', gender: currentUser.gender || '', email: currentUser.email || '', schoolName: currentUser.schoolName || '', province: currentUser.province || '', district: currentUser.district || '', neighborhood: currentUser.neighborhood || '', selectedCenterId: '' });
-    setStep(2);
-  }
-}, [currentUser]);
+  useEffect(() => {
+    if (currentUser && !didPrefill.current) {
+      didPrefill.current = true;
+      setFormData({ fullName: currentUser.fullName || '', phone: currentUser.phone || '', grade: currentUser.grade || '8', parentName: currentUser.parentName || '', gender: currentUser.gender || '', email: currentUser.email || '', schoolName: currentUser.schoolName || '', province: currentUser.province || '', district: currentUser.district || '', neighborhood: currentUser.neighborhood || '', selectedCenterId: '' });
+      setStep(2);
+    }
+  }, [currentUser]);
 
   const handlePhoneInput = (e) => {
     let val = e.target.value.replace(/\D/g, ''); 
@@ -151,30 +150,26 @@ useEffect(() => {
     else alert("Girdiğiniz doğrulama kodu hatalı. Lütfen tekrar deneyin.");
   };
 
-  // YENİ
-useEffect(() => {
-  if (!formData.province || !formData.district || !formData.grade) return;
+  useEffect(() => {
+    if (!formData.province || !formData.district || !formData.grade) return;
 
-  const gradeNum = parseInt(formData.grade);
-  const filtered = SCHOOLS.filter(
-    s => s.province === formData.province &&
-         s.district === formData.district &&
-         s.type === (gradeNum <= 4 ? 'ilkokul' : 'ortaokul')
-  );
-  filtered.sort((a, b) => a.name.localeCompare(b.name, 'tr-TR'));
-  setAvailableSchools(filtered);
+    const gradeNum = parseInt(formData.grade);
+    const filtered = SCHOOLS.filter(
+      s => s.province === formData.province &&
+           s.district === formData.district &&
+           s.type === (gradeNum <= 4 ? 'ilkokul' : 'ortaokul')
+    );
+    filtered.sort((a, b) => a.name.localeCompare(b.name, 'tr-TR'));
+    setAvailableSchools(filtered);
 
-  // isCustomSchool'u fonksiyonel güncelleme ile okumak yerine
-  // doğrudan parametre olarak geçiriyoruz — stale closure riski ortadan kalkar
-  setFormData(prev => {
-    if (!isCustomSchool && !filtered.some(s => s.name === prev.schoolName)) {
-      return { ...prev, schoolName: '' };
-    }
-    return prev; // değişiklik yoksa aynı referansı döndür → yeniden render YOK
-  });
-}, [formData.province, formData.district, formData.grade, isCustomSchool]);
+    setFormData(prev => {
+      if (!isCustomSchool && !filtered.some(s => s.name === prev.schoolName)) {
+        return { ...prev, schoolName: '' };
+      }
+      return prev; 
+    });
+  }, [formData.province, formData.district, formData.grade, isCustomSchool]);
 
-  // 🚀 DÜZELTME 2: Çoklu Merkez İçin Mıntıka Belirleme (Doğru Yerleşim)
   useEffect(() => {
     if (formData.district && formData.neighborhood) {
       const zoneResult = determineZoneName(formData.province, formData.district, formData.neighborhood, formData.gender, formData.grade, zones);
@@ -207,8 +202,17 @@ useEffect(() => {
   const partPrizesList = safeArray(matchedZone?.prizes?.participation);
   const degreePrizesList = safeArray(matchedZone?.prizes?.degree);
   
-  const validPartPrizesList = partPrizesList.filter(p => p && p.title && String(p.title).trim() !== '');
-  const validDegreePrizesList = degreePrizesList.filter(p => p && p.title && String(p.title).trim() !== '');
+  // 🚀 YENİ PROFESYONEL MANTIK: Gizlenmiş (isHidden: true) olanları yeni kullanıcılara gösterme!
+  // Eğer kullanıcının daha önceden seçtiği ödül gizlenmişse bile, sırf onun ekranında görebilmesi için listeye dahil et.
+  const validPartPrizesList = partPrizesList.filter(p => 
+      p && p.title && String(p.title).trim() !== '' && 
+      (!p.isHidden || p.title === currentUser?.selectedParticipationPrize)
+  );
+
+  const validDegreePrizesList = degreePrizesList.filter(p => 
+      p && p.title && String(p.title).trim() !== '' && 
+      !p.isHidden
+  );
 
   const needsPartSelection = validPartPrizesList.length > 0;
 
@@ -222,11 +226,11 @@ useEffect(() => {
 
 
   const handleComplete = async (withoutExam = false) => {
-  if (!withoutExam && (!selectedExam || !selectedSlot)) {
-  alert("Lütfen bir sınav oturumu seçiniz.");
-  setIsSubmitting(false);
-  return;
-} 
+    if (!withoutExam && (!selectedExam || !selectedSlot)) {
+      alert("Lütfen bir sınav oturumu seçiniz.");
+      setIsSubmitting(false);
+      return;
+    } 
 
     setIsSubmitting(true);
     const finalSchoolName = isCustomSchool ? customSchoolName : formData.schoolName;
@@ -258,7 +262,7 @@ useEffect(() => {
         if (!withoutExam && finalUserObj.selectedDate) {
            const contactPhone = initialCenterInfo.phone || "0553 973 54 40";
            const updateMsg = `Sayın ${finalUserObj.fullName},\nodullusinav.net başvurunuz GÜNCELLENDİ!\n\nYeni Oturum Bilgileriniz:\nSınav: ${finalUserObj.examTitle}\nTarih: ${finalUserObj.selectedDate}\nSaat: ${finalUserObj.selectedTime}\nKonum: ${initialCenterInfo.mapLink || 'Belirtilmedi'}\n\nDetaylı bilgi için profilinize giriş yapabilirsiniz. Başarılar!${SMS_FOOTER}`;
-           sendSMS([{tel: [finalUserObj.phone], msg: updateMsg}]);
+           try { await sendSMS([{tel: [finalUserObj.phone], msg: updateMsg}]); } catch (smsErr) { console.warn("SMS Hatası", smsErr); }
         }
       } else {
         const newStudent = withoutExam ? { ...baseData, password: finalPassword, examId: null, examTitle: null, selectedDate: null, selectedTime: null, isWaitingPool: true, pastExams: [], attendance: '', interview: '', interviewResult: '', registrationDate: new Date().toLocaleDateString('tr-TR'), createdAt: new Date().getTime() } 
@@ -268,11 +272,11 @@ useEffect(() => {
         setCurrentUser(finalUserObj);
 
         if (withoutExam) {
-           sendSMS([{tel: [finalUserObj.phone], msg: `Sayın ${finalUserObj.fullName},\nodullusinav.net basvurunuz alinmistir.\nGiris Sifreniz: ${finalPassword}.\nBolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`}]);
+           try { await sendSMS([{tel: [finalUserObj.phone], msg: `Sayın ${finalUserObj.fullName},\nodullusinav.net basvurunuz alinmistir.\nGiris Sifreniz: ${finalPassword}.\nBolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`}]); } catch(smsErr){}
         } else if (finalUserObj.selectedDate) {
            const contactPhone = initialCenterInfo.phone || "0553 973 54 40";
            const regMsg = `Sayın ${finalUserObj.fullName},\nodullusinav.net başvurunuz alınmıştır.\n\nGiris Sifreniz: ${finalPassword}.\n\nSınav Merkeziniz ${finalUserObj.district} ilçesi ${finalUserObj.neighborhood} mahallesindedir.\n\nOturum: ${finalUserObj.selectedDate} - ${finalUserObj.selectedTime}\nKonum: ${initialCenterInfo.mapLink || 'Belirtilmedi'}\nİletişim: ${contactPhone}${SMS_FOOTER}`;
-           sendSMS([{tel: [finalUserObj.phone], msg: regMsg}]);
+           try { await sendSMS([{tel: [finalUserObj.phone], msg: regMsg}]); } catch(smsErr){}
         }
       }
       setStep(3); 
@@ -323,7 +327,6 @@ useEffect(() => {
               <div><label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Mahalle</label><select className="w-full border-2 border-slate-200 rounded-2xl px-5 py-4 text-xl font-bold outline-none disabled:bg-slate-100" disabled={!formData.district} value={formData.neighborhood} onChange={e => setFormData({...formData, neighborhood: e.target.value})}><option value="">Mahalle Seçiniz</option>{availableNeighborhoods.map(hood => (<option key={hood} value={hood}>{hood} Mah.</option>))}</select></div>
             </div>
 
-            {/* 🚀 DÜZELTME 3: Çoklu Merkez UI Doğru Yere Yerleştirildi */}
             {isMultiCenter && (
               <div className="bg-amber-50 p-6 rounded-3xl border-2 border-amber-200 mt-4">
                 <label className="block text-sm font-black text-amber-800 mb-2 uppercase">Mahallenizde Birden Fazla Sınav Merkezi Bulunuyor. Lütfen Seçin:</label>
@@ -351,7 +354,6 @@ useEffect(() => {
                     .filter(m => m.district === formData.district && m.neighborhood === formData.neighborhood && (m.gender === formData.gender || m.gender === 'Tümü' || (m.gender === '8. Sınıf Erkek' && formData.grade === '8' && formData.gender === 'Erkek')))
                     .map(m => {
                       const center = zones.flatMap(z => z.centers).find(c => c.id === m.centerId);
-                      // Sadece var olan ve adı olan merkezleri listele
                       if(center && center.name) {
                          return <option key={m.centerId} value={m.centerId}>{center.name} ({findZoneByName(zones, m.zoneName || zones.find(z=>z.mappings.includes(m))?.name)?.name} Mıntıkası)</option>;
                       }
