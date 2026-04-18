@@ -1,11 +1,9 @@
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useMemo } from 'react';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import TimelineCalendar from '../components/TimelineCalendar';
 import CombinedPrizeSection from '../components/CombinedPrizeSection';
 import { ThemeContext } from '../components/ThemeSelector';
 import { INITIAL_ZONES } from '../data/constants';
-import { db, appId } from '../services/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 export default function LandingPage({ navigateTo, currentUser, detectedZone, scrollToSection, exams, zones }) {
   const { currentTheme } = useContext(ThemeContext);
@@ -17,18 +15,25 @@ export default function LandingPage({ navigateTo, currentUser, detectedZone, scr
      
   const displayPrizes = activeZone?.prizes;
 
-  const uniqueExams = [];
-  const seenExams = new Set();
-  exams.forEach(e => {
-      const key = e.title?.trim().toLowerCase();
-      if(key && !seenExams.has(key)) { seenExams.add(key); uniqueExams.push(e); }
-  });
-  const displayExams = useMemo(() => 
-  currentUser 
-    ? exams.filter(e => e.zoneId === currentUser.zone?.id) 
-    : uniqueExams,
-  [exams.length, currentUser?.zone?.id, uniqueExams]
-);
+  // 🚀 OPTİMİZASYON: Tüm filtreleme ve benzersiz (unique) sınav bulma işlemi useMemo içine alındı!
+  // Böylece hem referans hatası çözüldü, hem de döngüler gereksiz yere çalışmayacak.
+  const displayExams = useMemo(() => {
+    if (currentUser) {
+      return exams.filter(e => e.zoneId === currentUser.zone?.id);
+    } 
+    
+    // Eğer kullanıcı giriş yapmadıysa benzersiz sınavları hesapla
+    const unique = [];
+    const seen = new Set();
+    exams.forEach(e => {
+        const key = e.title?.trim().toLowerCase();
+        if(key && !seen.has(key)) { 
+          seen.add(key); 
+          unique.push(e); 
+        }
+    });
+    return unique;
+  }, [exams.length, currentUser?.zone?.id, !!currentUser]);
 
   const fallbackContact = { contactName: "Bilgi & İletişim", phone: "0553 973 54 40" };
   const contactToPass = currentUser ? (activeZone?.mappings?.[0] || fallbackContact) : fallbackContact;
