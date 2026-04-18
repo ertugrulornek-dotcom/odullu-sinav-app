@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; //7
 import { Phone, Plus, MapPin, AlertCircle, CalendarIcon, Clock, CheckCircle2, Gift, ChevronRight, School, Trophy } from 'lucide-react';
 import { Image as ImageIcon } from 'lucide-react';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, onSnapshot } from "firebase/firestore";
