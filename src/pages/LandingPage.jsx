@@ -98,15 +98,22 @@ export default function LandingPage({ navigateTo, currentUser, detectedZone, scr
           
           <div id="oduller" className="pt-10 scroll-mt-24"><CombinedPrizeSection displayPrizes={displayPrizes} currentUser={currentUser} /></div>
 
-          <div id="tanitim" className="flex flex-col items-center gap-10 pt-10 scroll-mt-24">
+         <div id="tanitim" className="flex flex-col items-center gap-10 pt-10 scroll-mt-24">
             <div className="w-full max-w-4xl text-center">
               <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6 leading-tight">Deneme <span style={{ color: 'var(--color-main)' }}>Tanıtımı</span></h2>
-              <div className="w-full rounded-[2rem] shadow-2xl relative overflow-hidden bg-black border-4 border-slate-100">
-                 <video controls playsInline className="w-full aspect-video object-cover bg-black">
-                    <source src="/Ödüllü Deneme Sınavı Tanıtım Videosu.mp4" type="video/mp4" />
-                    Tarayıcınız video oynatmayı desteklemiyor.
-                 </video>
+              
+              {/* 🚀 DÜZELTME: Siyah kutu tamamen silindi, sadece video kutusu var ve YouTube logoları gizlendi */}
+              <div className="w-full max-w-3xl mx-auto rounded-3xl shadow-2xl overflow-hidden border-4 border-slate-100 aspect-video flex">
+                 <iframe 
+                    className="w-full h-full object-cover"
+                    src="https://www.youtube.com/embed/OmL1vHD_u1g?rel=0&modestbranding=1" 
+                    title="Ödüllü Deneme Sınavı Tanıtım Videosu" 
+                    frameBorder="0" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                    allowFullScreen
+                 ></iframe>
               </div>
+
               <div className="mt-8 flex flex-col md:flex-row items-center justify-center text-center md:text-left max-w-3xl mx-auto px-4 gap-3">
                  <AlertCircle className="w-6 h-6 text-amber-500 flex-shrink-0" />
                  <p className="text-lg md:text-xl text-slate-700 font-bold leading-relaxed">

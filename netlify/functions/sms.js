@@ -29,18 +29,25 @@ exports.handler = async (event, context) => {
       body: postData.toString()
     });
 
-    const result = await response.json();
+    // 🚀 DÜZELTME BURADA: json() yerine text() kullanıyoruz!
+    // MesajPaneli bize Base64 ("eyJzdGF0...") metni dönüyor. Zorla JSON'a çevirip kodu çökertmek yerine düz metin olarak okuyoruz.
+    const responseText = await response.text();
+    console.log("MesajPaneli API Cevabı:", responseText);
     
-    // İşlem sonucunu React tarafına başarıyla gönder
+    // İşlem sonucunu React tarafına çökmeden, başarıyla gönder
     return {
       statusCode: 200,
-      body: JSON.stringify(result)
+      body: JSON.stringify({
+         success: true,
+         message: "SMS API isteği başarıyla iletildi.",
+         apiResponse: responseText // Gelen cevabı frontend'e bozmadan iletiyoruz
+      })
     };
   } catch (error) {
     console.error("Netlify SMS Hatası:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "İç sunucu hatası." })
+      body: JSON.stringify({ error: "İç sunucu hatası.", details: error.message })
     };
   }
 };
