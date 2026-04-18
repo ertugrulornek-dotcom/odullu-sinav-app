@@ -1,13 +1,19 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import TimelineCalendar from '../components/TimelineCalendar';
 import CombinedPrizeSection from '../components/CombinedPrizeSection';
 import { ThemeContext } from '../components/ThemeSelector';
 import { INITIAL_ZONES } from '../data/constants';
+import { db, appId } from '../services/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 export default function LandingPage({ navigateTo, currentUser, detectedZone, scrollToSection, exams, zones }) {
   const { currentTheme } = useContext(ThemeContext);
   
+  // DÜZELTME: ZOMBİ DÖNGÜSÜNÜN KAYNAĞI BULUNDU VE KALDIRILDI!
+  // Aşağıdaki useEffect kodu eskiden burada bulunuyordu ve sayfa her açıldığında (dependency array boş olmadığı için veya eksik olduğu için) 
+  // veritabanına sorgu atıp durumu güncelliyordu. Bunu tamamen kaldırdık!
+
   const defaultZone = zones.find(z => z.districts?.includes('Gebze')) || zones[0] || INITIAL_ZONES[0];
   const activeZone = currentUser 
      ? zones.find(z => z.id === currentUser.zone?.id) 
@@ -23,7 +29,6 @@ export default function LandingPage({ navigateTo, currentUser, detectedZone, scr
   });
   const displayExams = currentUser ? exams.filter(e => e.zoneId === currentUser.zone?.id) : uniqueExams;
 
-  // DÜZELTME: Giriş yapılmadığında (profilde değilken) her zaman varsayılan numara gönderilir
   const fallbackContact = { contactName: "Bilgi & İletişim", phone: "0553 973 54 40" };
   const contactToPass = currentUser ? (activeZone?.mappings?.[0] || fallbackContact) : fallbackContact;
 
@@ -119,7 +124,6 @@ export default function LandingPage({ navigateTo, currentUser, detectedZone, scr
                      <ul className="flex flex-col gap-4 text-left ml-4 md:ml-0 mb-8">
                         <li className="flex items-start gap-3">
                            <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
-                           {/* DÜZELTME: Doğrudan 2. Renk Atandı */}
                            <span className="font-black text-xl md:text-2xl drop-shadow-md" style={{ color: 'var(--color-contrast)' }}>Konu Bazlı Performans Karnesi</span>
                         </li>
                         <li className="flex items-start gap-3">
@@ -144,7 +148,6 @@ export default function LandingPage({ navigateTo, currentUser, detectedZone, scr
                      <ul className="flex flex-col gap-5 text-left ml-4 md:ml-0 mb-8">
                         <li className="flex items-start gap-3">
                            <CheckCircle2 className="w-7 h-7 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-contrast)' }} />
-                           {/* DÜZELTME: Doğrudan 2. Renk Atandı */}
                            <span className="font-black text-lg md:text-xl uppercase tracking-wide drop-shadow-md" style={{ color: 'var(--color-contrast)' }}>DERECEYE GİRENLERE EĞİTİM BURSU!</span>
                         </li>
                         <li className="flex items-start gap-3">

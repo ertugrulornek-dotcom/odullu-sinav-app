@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Gift, Trophy, Award, Plus, Trash2, CalendarIcon, CheckCircle2, Edit } from 'lucide-react';
+import { Gift, Trophy, Award, Plus, Trash2, CalendarIcon, CheckCircle2, Edit, AlertCircle } from 'lucide-react';
 import { db, appId } from '../../services/firebase';
 import { updateDoc, doc, addDoc, collection, deleteDoc, getDocs, query, where } from "firebase/firestore";
 import { INITIAL_ZONES } from '../../data/constants';
@@ -12,6 +12,16 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
   const [examSessions, setExamSessions] = useState([{ date: '', times: '' }]);
   const [editingExamId, setEditingExamId] = useState(null);
 
+  // 🚀 YENİ: Akıllı Eşleştirme Modalı State'i
+  const [prizeMappingModal, setPrizeMappingModal] = useState({
+      isOpen: false,
+      unmatchedOldPrizes: [],
+      newPrizes: [],
+      affectedStudents: [],
+      targetZoneIds: [],
+      currentMapping: {} 
+  });
+
   useEffect(() => {
     if(adminZoneData && !isSuperAdmin) {
       setLocalPrizes({
@@ -22,46 +32,115 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
     }
   }, [adminZoneData, isSuperAdmin]);
 
-  // DÜZELTME: Ödüller Değişince SMS Atma Sistemi
+  // 🚀 DÜZELTME: Akıllı Ödül Güncelleme ve Eşleştirme Sistemi
   const handleUpdatePrizes = async () => {
     try {
-      setHasMadeChanges(true);
       const targetZoneIds = isSuperAdmin ? INITIAL_ZONES.map(z => z.id) : [adminZoneId];
-      
-      let totalSmsCount = 0;
+      const newPartPrizes = localPrizes.participation.filter(p => p.title).map(p => p.title);
+      const newPartPrizesLower = newPartPrizes.map(p => p.toLowerCase().trim());
 
+      let allAffectedStudents = [];
+      
+      // 1. Olası tüm öğrencileri çek
       for (const zId of targetZoneIds) {
-          await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', zId.toString()), { prizes: localPrizes });
-          
           const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'students'), where("zone.id", "==", parseInt(zId)));
           const studentsSnap = await getDocs(q);
-          
-          let smsQueue = [];
-          let updatePromises = [];
-          const partPrizesList = localPrizes.participation.map(p => p.title);
-          
           studentsSnap.docs.forEach(d => {
               const s = { firebaseId: d.id, ...d.data() };
-              if (s.selectedParticipationPrize && !partPrizesList.includes(s.selectedParticipationPrize)) {
-                  updatePromises.push(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', s.firebaseId), { selectedParticipationPrize: '' }));
-                  if (s.phone) smsQueue.push({ tel: [s.phone], msg: `Önemli: Bölgenizdeki katılım ödülleri güncellenmiştir. Lütfen odullusinav.net profilinize giriş yaparak yeni ödülünüzü seçiniz.${SMS_FOOTER}` });
+              if (s.selectedParticipationPrize) {
+                  allAffectedStudents.push(s);
               }
           });
-          
-          await Promise.all(updatePromises);
-          if (smsQueue.length > 0) { 
-             await sendSMS(smsQueue); 
-             totalSmsCount += smsQueue.length;
+      }
+
+      // 2. Büyük/Küçük harf toleransı ile eşleşmeyen eski ödülleri bul
+      const uniqueOldPrizes = [...new Set(allAffectedStudents.map(s => s.selectedParticipationPrize))];
+      const unmatched = [];
+
+      uniqueOldPrizes.forEach(oldPrize => {
+          const oldLower = oldPrize.toLowerCase().trim();
+          if (!newPartPrizesLower.includes(oldLower)) {
+              unmatched.push(oldPrize);
           }
-      }
+      });
 
-      if (totalSmsCount > 0) {
-          alert(`Ödüller başarıyla güncellendi! Etkilenen ${totalSmsCount} öğrencinin eski ödülü sıfırlandı ve SMS ile haber verildi.`);
+      if (unmatched.length > 0) {
+          // 3. Eşleşmeyen var, Yöneticiye Sor (Modalı Aç)
+          const initialMapping = {};
+          unmatched.forEach(p => initialMapping[p] = '');
+          setPrizeMappingModal({
+              isOpen: true,
+              unmatchedOldPrizes: unmatched,
+              newPrizes: newPartPrizes,
+              affectedStudents: allAffectedStudents,
+              targetZoneIds: targetZoneIds,
+              currentMapping: initialMapping
+          });
       } else {
-          alert(`Ödüller başarıyla güncellendi!`);
+          // 4. Hepsi birebir veya harf büyüklüğü olarak eşleşiyor. Sessizce güncelle.
+          await executeFinalPrizeUpdate(targetZoneIds, allAffectedStudents, newPartPrizes, {});
       }
-
     } catch (e) { console.error(e); }
+  };
+
+  const executeFinalPrizeUpdate = async (targetZoneIds, affectedStudents, newPrizes, manualMapping) => {
+    try {
+        setHasMadeChanges(true);
+        let totalSmsCount = 0;
+        let smsQueue = [];
+        let updatePromises = [];
+
+        // 1. Önce Bölge Ödüllerini (Zones) Güncelle
+        for (const zId of targetZoneIds) {
+            updatePromises.push(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', zId.toString()), { prizes: localPrizes }));
+        }
+
+        // 2. Öğrencileri Güncelle (Sessiz Eşleştirme veya SMS atma)
+        const newPrizesLowerMap = {};
+        newPrizes.forEach(p => newPrizesLowerMap[p.toLowerCase().trim()] = p);
+
+        for (const s of affectedStudents) {
+            const oldPrize = s.selectedParticipationPrize;
+            const oldLower = oldPrize.toLowerCase().trim();
+
+            let finalPrizeForStudent = oldPrize; 
+
+            if (newPrizesLowerMap[oldLower]) {
+                // Otomatik eşleşme (sadece harf veya boşluk farkı)
+                finalPrizeForStudent = newPrizesLowerMap[oldLower];
+            } else if (manualMapping[oldPrize]) {
+                // Yöneticinin Modal'dan seçtiği eşleşme
+                finalPrizeForStudent = manualMapping[oldPrize];
+            }
+
+            if (finalPrizeForStudent === 'DELETE') {
+                // Yönetici SMS atılsın dedi
+                updatePromises.push(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', s.firebaseId), { selectedParticipationPrize: '' }));
+                if (s.phone) smsQueue.push({ tel: [s.phone], msg: `Önemli: Bölgenizdeki katılım ödülleri güncellenmiştir. Lütfen odullusinav.net profilinize giriş yaparak yeni ödülünüzü seçiniz.${SMS_FOOTER}` });
+            } else if (finalPrizeForStudent !== oldPrize) {
+                // İsim değiştirildi, öğrenciyi sessizce güncelle (SMS YOK)
+                updatePromises.push(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', s.firebaseId), { selectedParticipationPrize: finalPrizeForStudent }));
+            }
+        }
+
+        await Promise.all(updatePromises);
+        if (smsQueue.length > 0) { 
+           await sendSMS(smsQueue); 
+           totalSmsCount += smsQueue.length;
+        }
+
+        setPrizeMappingModal({ isOpen: false, unmatchedOldPrizes: [], newPrizes: [], affectedStudents: [], targetZoneIds: [], currentMapping: {} });
+
+        if (totalSmsCount > 0) {
+            alert(`Ödüller güncellendi! İptal edilen ${totalSmsCount} öğrenciye SMS ile haber verildi.`);
+        } else {
+            alert(`Ödüller başarıyla güncellendi! Hiçbir öğrenciye SMS gitmedi, profilleri sessizce güncellendi.`);
+        }
+
+    } catch (e) {
+        console.error("Güncelleme hatası", e);
+        alert("Ödüller güncellenirken bir hata oluştu.");
+    }
   };
 
   const handleAddSessionRow = () => setExamSessions([...examSessions, { date: '', times: '' }]);
@@ -157,7 +236,66 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
   };
 
   return (
-    <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12 animate-in fade-in zoom-in-95 duration-300">
+    <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12 animate-in fade-in zoom-in-95 duration-300 relative">
+      
+      {/* 🚀 AKILLI EŞLEŞTİRME MODALI BAŞLANGICI */}
+      {prizeMappingModal.isOpen && (
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[99] flex items-center justify-center p-4">
+              <div className="bg-white rounded-[2rem] shadow-2xl p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto border-4 border-indigo-100 animate-in zoom-in-95">
+                  <h3 className="text-2xl font-black text-slate-800 mb-4 flex items-center"><AlertCircle className="w-8 h-8 text-amber-500 mr-3"/> Ödül Eşleştirme Gerekli</h3>
+                  <p className="text-slate-600 font-bold mb-6 text-sm leading-relaxed">
+                      Mustafa, ödül listesini değiştirdin. Sistem, daha önceden eski ödülleri seçmiş öğrenciler olduğunu tespit etti. <br/>
+                      Lütfen aşağıdaki eski ödüllerin, <span className="text-indigo-600">yeni listede hangi ödüle denk geldiğini seç.</span> Eğer bu ödülü tamamen kaldırdıysan "İptal Et (SMS Gönder)" seçeneğini işaretle ki öğrenci girip yeniden seçsin. Eşleştirme yaparsan öğrenciye SMS gitmeyecek.
+                  </p>
+
+                  <div className="space-y-4 mb-8">
+                      {prizeMappingModal.unmatchedOldPrizes.map((oldPrize, idx) => {
+                          const affectedCount = prizeMappingModal.affectedStudents.filter(s => s.selectedParticipationPrize === oldPrize).length;
+                          return (
+                              <div key={idx} className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                  <div>
+                                      <div className="font-black text-slate-800">Eski Ödül: <span className="text-amber-600">"{oldPrize}"</span></div>
+                                      <div className="text-xs font-black text-slate-500 mt-1">{affectedCount} Öğrenci Bu Ödülü Seçmişti</div>
+                                  </div>
+                                  <select 
+                                      className="p-3 rounded-xl border-2 border-indigo-200 outline-none focus:border-indigo-500 font-bold text-sm bg-white"
+                                      value={prizeMappingModal.currentMapping[oldPrize] || ''}
+                                      onChange={(e) => setPrizeMappingModal({
+                                          ...prizeMappingModal, 
+                                          currentMapping: { ...prizeMappingModal.currentMapping, [oldPrize]: e.target.value }
+                                      })}
+                                  >
+                                      <option value="">-- Yeni Durumu Seçin --</option>
+                                      <option value="DELETE" className="text-red-600 font-black">❌ İPTAL ET (SMS Gönder & Sıfırla)</option>
+                                      <optgroup label="Sessizce Şununla Değiştir (SMS Gitmez):">
+                                          {prizeMappingModal.newPrizes.map(np => (
+                                              <option key={np} value={np}>✅ {np}</option>
+                                          ))}
+                                      </optgroup>
+                                  </select>
+                              </div>
+                          )
+                      })}
+                  </div>
+
+                  <div className="flex gap-4">
+                      <button onClick={() => setPrizeMappingModal({...prizeMappingModal, isOpen: false})} className="flex-1 py-4 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-xl transition">İşlemi İptal Et</button>
+                      <button 
+                          onClick={() => {
+                              const unmapped = Object.values(prizeMappingModal.currentMapping).some(v => v === '');
+                              if (unmapped) return alert("Lütfen listedeki TÜM eski ödüller için bir eylem (Eşleştirme veya İptal) seçiniz.");
+                              executeFinalPrizeUpdate(prizeMappingModal.targetZoneIds, prizeMappingModal.affectedStudents, prizeMappingModal.newPrizes, prizeMappingModal.currentMapping);
+                          }} 
+                          className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl transition shadow-lg"
+                      >
+                          Ödülleri Onayla ve Güncelle
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+      {/* 🚀 AKILLI EŞLEŞTİRME MODALI BİTİŞİ */}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b-2 border-slate-100 pb-8 gap-4">
         <div>
           <h3 className="font-black text-3xl text-slate-900 mb-2">{adminZoneData.name}</h3>
