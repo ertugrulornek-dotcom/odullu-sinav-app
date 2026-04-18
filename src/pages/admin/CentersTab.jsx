@@ -14,8 +14,9 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
      setLocalMappings(adminZoneData.mappings || []);
   }, [adminZoneData]);
   
-  const [newCenter, useState]= useState({ name: '', address: '', mapLink: '' });
-  const [newCenterState, setNewCenter] = useState({ name: '', address: '', mapLink: '' });
+  // 🚀 DÜZELTME: Hatalı state tanımlaması tek ve doğru satıra indirgendi
+  const [newCenter, setNewCenter] = useState({ name: '', address: '', mapLink: '' });
+  
   const [mappingData, setMappingData] = useState({ district: '', neighborhood: '', centerId: '', gender: '', contactName: '', phone: '' });
   const [bulkExcelData, setBulkExcelData] = useState("");
   const [editingCenter, setEditingCenter] = useState(null);
@@ -43,14 +44,11 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
     }
     
     return allHoods.filter(hood => {
-       // Körfez İstisnası korunuyor
        if (district === 'Körfez' && (hood === '17 Ağustos' || hood === 'Cumhuriyet')) {
           if (adminZoneData.name === 'Gebze' && (gender === 'Kız' || gender === '8. Sınıf Erkek' || gender === 'Tümü')) return false;
           if (adminZoneData.name === 'Akarçeşme' && (gender === 'Erkek' || gender === 'Tümü')) return false; 
        }
        
-       // 🚀 DÜZELTME: Maltepe kısıtlaması TAMAMEN KALDIRILDI. Adapazarı artık özgürce atama yapabilir.
-
        const hoodMappings = localMappings.filter(m => m.district === district && m.neighborhood === hood);
        const hasTumu = hoodMappings.some(m => m.gender === 'Tümü' || !m.gender);
        const hasErkek = hoodMappings.some(m => m.gender === 'Erkek');
@@ -86,9 +84,10 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
   });
 
   const handleAddCenter = async () => {
-    if(!newCenterState.name || !newCenterState.address) return alert("Kurum adı ve açık adres zorunludur.");
+    // 🚀 DÜZELTME: newCenterState yerine newCenter kullanıldı
+    if(!newCenter.name || !newCenter.address) return alert("Kurum adı ve açık adres zorunludur.");
     try {
-      const centerObj = { id: "c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9), name: newCenterState.name, address: newCenterState.address, mapLink: newCenterState.mapLink || "" };
+      const centerObj = { id: "c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9), name: newCenter.name, address: newCenter.address, mapLink: newCenter.mapLink || "" };
       const updatedCenters = [...localCenters, centerObj];
       setLocalCenters(updatedCenters); setHasMadeChanges(true);
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneId.toString()), { centers: updatedCenters });
@@ -191,7 +190,6 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
 
        if (!matchedDistrict || !matchedNeighborhood) { errors.push(`Satır ${i+1}: Veritabanında "${rawDistrict}" ilçesinde "${rawNeighborhood}" bulunamadı.`); continue; }
        
-       // Körfez istisnası devam ediyor, Maltepe kısıtlaması kaldırıldı.
        if (matchedDistrict === 'Körfez' && (matchedNeighborhood === '17 Ağustos' || matchedNeighborhood === 'Cumhuriyet')) {
           if (adminZoneData.name === 'Gebze' && (rawGender === 'Kız' || rawGender === '8. Sınıf Erkek' || rawGender === 'Tümü')) { errors.push(`Satır ${i+1}: Gebze mıntıkası bu mahalleye Kız veya 8. Sınıf atayamaz.`); continue; }
           if (adminZoneData.name === 'Akarçeşme' && (rawGender === 'Erkek' || rawGender === 'Tümü')) { errors.push(`Satır ${i+1}: Akarçeşme mıntıkası bu mahalleye 3-7 Erkek atayamaz.`); continue; }
@@ -259,15 +257,15 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
                 <div className="space-y-4 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
                   <div>
                     <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Kurum Adı</label>
-                    <input type="text" value={newCenterState.name} onChange={e=>setNewCenter({...newCenterState, name: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Örn: Şekerpınar Sınav Merkezi"/>
+                    <input type="text" value={newCenter.name} onChange={e=>setNewCenter({...newCenter, name: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Örn: Şekerpınar Sınav Merkezi"/>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Açık Adres</label>
-                    <textarea rows="3" value={newCenterState.address} onChange={e=>setNewCenter({...newCenterState, address: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 resize-none" placeholder="Örn: Mutlu Sk. No:5 Çayırova"/>
+                    <textarea rows="3" value={newCenter.address} onChange={e=>setNewCenter({...newCenter, address: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 resize-none" placeholder="Örn: Mutlu Sk. No:5 Çayırova"/>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Google Harita Linki</label>
-                    <input type="url" value={newCenterState.mapLink} onChange={e=>setNewCenter({...newCenterState, mapLink: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="http://maps.google.com/0..."/>
+                    <input type="url" value={newCenter.mapLink} onChange={e=>setNewCenter({...newCenter, mapLink: e.target.value})} className="w-full text-sm font-bold p-4 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="http://maps.google.com/0..."/>
                   </div>
                   <button onClick={handleAddCenter} className="bg-slate-800 hover:bg-slate-900 text-white text-base font-black py-4 px-4 rounded-xl transition w-full shadow-lg">Kurumu Ekle</button>
                 </div>

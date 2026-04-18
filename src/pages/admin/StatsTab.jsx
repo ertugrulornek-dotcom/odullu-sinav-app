@@ -40,8 +40,6 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
                else if (z.name === 'Akarçeşme') requiredGenders = ['Kız', '8. Sınıf Erkek']; 
            }
 
-           // 🚀 DÜZELTME: Maltepe İstisnası TAMAMEN KALDIRILDI
-
            const hoodMappings = mappings.filter(m => m.district === dist && m.neighborhood === hood);
            const hasTumu = hoodMappings.some(m => m.gender === 'Tümü' || !m.gender);
 
