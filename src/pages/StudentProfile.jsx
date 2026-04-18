@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Settings, Lock, CalendarIcon, Clock, MapPin, Map, Phone, Trophy, ChevronRight, Award } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, Settings, Lock, CalendarIcon, Clock, MapPin, Map, Phone, Trophy, ChevronRight, Award, Gift, AlertCircle } from 'lucide-react';
 import { db, appId } from '../services/firebase';
 import { doc, updateDoc } from "firebase/firestore";
 import { getNeighborhoodDetails, findZoneByName, parsePrizeArray, formatToTurkishDate } from '../utils/helpers';
@@ -12,7 +12,6 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
   const [newEmail, setNewEmail] = useState(currentUser?.email || '');
   const [newPrize, setNewPrize] = useState(currentUser?.selectedParticipationPrize || '');
   
-  // 🚀 YENİ EKLENDİ: Merkez Değiştirme State'i
   const [newCenterId, setNewCenterId] = useState(currentUser?.selectedCenterId || '');
 
   if (!currentUser) return <div className="text-center py-32 text-2xl font-black text-slate-500">Lütfen önce giriş yapın veya kayıt oluşturun.</div>;
@@ -25,7 +24,6 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
   const hasActiveExam = !!actualExam && !!currentUser?.selectedDate && !!currentUser?.selectedTime;
   const pastExams = currentUser.pastExams || [];
 
-  // 🚀 DÜZELTME: Öğrencinin "Seçtiği" Çoklu Merkez Varsa Onu Önceliklendir
   let actualZone = findZoneByName(zones, currentUser?.zone?.name || '') || currentUser?.zone;
   let actualCenterObj = null;
   let actualCenterMapping = null;
@@ -48,21 +46,11 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
   const zoneExams = exams.filter(e => e.zoneId === actualZone?.id);
   const partPrizesList = parsePrizeArray(actualZone?.prizes?.participation);
 
-  // 🚀 YENİ EKLENDİ: Öğrencinin Mahallesindeki Alternatif Kurumları Bul
   const availableMappings = zones.flatMap(z => (z.mappings || []).map(m => ({...m, zoneId: z.id, zoneName: z.name})))
       .filter(m => m.district === currentUser?.district && m.neighborhood === currentUser?.neighborhood && 
         (m.gender === currentUser?.gender || m.gender === 'Tümü' || (m.gender === '8. Sınıf Erkek' && currentUser?.grade === '8' && currentUser?.gender === 'Erkek')));
 
-  useEffect(() => {
-    if (currentUser && partPrizesList.length > 0 && !currentUser.selectedParticipationPrize) {
-        setShowSettings(true);
-        setHasViewedSettings(true);
-        if (!sessionStorage.getItem('prizeAlertShown')) {
-            alert("Lütfen profil ayarlarından size en uygun katılım ödülünü seçiniz.");
-            sessionStorage.setItem('prizeAlertShown', 'true');
-        }
-    }
-  }, [currentUser, partPrizesList.length]);
+  // 🚀 DÜZELTME 4: Tehlikeli useEffect ve alert() tamamen kaldırıldı!
 
   let isExamTimePassed = false;
   if (currentUser?.selectedDate && currentUser?.selectedTime) {
@@ -86,7 +74,6 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
       if (newEmail !== currentUser.email) updates.email = newEmail;
       if (newPrize !== currentUser.selectedParticipationPrize) updates.selectedParticipationPrize = newPrize;
 
-      // 🚀 YENİ: Merkez değiştirildiyse
       if (newCenterId && newCenterId !== (currentUser.selectedCenterId || '')) {
           const newZ = zones.find(z => z.mappings?.some(m => m.centerId === newCenterId));
           updates.selectedCenterId = newCenterId;
@@ -97,8 +84,6 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
           updates.selectedTime = null;
           updates.isWaitingPool = true;
           
-          // Yeni kurumu kaydet
-          const newMapping = newZ?.mappings?.find(m => m.centerId === newCenterId);
           const newCenterObj = newZ?.centers?.find(c => c.id === newCenterId);
           if(newCenterObj) updates.notifiedCenter = newCenterObj.name;
       }
@@ -124,6 +109,26 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-16 relative">
+      
+      {/* 🚀 YENİ EKLENDİ: Zorlayıcı alert yerine Şık ve Güvenli Banner */}
+      {partPrizesList.length > 0 && !currentUser.selectedParticipationPrize && (
+         <div className="mb-8 bg-red-50 border-2 border-red-200 rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm animate-in fade-in slide-in-from-top-4">
+             <div className="flex items-center text-red-800">
+                 <Gift className="w-10 h-10 mr-4 flex-shrink-0" />
+                 <div>
+                     <h4 className="font-black text-lg md:text-xl">Katılım Ödülünüzü Seçmediniz!</h4>
+                     <p className="font-medium text-sm md:text-base mt-1">Lütfen ayarlara girerek size en uygun katılım ödülünü hemen belirleyin.</p>
+                 </div>
+             </div>
+             <button 
+                 onClick={() => { setShowSettings(true); setHasViewedSettings(true); }}
+                 className="whitespace-nowrap bg-red-600 text-white px-8 py-4 rounded-2xl font-black hover:bg-red-700 transition shadow-lg w-full sm:w-auto"
+             >
+                 Şimdi Ödül Seç
+             </button>
+         </div>
+      )}
+
       {showSettings && (
          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-md relative animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
@@ -132,7 +137,6 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
                <h3 className="text-3xl font-black text-center text-slate-900 mb-6">Profil Ayarları</h3>
                <div className="space-y-4 mb-8">
                  
-                 {/* 🚀 YENİ EKLENDİ: Merkez Seçimi (Eğer birden fazla kurum varsa görünür) */}
                  {availableMappings.length > 1 && (
                    <div className="bg-amber-50 p-4 rounded-2xl border-2 border-amber-200">
                      <label className="block text-sm font-black text-amber-800 mb-2 uppercase tracking-wider">Sınav Merkezi Tercihiniz</label>
@@ -155,8 +159,10 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
                  </div>
                  {partPrizesList.length > 0 && (
                    <div>
-                     <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">Katılım Ödülü Tercihi</label>
-                     <select value={newPrize} onChange={e=>setNewPrize(e.target.value)} className="w-full text-lg border-4 border-slate-100 rounded-2xl px-5 py-4 font-bold focus:border-indigo-500 outline-none">
+                     <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider flex items-center">
+                        Katılım Ödülü Tercihi {!currentUser.selectedParticipationPrize && <AlertCircle className="w-4 h-4 ml-2 text-red-500 animate-pulse"/>}
+                     </label>
+                     <select value={newPrize} onChange={e=>setNewPrize(e.target.value)} className={`w-full text-lg border-4 rounded-2xl px-5 py-4 font-bold outline-none transition-colors ${!currentUser.selectedParticipationPrize ? 'border-red-200 bg-red-50 focus:border-red-500 text-red-900' : 'border-slate-100 focus:border-indigo-500'}`}>
                         <option value="">Seçilmedi</option>
                         {partPrizesList.map(p => <option key={p.title} value={p.title}>{p.title}</option>)}
                      </select>

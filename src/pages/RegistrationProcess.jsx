@@ -151,15 +151,28 @@ useEffect(() => {
     else alert("Girdiğiniz doğrulama kodu hatalı. Lütfen tekrar deneyin.");
   };
 
-  useEffect(() => {
-    if (formData.province && formData.district && formData.grade) {
-       const gradeNum = parseInt(formData.grade);
-       const filtered = SCHOOLS.filter(s => s.province === formData.province && s.district === formData.district && s.type === (gradeNum <= 4 ? 'ilkokul' : 'ortaokul'));
-       filtered.sort((a,b) => a.name.localeCompare(b.name, 'tr-TR'));
-       setAvailableSchools(filtered);
-       if (!filtered.some(s => s.name === formData.schoolName) && !isCustomSchool) setFormData(prev => ({...prev, schoolName: ''}));
+  // YENİ
+useEffect(() => {
+  if (!formData.province || !formData.district || !formData.grade) return;
+
+  const gradeNum = parseInt(formData.grade);
+  const filtered = SCHOOLS.filter(
+    s => s.province === formData.province &&
+         s.district === formData.district &&
+         s.type === (gradeNum <= 4 ? 'ilkokul' : 'ortaokul')
+  );
+  filtered.sort((a, b) => a.name.localeCompare(b.name, 'tr-TR'));
+  setAvailableSchools(filtered);
+
+  // isCustomSchool'u fonksiyonel güncelleme ile okumak yerine
+  // doğrudan parametre olarak geçiriyoruz — stale closure riski ortadan kalkar
+  setFormData(prev => {
+    if (!isCustomSchool && !filtered.some(s => s.name === prev.schoolName)) {
+      return { ...prev, schoolName: '' };
     }
-  }, [formData.province, formData.district, formData.grade]);
+    return prev; // değişiklik yoksa aynı referansı döndür → yeniden render YOK
+  });
+}, [formData.province, formData.district, formData.grade, isCustomSchool]);
 
   // 🚀 DÜZELTME 2: Çoklu Merkez İçin Mıntıka Belirleme (Doğru Yerleşim)
   useEffect(() => {

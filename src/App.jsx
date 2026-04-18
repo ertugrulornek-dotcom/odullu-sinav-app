@@ -64,27 +64,51 @@ export default function App() {
   useEffect(() => {
     if (!authUser) return;
 
-    if (adminAuth.isAuthenticated) {
-      // 1. YÖNETİCİ MODU (Canlı Dinleme)
-      setLoading(true);
-      const unsubZones = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'zones'), (zonesSnap) => {
-        if (!zonesSnap.empty) {
-          const zonesData = zonesSnap.docs.map(d => {
-            const dbZone = d.data();
-            const baseZone = INITIAL_ZONES.find(z => z.id === parseInt(d.id)) || {};
-            return { ...dbZone, id: parseInt(d.id), name: baseZone.name, districts: baseZone.districts || [], partialDistricts: baseZone.partialDistricts || {}, prizes: dbZone.prizes || baseZone.prizes, centers: dbZone.centers || [], mappings: dbZone.mappings || [], specialBoysCentersData: dbZone.specialBoysCentersData || { centers: [], mappings: [] } };
-          });
-          setZones(zonesData.sort((a, b) => a.id - b.id)); 
-        }
-        setLoading(false);
-      });
 
-      const unsubExams = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'exams'), (examsSnap) => {
-        setExams(examsSnap.docs.map(d => ({ firebaseId: d.id, ...d.data() })));
-      });
+if (adminAuth.isAuthenticated) {
+  setLoading(true);
+  
+  // Her iki snapshot'ın da ilk verisinin gelip gelmediğini takip et
+  let zonesReady = false;
+  let examsReady = false;
 
-      return () => { unsubZones(); unsubExams(); };
-    } else {
+  const unsubZones = onSnapshot(
+    collection(db, 'artifacts', appId, 'public', 'data', 'zones'),
+    (zonesSnap) => {
+      if (!zonesSnap.empty) {
+        const zonesData = zonesSnap.docs.map(d => {
+          const dbZone = d.data();
+          const baseZone = INITIAL_ZONES.find(z => z.id === parseInt(d.id)) || {};
+          return { ...dbZone, id: parseInt(d.id), name: baseZone.name, districts: baseZone.districts || [], partialDistricts: baseZone.partialDistricts || {}, prizes: dbZone.prizes || baseZone.prizes, centers: dbZone.centers || [], mappings: dbZone.mappings || [], specialBoysCentersData: dbZone.specialBoysCentersData || { centers: [], mappings: [] } };
+        });
+        setZones(zonesData.sort((a, b) => a.id - b.id));
+      }
+      zonesReady = true;
+      if (zonesReady && examsReady) setLoading(false); // ← ikisi de hazırsa kapat
+    },
+    (error) => { 
+      console.error('Zones snapshot hatası:', error); 
+      zonesReady = true;
+      if (zonesReady && examsReady) setLoading(false); // ← hata olsa da loading'i kapat
+    }
+  );
+
+  const unsubExams = onSnapshot(
+    collection(db, 'artifacts', appId, 'public', 'data', 'exams'),
+    (examsSnap) => {
+      setExams(examsSnap.docs.map(d => ({ firebaseId: d.id, ...d.data() })));
+      examsReady = true;
+      if (zonesReady && examsReady) setLoading(false); // ← ikisi de hazırsa kapat
+    },
+    (error) => { 
+      console.error('Exams snapshot hatası:', error); 
+      examsReady = true;
+      if (zonesReady && examsReady) setLoading(false);
+    }
+  );
+
+  return () => { unsubZones(); unsubExams(); };
+} else {
       // 2. NORMAL ZİYARETÇİ MODU 
       const fetchInitialData = async () => {
         setLoading(true);
