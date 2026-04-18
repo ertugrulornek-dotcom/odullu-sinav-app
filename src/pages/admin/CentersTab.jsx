@@ -77,7 +77,6 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
       return phone;
   };
 
-  // 🚀 YENİ: Hoca ve Telefon Önerisi Mantığı
   const contactPresets = localMappings
     .filter(m => m.centerId === mappingData.centerId && m.contactName)
     .map(m => ({ name: m.contactName, phone: m.phone }));
@@ -192,15 +191,6 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
 
        if (!matchedDistrict || !matchedNeighborhood) { errors.push(`Satır ${i+1}: Veritabanında "${rawDistrict}" ilçesinde "${rawNeighborhood}" bulunamadı.`); continue; }
        
-       if (matchedDistrict === 'Körfez' && (matchedNeighborhood === '17 Ağustos' || matchedNeighborhood === 'Cumhuriyet')) {
-          if (adminZoneData.name === 'Gebze' && (rawGender === 'Kız' || rawGender === '8. Sınıf Erkek' || rawGender === 'Tümü')) { errors.push(`Satır ${i+1}: Gebze mıntıkası bu mahalleye Kız veya 8. Sınıf atayamaz.`); continue; }
-          if (adminZoneData.name === 'Akarçeşme' && (rawGender === 'Erkek' || rawGender === 'Tümü')) { errors.push(`Satır ${i+1}: Akarçeşme mıntıkası bu mahalleye 3-7 Erkek atayamaz.`); continue; }
-       }
-       if (matchedDistrict === 'Adapazarı' && matchedNeighborhood === 'Maltepe') {
-          if (adminZoneData.name === 'Adapazarı' && (rawGender === 'Erkek' || rawGender === 'Tümü')) { errors.push(`Satır ${i+1}: Adapazarı mıntıkası bu mahalleye 3-7 Erkek atayamaz.`); continue; }
-          if (adminZoneData.name === 'Serdivan' && (rawGender === 'Kız' || rawGender === '8. Sınıf Erkek' || rawGender === 'Tümü')) { errors.push(`Satır ${i+1}: Serdivan mıntıkası bu mahalleye Kız veya 8. Sınıf atayamaz.`); continue; }
-       }
-
        let center = updatedCenters.find(c => normalizeForSearch(c.name) === normalizeForSearch(centerName));
        if(!center) {
           center = { id: "c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9), name: centerName, address: address || `${matchedDistrict} / ${matchedNeighborhood}`, mapLink: mapLink };
@@ -240,12 +230,20 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
       return localMappings.some(m => m.centerId === center.id && (m.gender === displayFilter || (!m.gender && displayFilter === 'Tümü')));
   });
 
+  // 🚀 ZEKİ FİLTRELEME: Cinsiyet seçimine göre Kurumları Alfabetik Sırala
+  const availableCentersForDropdown = localCenters.filter(c => {
+      if (!mappingData.gender) return true; 
+      const cMappings = localMappings.filter(m => m.centerId === c.id);
+      if (cMappings.length === 0) return true; 
+      return cMappings.some(m => m.gender === mappingData.gender); 
+  }).sort((a, b) => a.name.localeCompare(b.name, 'tr-TR'));
+
   return (
     <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12 animate-in fade-in zoom-in-95 duration-300">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b-2 border-slate-100 pb-8 gap-4">
           <div>
             <h3 className="font-black text-3xl text-slate-900 mb-2">Sınav Yerleri ve Atamalar</h3>
-            <p className="text-base font-bold text-slate-500">Mıntıkaya yeni kurumlar ekleyin ve mahalleleri bu kurumlara bağlarken ÖNCE CİNSİYET seçin.</p>
+            <p className="text-base font-bold text-slate-500">Mıntıkaya yeni kurumlar ekleyin ve mahalleleri atayın.</p>
           </div>
         </div>
 
@@ -273,10 +271,7 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
              <div>
                 <div className="text-sm font-black text-emerald-600 uppercase mb-4 tracking-wider flex items-center"><MapPin className="w-6 h-6 mr-2"/> Kuruma Mahalle Ata</div>
                 <div className="space-y-3 bg-emerald-50 p-6 rounded-3xl border-2 border-emerald-100">
-                  <select value={mappingData.centerId} onChange={e=>setMappingData({...mappingData, centerId: e.target.value})} className="w-full text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white">
-                    <option value="">Önce Kurum Seçin</option>
-                    {localCenters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  {/* 🚀 DEĞİŞİKLİK: Önce Cinsiyet, Sonra Kurum */}
                   <select value={mappingData.gender} onChange={e=>setMappingData({...mappingData, gender: e.target.value, neighborhood: ''})} className="w-full text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white">
                     <option value="">Cinsiyet Seçin</option>
                     <option value="Tümü">Tümü (Karma)</option>
@@ -284,6 +279,11 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
                     <option value="Kız">Sadece Kız (Tüm Sınıflar)</option>
                     <option value="8. Sınıf Erkek">8. Sınıf Erkek (Özel)</option>
                   </select>
+                  <select value={mappingData.centerId} onChange={e=>setMappingData({...mappingData, centerId: e.target.value})} className="w-full text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white">
+                    <option value="">Kurum Seçin</option>
+                    {availableCentersForDropdown.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  
                   <div className="flex gap-2">
                     <select value={mappingData.district} onChange={e=>setMappingData({...mappingData, district: e.target.value, neighborhood: ''})} className="flex-1 text-sm font-bold p-3 rounded-xl border border-emerald-200 outline-none focus:border-emerald-500 bg-white">
                       <option value="">İlçe Seçin</option>
@@ -296,7 +296,6 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
                   </div>
                   
                   <div className="flex flex-col gap-2">
-                    {/* 🚀 YENİ EKLENEN ÖNERİ ÇİPLERİ */}
                     {uniquePresets.length > 0 && (
                       <div className="flex flex-wrap gap-2 mb-1">
                         <span className="text-xs font-bold text-emerald-700/60 w-full">Önceki Hocalar:</span>
