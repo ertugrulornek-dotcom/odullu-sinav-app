@@ -108,21 +108,24 @@ export default function App() {
     }
   }, [authUser, adminAuth.isAuthenticated]);
 
-  useEffect(() => {
-    if (!currentUser && zones.length > 0 && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`);
-          const data = await res.json();
-          const district = data.address?.town || data.address?.county || data.address?.city_district;
-          if (district) {
-            const matchedZone = zones.find(z => z.districts?.includes(district) || (z.partialDistricts && z.partialDistricts[district]));
-            if (matchedZone) setDetectedZone(matchedZone);
-          }
-        } catch(e) {}
-      }, () => { });
-    }
-  }, [currentUser, zones]);
+  const geoAttempted = useRef(false);
+
+useEffect(() => {
+  if (!currentUser && zones.length > 0 && !geoAttempted.current && navigator.geolocation) {
+    geoAttempted.current = true;
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`);
+        const data = await res.json();
+        const district = data.address?.town || data.address?.county || data.address?.city_district;
+        if (district) {
+          const matchedZone = zones.find(z => z.districts?.includes(district) || (z.partialDistricts && z.partialDistricts[district]));
+          if (matchedZone) setDetectedZone(matchedZone);
+        }
+      } catch(e) {}
+    }, () => { });
+  }
+}, [currentUser, zones.length]);
 
   const navigateTo = (view) => { 
       window.scrollTo({ top: 0, behavior: 'smooth' }); 
