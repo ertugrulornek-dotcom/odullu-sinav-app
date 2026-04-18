@@ -107,14 +107,14 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
     return () => unsub();
   }, []);
 
-  useEffect(() => {
-    if (currentUser && step === 1) {
-      setFormData({ fullName: currentUser.fullName || '', phone: currentUser.phone || '', grade: currentUser.grade || '8', parentName: currentUser.parentName || '', gender: currentUser.gender || '', email: currentUser.email || '', schoolName: currentUser.schoolName || '', province: currentUser.province || '', district: currentUser.district || '', neighborhood: currentUser.neighborhood || '', selectedCenterId: '' });
-      if(currentUser.schoolName && !SCHOOLS.some(s => s.name === currentUser.schoolName)) { setIsCustomSchool(true); setCustomSchoolName(currentUser.schoolName); }
-      setSelectedParticipationPrize(currentUser.selectedParticipationPrize || '');
-      setStep(2);
-    }
-  }, [currentUser, step]);
+  const didPrefill = useRef(false);
+useEffect(() => {
+  if (currentUser && !didPrefill.current) {
+    didPrefill.current = true;
+    setFormData({ fullName: currentUser.fullName || '', phone: currentUser.phone || '', grade: currentUser.grade || '8', parentName: currentUser.parentName || '', gender: currentUser.gender || '', email: currentUser.email || '', schoolName: currentUser.schoolName || '', province: currentUser.province || '', district: currentUser.district || '', neighborhood: currentUser.neighborhood || '', selectedCenterId: '' });
+    setStep(2);
+  }
+}, [currentUser]);
 
   const handlePhoneInput = (e) => {
     let val = e.target.value.replace(/\D/g, ''); 
@@ -178,7 +178,7 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
         else setAvailableExams([]);
       }
     }
-  }, [formData.district, formData.neighborhood, formData.gender, formData.grade, zones, exams]);
+  }, [formData.district, formData.neighborhood, formData.gender, formData.grade, zones.length, exams.length]);
 
   useEffect(() => {
     setSelectedExam(null); setSelectedSlot(null);
