@@ -40,10 +40,7 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
                else if (z.name === 'Akarçeşme') requiredGenders = ['Kız', '8. Sınıf Erkek']; 
            }
 
-           if (dist === 'Adapazarı' && hood === 'Maltepe') {
-               if (z.name === 'Adapazarı') requiredGenders = ['Kız', '8. Sınıf Erkek']; 
-               else if (z.name === 'Serdivan') requiredGenders = ['Erkek']; 
-           }
+           // 🚀 DÜZELTME: Maltepe İstisnası TAMAMEN KALDIRILDI
 
            const hoodMappings = mappings.filter(m => m.district === dist && m.neighborhood === hood);
            const hasTumu = hoodMappings.some(m => m.gender === 'Tümü' || !m.gender);
@@ -148,7 +145,6 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
       groupedMissing[m.zone].push(m);
   });
 
-  // Excel İçin Veri Hazırlığı
   let allAssignments = [];
   zones.forEach(z => {
       const zMappings = z.mappings || [];
@@ -180,7 +176,6 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
       return a.neighborhood.localeCompare(b.neighborhood, 'tr-TR');
   });
 
-  // 🚀 YENİ: Excel İndirme Fonksiyonu (Dışa Bağımlılıksız Saf Excel Çıktısı)
   const handleDownloadExcel = () => {
     if (allAssignments.length === 0) return alert("İndirilecek atama bulunmuyor.");
 
@@ -431,7 +426,6 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
         )}
       </div>
 
-      {/* 🚀 YENİ: Excel İndirme Butonu Alanı */}
       <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-[3rem] shadow-xl p-8 md:p-12 text-white flex flex-col md:flex-row justify-between items-center animate-in fade-in zoom-in-95 duration-300">
         <div className="mb-6 md:mb-0 text-center md:text-left">
            <h3 className="font-black text-3xl mb-2 flex items-center justify-center md:justify-start">
