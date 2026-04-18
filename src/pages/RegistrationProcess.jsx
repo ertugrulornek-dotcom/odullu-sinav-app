@@ -216,10 +216,15 @@ useEffect(() => {
      if (needsPartSelection && validPartPrizesList.length === 1 && !selectedParticipationPrize) {
          setSelectedParticipationPrize(validPartPrizesList[0].title);
      }
-  }, [needsPartSelection, validPartPrizesList, selectedParticipationPrize]);
+  }, [needsPartSelection, validPartPrizesList.length, selectedParticipationPrize]);
 
   const isFormValid = selectedSlot !== null && (!needsPartSelection || selectedParticipationPrize !== '');
 
+  if (!withoutExam && (!selectedExam || !selectedSlot)) {
+  alert("Lütfen bir sınav oturumu seçiniz.");
+  setIsSubmitting(false);
+  return;
+} 
   const handleComplete = async (withoutExam = false) => {
     setIsSubmitting(true);
     const finalSchoolName = isCustomSchool ? customSchoolName : formData.schoolName;

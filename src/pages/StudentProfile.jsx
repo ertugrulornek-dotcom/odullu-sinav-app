@@ -43,12 +43,22 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
       address: actualCenterObj?.address || fallbackDetails.address
   } : fallbackDetails;
 
-  const zoneExams = exams.filter(e => e.zoneId === actualZone?.id);
-  const partPrizesList = parsePrizeArray(actualZone?.prizes?.participation);
+ // 🚀 OPTİMİZASYON: Sınavlar sadece exams veya actualZone değiştiğinde filtrelenir
+  const zoneExams = React.useMemo(() => {
+      return exams.filter(e => e.zoneId === actualZone?.id);
+  }, [exams.length, actualZone?.id]);
 
-  const availableMappings = zones.flatMap(z => (z.mappings || []).map(m => ({...m, zoneId: z.id, zoneName: z.name})))
-      .filter(m => m.district === currentUser?.district && m.neighborhood === currentUser?.neighborhood && 
-        (m.gender === currentUser?.gender || m.gender === 'Tümü' || (m.gender === '8. Sınıf Erkek' && currentUser?.grade === '8' && currentUser?.gender === 'Erkek')));
+  // 🚀 OPTİMİZASYON: Ödüller JSON'dan sadece ödül verisi değiştiğinde parse edilir
+  const partPrizesList = React.useMemo(() => {
+      return parsePrizeArray(actualZone?.prizes?.participation);
+  }, [actualZone?.prizes?.participation]);
+
+  // 🚀 OPTİMİZASYON: İç içe döngüler (flatMap ve filter) sadece ilgili veriler değiştiğinde çalışır
+  const availableMappings = React.useMemo(() => {
+      return zones.flatMap(z => (z.mappings || []).map(m => ({...m, zoneId: z.id, zoneName: z.name})))
+          .filter(m => m.district === currentUser?.district && m.neighborhood === currentUser?.neighborhood && 
+            (m.gender === currentUser?.gender || m.gender === 'Tümü' || (m.gender === '8. Sınıf Erkek' && currentUser?.grade === '8' && currentUser?.gender === 'Erkek')));
+  }, [zones, currentUser?.district, currentUser?.neighborhood, currentUser?.gender, currentUser?.grade]);
 
   // 🚀 DÜZELTME 4: Tehlikeli useEffect ve alert() tamamen kaldırıldı!
 
@@ -61,7 +71,6 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
       if (examDateTime < new Date()) isExamTimePassed = true;
     }
   }
-
   const handleSaveSettings = async () => {
     if(newPassword && newPassword.length > 0 && newPassword.length < 4) return alert("Şifre en az 4 haneli olmalıdır.");
     if (newEmail && newEmail !== currentUser.email) {
