@@ -43,15 +43,14 @@ export const LOCATIONS = {
   }
 };
 
-export const INITIAL_ZONES = [
+exexport const INITIAL_ZONES = [
   { 
     id: 1, 
     name: "Adapazarı", 
     active: true, 
     districts: ["Ferizli", "Karasu", "Kaynarca", "Kocaali", "Söğütlü"], 
-    // DÜZELTME 1: Mahmudiye, Adapazarı'nın yetkisinden tamamen çıkarıldı.
     partialDistricts: {
-      "Adapazarı": ["Akköy", "Alancık", "Aşırlar", "Bağlar", "Bileciler", "Büyükhataplı", "Camili", "Cumhuriyet", "Çaltıcak", "Çamyolu", "Çerçiler", "Çökekler", "Çukurahmediye", "Dağdibi", "Demirbey", "Doğancılar", "Elmalı", "Evrenköy", "Göktepe", "Güllük", "Güneşler", "Hacılar", "Hızırtepe", "Işıklar", "İlyaslar", "İstiklal", "Karaköy", "Karaman", "Karasoku", "Kasımlar", "Kavaklıorman", "Korucuk", "Kurtbeyler", "Kurtuluş", "Küçükhataplı", "Mithatpaşa", "Nasuhlar", "Ozanlar", "Örentepe", "Pabuççular", "Poyrazlar", "Rüstemler", "Sakarya", "Salmanlı", "Semerciler", "Solaklar", "Süleymanbey", "Şeker", "Şirinevler", "Taşkısığı", "Tekeler", "Tepekum", "Tığcılar", "Turnadere", "Tuzla", "Yağcılar", "Yahyalar", "Yenicami", "Yenigün", "Yeniköy", "15 Temmuz Camili", "Güneşler Merkez", "Karaosman", "Orta", "Güneşler Yeni", "Yenidoğan", "Akıncılar", "Papuççular", "Köprübaşı", "Taşlık", "Budaklar", "Karakamış", "Alandüzü", "Kayrancık", "Bayraktar", "Abalı", "Karapınar", "Karadere"]
+      "Adapazarı": ["Akköy", "Alancık", "Aşırlar", "Bağlar", "Bileciler", "Büyükhataplı", "Camili", "Cumhuriyet", "Çaltıcak", "Çamyolu", "Çerçiler", "Çökekler", "Çukurahmediye", "Dağdibi", "Demirbey", "Doğancılar", "Elmalı", "Evrenköy", "Göktepe", "Güllük", "Güneşler", "Hacılar", "Hızırtepe", "Işıklar", "İlyaslar", "İstiklal", "Karaköy", "Karaman", "Karasoku", "Kasımlar", "Kavaklıorman", "Korucuk", "Kurtbeyler", "Kurtuluş", "Küçükhataplı", "Maltepe", "Mithatpaşa", "Nasuhlar", "Ozanlar", "Örentepe", "Pabuççular", "Poyrazlar", "Rüstemler", "Sakarya", "Salmanlı", "Semerciler", "Solaklar", "Süleymanbey", "Şeker", "Şirinevler", "Taşkısığı", "Tekeler", "Tepekum", "Tığcılar", "Turnadere", "Tuzla", "Yağcılar", "Yahyalar", "Yenicami", "Yenigün", "Yeniköy", "15 Temmuz Camili", "Güneşler Merkez", "Karaosman", "Orta", "Güneşler Yeni", "Yenidoğan", "Akıncılar", "Papuççular", "Köprübaşı", "Taşlık", "Budaklar", "Karakamış", "Alandüzü", "Kayrancık", "Bayraktar", "Abalı", "Karapınar", "Karadere"]
     }, 
     prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] 
   },
@@ -61,10 +60,7 @@ export const INITIAL_ZONES = [
     name: "Erenler", 
     active: true, 
     districts: ["Akyazı", "Erenler", "Hendek", "Karapürçek"], 
-    // DÜZELTME 2: Çaybaşıfautpaşa, Erenler mıntıkasına eklendi.
-    partialDistricts: {
-       "Arifiye": ["Çaybaşıfautpaşa"]
-    }, 
+    partialDistricts: { "Arifiye": ["Çaybaşıfautpaşa"] }, 
     prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] 
   },
   { id: 4, name: "Gebze", active: true, districts: ["Çayırova", "Darıca", "Dilovası", "Gebze"], partialDistricts: { "Körfez": ["Yukarı Hereke", "Kışladüzü", "Hacı Akif", "Agah Ateş", "17 Ağustos", "Cumhuriyet"] }, prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] },
@@ -74,9 +70,8 @@ export const INITIAL_ZONES = [
     name: "Serdivan", 
     active: true, 
     districts: ["Geyve", "Pamukova", "Sapanca", "Serdivan", "Taraklı"], 
-    // DÜZELTME 3: Arifiye ilçesi tam yetkiden çıkarıldı, Çaybaşıfautpaşa hariç diğer tüm mahalleler ile Mahmudiye Serdivan'a bağlandı.
     partialDistricts: {
-      "Adapazarı": ["Maltepe", "Mahmudiye"],
+      "Adapazarı": ["Mahmudiye"], // Maltepe buradan silindi!
       "Arifiye": ["Adliye", "Arifbey", "Bozacı", "Cumhuriyet", "Çınardibi", "Fatih", "Hanlı", "Karaaptiler", "Kemaliye", "Kirazca", "Kumbaşı", "Neviye", "Yukarıdereköy", "Yukarıkirazca", "Hanlı Merkez", "Hanlıköy", "Hanlı Sakarya", "Aşağı Kirazca", "Hacıköy", "Ahmediye", "Çaybaşı Fuadiye"]
     }, 
     prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] 
