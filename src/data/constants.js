@@ -43,7 +43,7 @@ export const LOCATIONS = {
   }
 };
 
-exexport const INITIAL_ZONES = [
+export const INITIAL_ZONES = [
   { 
     id: 1, 
     name: "Adapazarı", 
@@ -71,7 +71,7 @@ exexport const INITIAL_ZONES = [
     active: true, 
     districts: ["Geyve", "Pamukova", "Sapanca", "Serdivan", "Taraklı"], 
     partialDistricts: {
-      "Adapazarı": ["Mahmudiye"], // Maltepe buradan silindi!
+      "Adapazarı": ["Mahmudiye"],
       "Arifiye": ["Adliye", "Arifbey", "Bozacı", "Cumhuriyet", "Çınardibi", "Fatih", "Hanlı", "Karaaptiler", "Kemaliye", "Kirazca", "Kumbaşı", "Neviye", "Yukarıdereköy", "Yukarıkirazca", "Hanlı Merkez", "Hanlıköy", "Hanlı Sakarya", "Aşağı Kirazca", "Hacıköy", "Ahmediye", "Çaybaşı Fuadiye"]
     }, 
     prizes: { grand: DEFAULT_PRIZE_OBJ, degree: [], participation: [] }, centers: [], mappings: [] 
