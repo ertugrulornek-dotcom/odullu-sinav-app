@@ -60,63 +60,13 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 🚀 DÜZELTME: Veritabanını Yanlışlıkla Sıfırlayan "İlk Kurulum" Kodu Tamamen Kaldırıldı 🚀
-  useEffect(() => {
-    if (!authUser) return;
-
-
-if (adminAuth.isAuthenticated) {
-  setLoading(true);
-  
-  // Her iki snapshot'ın da ilk verisinin gelip gelmediğini takip et
-  let zonesReady = false;
-  let examsReady = false;
-
-  const unsubZones = onSnapshot(
-    collection(db, 'artifacts', appId, 'public', 'data', 'zones'),
-    (zonesSnap) => {
-      if (!zonesSnap.empty) {
-        const zonesData = zonesSnap.docs.map(d => {
-          const dbZone = d.data();
-          const baseZone = INITIAL_ZONES.find(z => z.id === parseInt(d.id)) || {};
-          return { ...dbZone, id: parseInt(d.id), name: baseZone.name, districts: baseZone.districts || [], partialDistricts: baseZone.partialDistricts || {}, prizes: dbZone.prizes || baseZone.prizes, centers: dbZone.centers || [], mappings: dbZone.mappings || [], specialBoysCentersData: dbZone.specialBoysCentersData || { centers: [], mappings: [] } };
-        });
-        setZones(zonesData.sort((a, b) => a.id - b.id));
-      }
-      zonesReady = true;
-      if (zonesReady && examsReady) setLoading(false); // ← ikisi de hazırsa kapat
-    },
-    (error) => { 
-      console.error('Zones snapshot hatası:', error); 
-      zonesReady = true;
-      if (zonesReady && examsReady) setLoading(false); // ← hata olsa da loading'i kapat
-    }
-  );
-
-  const unsubExams = onSnapshot(
-    collection(db, 'artifacts', appId, 'public', 'data', 'exams'),
-    (examsSnap) => {
-      setExams(examsSnap.docs.map(d => ({ firebaseId: d.id, ...d.data() })));
-      examsReady = true;
-      if (zonesReady && examsReady) setLoading(false); // ← ikisi de hazırsa kapat
-    },
-    (error) => { 
-      console.error('Exams snapshot hatası:', error); 
-      examsReady = true;
-      if (zonesReady && examsReady) setLoading(false);
-    }
-  );
-
-  return () => { unsubZones(); unsubExams(); };
-} else {
-     // 🚀 DÜZELTME: Veritabanını Yanlışlıkla Sıfırlayan "İlk Kurulum" Kodu Tamamen Kaldırıldı 🚀
+  // 🚀 DÜZELTİLMİŞ VE BİRLEŞTİRİLMİŞ VERİ ÇEKME MANTIĞI
   useEffect(() => {
     if (!authUser) return;
 
     if (adminAuth.isAuthenticated) {
       setLoading(true);
       
-      // Her iki snapshot'ın da ilk verisinin gelip gelmediğini takip et
       let zonesReady = false;
       let examsReady = false;
 
@@ -157,7 +107,7 @@ if (adminAuth.isAuthenticated) {
 
       return () => { unsubZones(); unsubExams(); };
     } else {
-      // 🚀 DÜZELTME 7.2: Ziyaretçiler için localStorage Cache Sistemi (Aşırı okumayı engeller)
+      // 🚀 ZİYARETÇİLER İÇİN CACHE SİSTEMİ (KOTA DOSTU)
       const fetchInitialData = async () => {
         setLoading(true);
         try {
@@ -195,26 +145,26 @@ if (adminAuth.isAuthenticated) {
       };
       fetchInitialData();
     }
-  }, [authUser, adminAuth.isAuthenticated]); // 🚀 KAZAYLA SİLİNEN PARANTEZLER BURADA!
+  }, [authUser, adminAuth.isAuthenticated]);
 
   const geoAttempted = useRef(false);
 
-useEffect(() => {
-  if (!currentUser && zones.length > 0 && !geoAttempted.current && navigator.geolocation) {
-    geoAttempted.current = true;
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`);
-        const data = await res.json();
-        const district = data.address?.town || data.address?.county || data.address?.city_district;
-        if (district) {
-          const matchedZone = zones.find(z => z.districts?.includes(district) || (z.partialDistricts && z.partialDistricts[district]));
-          if (matchedZone) setDetectedZone(matchedZone);
-        }
-      } catch(e) {}
-    }, () => { });
-  }
-}, [currentUser, zones.length]);
+  useEffect(() => {
+    if (!currentUser && zones.length > 0 && !geoAttempted.current && navigator.geolocation) {
+      geoAttempted.current = true;
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`);
+          const data = await res.json();
+          const district = data.address?.town || data.address?.county || data.address?.city_district;
+          if (district) {
+            const matchedZone = zones.find(z => z.districts?.includes(district) || (z.partialDistricts && z.partialDistricts[district]));
+            if (matchedZone) setDetectedZone(matchedZone);
+          }
+        } catch(e) {}
+      }, () => { });
+    }
+  }, [currentUser, zones.length]);
 
   const navigateTo = (view) => { 
       window.scrollTo({ top: 0, behavior: 'smooth' }); 
