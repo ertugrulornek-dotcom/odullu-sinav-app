@@ -102,8 +102,13 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
   const [customSchoolName, setCustomSchoolName] = useState('');
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'blacklist'), snap => setBlacklist(snap.docs.map(d => d.data().phone)));
-    return () => unsub();
+    const fetchBlacklist = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'blacklist'));
+        setBlacklist(snap.docs.map(d => d.data().phone));
+      } catch(e) {}
+    };
+    fetchBlacklist();
   }, []);
 
   const didPrefill = useRef(false);

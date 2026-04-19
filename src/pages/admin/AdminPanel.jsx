@@ -195,8 +195,10 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
 
         const centerInfo = getNeighborhoodDetails(latestZone, student.district, student.neighborhood, student.gender, student.grade);
         const hasValidCenter = centerInfo.centerName !== "Sınav Merkezi Bekleniyor";
-        
-        updates.zone = latestZone;
+        const minimalZone = { id: latestZone.id, name: latestZone.name };
+        if (!student.zone || student.zone.id !== latestZone.id) {
+            updates.zone = minimalZone;
+        }
 
         if (hasValidCenter && student.notifiedCenter !== centerInfo.centerName) {
            updates.notifiedCenter = centerInfo.centerName; 

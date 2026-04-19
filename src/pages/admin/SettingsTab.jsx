@@ -21,15 +21,26 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
       currentMapping: {} 
   });
 
+// 🚀 DÜZELTME KRİTİK 4: Genel Merkez modunda ödüllerin boş obje ile silinmesini engelledik.
   useEffect(() => {
-    if(adminZoneData && !isSuperAdmin) {
+    if (isSuperAdmin && zones && zones.length > 0) {
+      // SuperAdmin için, ilk bölgenin ödüllerini ekrana "şablon" olarak getiriyoruz.
+      const sample = zones[0]?.prizes;
+      if (sample) {
+        setLocalPrizes({
+          grand: parsePrizeArray(sample.grand)[0] || { title: '', desc: '', img: '' },
+          degree: parsePrizeArray(sample.degree).length ? parsePrizeArray(sample.degree) : [{ title: '', desc: '', img: '' }],
+          participation: parsePrizeArray(sample.participation).length ? parsePrizeArray(sample.participation) : [{ title: '', desc: '', img: '' }]
+        });
+      }
+    } else if (adminZoneData && !isSuperAdmin) {
       setLocalPrizes({
         grand: parsePrizeArray(adminZoneData.prizes?.grand)[0] || { title: '', desc: '', img: '' },
         degree: parsePrizeArray(adminZoneData.prizes?.degree).length ? parsePrizeArray(adminZoneData.prizes?.degree) : [{ title: '', desc: '', img: '' }],
         participation: parsePrizeArray(adminZoneData.prizes?.participation).length ? parsePrizeArray(adminZoneData.prizes?.participation) : [{ title: '', desc: '', img: '' }]
       });
     }
-  }, [adminZoneData, isSuperAdmin]);
+  }, [adminZoneData, isSuperAdmin, zones]);
 
   const handleUpdatePrizes = async () => {
     try {

@@ -110,9 +110,21 @@ if (adminAuth.isAuthenticated) {
   return () => { unsubZones(); unsubExams(); };
 } else {
       // 2. NORMAL ZİYARETÇİ MODU 
+      // 🚀 DÜZELTME 7.2: Ziyaretçiler için localStorage Cache Sistemi (Aşırı okumayı engeller)
       const fetchInitialData = async () => {
         setLoading(true);
         try {
+          const CACHE_KEY = 'os_cache_v1';
+          const CACHE_TTL = 5 * 60 * 1000; // 5 dakika
+          const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+
+          if (cached && Date.now() - cached.t < CACHE_TTL) {
+            setZones(cached.zones); 
+            setExams(cached.exams); 
+            setLoading(false); 
+            return;
+          }
+
           const zonesSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'zones'));
           const examsSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'exams'));
 
@@ -122,16 +134,19 @@ if (adminAuth.isAuthenticated) {
               const baseZone = INITIAL_ZONES.find(z => z.id === parseInt(d.id)) || {};
               return { ...dbZone, id: parseInt(d.id), name: baseZone.name, districts: baseZone.districts || [], partialDistricts: baseZone.partialDistricts || {}, prizes: dbZone.prizes || baseZone.prizes, centers: dbZone.centers || [], mappings: dbZone.mappings || [], specialBoysCentersData: dbZone.specialBoysCentersData || { centers: [], mappings: [] } };
             });
-            setZones(zonesData.sort((a, b) => a.id - b.id)); 
+            const sortedZones = zonesData.sort((a, b) => a.id - b.id);
+            setZones(sortedZones); 
+            
+            const examsData = examsSnap.docs.map(d => ({ firebaseId: d.id, ...d.data() }));
+            setExams(examsData);
+
+            // Veriyi 5 dakikalığına tarayıcıya kaydet
+            localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), zones: sortedZones, exams: examsData }));
           }
-          setExams(examsSnap.docs.map(d => ({ firebaseId: d.id, ...d.data() })));
         } catch(e) { console.error(e); }
         setLoading(false);
       };
       fetchInitialData();
-    }
-  }, [authUser, adminAuth.isAuthenticated]);
-
   const geoAttempted = useRef(false);
 
 useEffect(() => {

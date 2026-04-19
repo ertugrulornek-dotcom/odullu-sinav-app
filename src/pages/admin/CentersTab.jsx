@@ -200,11 +200,10 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
           center = { id: "c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9), name: centerName, address: address || `${matchedDistrict} / ${matchedNeighborhood}`, mapLink: mapLink };
           updatedCenters.push(center);
        }
-       
        const existingMapIndex = updatedMappings.findIndex(m => m.district === matchedDistrict && m.neighborhood === matchedNeighborhood && m.gender === rawGender);
        const newMapObj = { district: matchedDistrict, neighborhood: matchedNeighborhood, gender: rawGender, centerId: center.id, contactName, phone: cleanedPhone };
        
-       if(existingMapIndex >= 0) updatedMappings[existingIndex] = newMapObj;
+       if(existingMapIndex >= 0) updatedMappings[existingMapIndex] = newMapObj; 
        else updatedMappings.push(newMapObj);
        
        successCount++;
