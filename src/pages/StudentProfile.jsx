@@ -53,14 +53,28 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
       return parsePrizeArray(actualZone?.prizes?.participation);
   }, [actualZone?.prizes?.participation]);
 
-  // 🚀 OPTİMİZASYON: İç içe döngüler (flatMap ve filter) sadece ilgili veriler değiştiğinde çalışır
+  // 🚀 DÜZELTME: 8. Sınıf Erkekler tamamen ayrı bir cinsiyet gibi izole edildi!
   const availableMappings = React.useMemo(() => {
+      // Çocuğun 8. sınıf erkek olup olmadığını kesin olarak belirliyoruz
+      const is8thGradeBoy = String(currentUser?.grade) === '8' && currentUser?.gender === 'Erkek';
+      
       return zones.flatMap(z => (z.mappings || []).map(m => ({...m, zoneId: z.id, zoneName: z.name})))
-          .filter(m => m.district === currentUser?.district && m.neighborhood === currentUser?.neighborhood && 
-            (m.gender === currentUser?.gender || m.gender === 'Tümü' || (m.gender === '8. Sınıf Erkek' && currentUser?.grade === '8' && currentUser?.gender === 'Erkek')));
-  }, [zones, currentUser?.district, currentUser?.neighborhood, currentUser?.gender, currentUser?.grade]);
+          .filter(m => {
+              // Farklı mahallenin kurumuysa zaten gizle
+              if (m.district !== currentUser?.district || m.neighborhood !== currentUser?.neighborhood) return false;
+              
+              // Tümü (Karma) ise herkese göster
+              if (m.gender === 'Tümü') return true;
 
-  // 🚀 DÜZELTME 4: Tehlikeli useEffect ve alert() tamamen kaldırıldı!
+              if (is8thGradeBoy) {
+                  // Eğer çocuk 8. Sınıf Erkek ise SADECE 8. Sınıf Erkek kurumunu görsün (Normal Erkek kurumlarını GÖRMEZ)
+                  return m.gender === '8. Sınıf Erkek';
+              } else {
+                  // Diğerleri (Kız veya 3-7 Sınıf Erkek) kendi cinsiyetini görsün
+                  return m.gender === currentUser?.gender;
+              }
+          });
+  }, [zones, currentUser?.district, currentUser?.neighborhood, currentUser?.gender, currentUser?.grade]);
 
   let isExamTimePassed = false;
   if (currentUser?.selectedDate && currentUser?.selectedTime) {
