@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Download, MessageSquare, Plus, Trash2, Send, Trophy, Filter, ArrowRightLeft } from 'lucide-react';
 import { db, appId } from '../../services/firebase';
 import { doc, updateDoc, deleteDoc } from "firebase/firestore";
@@ -8,54 +8,111 @@ import { getNeighborhoodDetails } from '../../utils/helpers';
 export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zones, setHasMadeChanges }) {
   const [resultModal, setResultModal] = useState({ isOpen: false, student: null, score: '', rank: '' });
   const [smsModal, setSmsModal] = useState({ isOpen: false, type: 'custom', customMsg: '', loading: false, targetStudent: null });
-  
-  // 🚀 YENİ: Öğrenci Aktarma (Transfer) Modalı State'i
   const [transferModal, setTransferModal] = useState({ isOpen: false, student: null, targetZoneId: '' });
 
   const [filterGrade, setFilterGrade] = useState('');
   const [filterSchool, setFilterSchool] = useState('');
   const [filterZone, setFilterZone] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
 
-  const uniqueSchools = [...new Set(students.map(s => s.schoolName).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'tr-TR'));
+  const [localOverrides, setLocalOverrides] = useState({});
 
-  const displayStudents = students.filter(s => {
-      if (filterGrade && s.grade !== filterGrade) return false;
-      if (filterSchool && s.schoolName !== filterSchool) return false;
-      if (isSuperAdmin && filterZone) {
-         if (s.zone?.id !== parseInt(filterZone) && s.zone?.name !== filterZone) return false;
-      }
-      return true;
-  });
+  const uniqueSchools = useMemo(() => 
+    [...new Set(students.map(s => s.schoolName).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'tr-TR')),
+    [students] 
+  );
 
-  const groupedStudents = {};
-  displayStudents.forEach(s => {
-      const g = s.grade || 'Belirtilmemiş';
-      if(!groupedStudents[g]) groupedStudents[g] = [];
-      groupedStudents[g].push(s);
-  });
-  
-  const sortedGrades = Object.keys(groupedStudents).sort((a, b) => {
-      if(a === 'Belirtilmemiş') return 1;
-      if(b === 'Belirtilmemiş') return -1;
-      return parseInt(b) - parseInt(a);
-  });
+  const displayStudents = useMemo(() => {
+      return students.filter(s => {
+          if (filterGrade && s.grade !== filterGrade) return false;
+          if (filterSchool && s.schoolName !== filterSchool) return false;
+          if (isSuperAdmin && filterZone) {
+             if (s.zone?.id !== parseInt(filterZone) && s.zone?.name !== filterZone) return false;
+          }
+          
+          const hasSession = !!(s.examId || s.examTitle || s.exam);
+          if (filterStatus === 'Waiting' && hasSession) return false; 
+          if (filterStatus === 'Assigned' && !hasSession) return false; 
+
+          return true;
+      });
+  }, [students, filterGrade, filterSchool, filterZone, filterStatus, isSuperAdmin]);
+
+  const { groupedStudents, sortedGrades } = useMemo(() => {
+      const grouped = {};
+      displayStudents.forEach(s => {
+          const g = s.grade || 'Belirtilmemiş';
+          if(!grouped[g]) grouped[g] = [];
+          grouped[g].push(s);
+      });
+      
+      const sorted = Object.keys(grouped).sort((a, b) => {
+          if(a === 'Belirtilmemiş') return 1;
+          if(b === 'Belirtilmemiş') return -1;
+          return parseInt(b) - parseInt(a);
+      });
+
+      return { groupedStudents: grouped, sortedGrades: sorted };
+  }, [displayStudents]);
 
   const handleUpdateStudentStatus = async (studentId, field, value) => {
+    setLocalOverrides(prev => ({
+      ...prev,
+      [studentId]: { ...(prev[studentId] || {}), [field]: value }
+    }));
+
     try {
       setHasMadeChanges(true);
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', studentId), { [field]: value });
-    } catch(err) { console.error(err); alert("Durum güncellenemedi."); }
+      
+      setLocalOverrides(prev => {
+        const next = { ...prev };
+        if (next[studentId]) {
+          delete next[studentId][field];
+          if (Object.keys(next[studentId]).length === 0) delete next[studentId];
+        }
+        return next;
+      });
+    } catch(err) { 
+      console.error(err); 
+      setLocalOverrides(prev => {
+        const next = { ...prev };
+        if (next[studentId]) {
+          delete next[studentId][field];
+          if (Object.keys(next[studentId]).length === 0) delete next[studentId];
+        }
+        return next;
+      });
+      alert("Durum güncellenemedi."); 
+    }
   };
 
   const handleSaveResult = async () => {
     const student = resultModal.student;
-    const pastExam = { id: student.examId || student.exam?.firebaseId, title: student.examTitle || student.exam?.title, date: student.selectedDate || student.exam?.date, time: student.selectedTime || student.slot, score: resultModal.score, rank: resultModal.rank };
+    
+    const pastExam = { 
+        id: student.examId || student.exam?.firebaseId, 
+        title: student.examTitle || student.exam?.title, 
+        date: student.selectedDate || student.exam?.date, 
+        time: student.selectedTime || student.slot, 
+        score: resultModal.score, 
+        rank: resultModal.rank,
+        participationPrize: student.selectedParticipationPrize || '' 
+    };
+    
     const pastExams = [...(student.pastExams || []), pastExam];
 
     try {
       setHasMadeChanges(true);
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', student.firebaseId), {
-          pastExams: pastExams, examId: null, examTitle: null, selectedDate: null, selectedTime: null, exam: null, slot: null, selectedDegreePrize: null, selectedParticipationPrize: null
+          pastExams: pastExams, 
+          examId: null, 
+          examTitle: null, 
+          selectedDate: null, 
+          selectedTime: null, 
+          exam: null, 
+          slot: null, 
+          selectedDegreePrize: null
       });
       setResultModal({ isOpen: false, student: null, score: '', rank: '' });
       alert("Sonuç kaydedildi.");
@@ -71,25 +128,23 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
     }
   };
 
-  // 🚀 YENİ: Öğrenciyi Başka Mıntıkaya Aktarma Fonksiyonu
   const handleTransferStudent = async () => {
     if (!transferModal.targetZoneId) return alert("Lütfen hedef mıntıkayı seçin.");
-    
     const targetZone = zones.find(z => z.id.toString() === transferModal.targetZoneId.toString());
     if (!targetZone) return;
 
     try {
       setHasMadeChanges(true);
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', transferModal.student.firebaseId), {
-        zone: targetZone,
+        zone: { id: targetZone.id, name: targetZone.name },
         examId: null,
         examTitle: null,
         selectedDate: null,
         selectedTime: null,
         notifiedCenter: null,
-        isWaitingPool: true // Öğrenci yeni mıntıkanın havuzuna düşer
+        isWaitingPool: true 
       });
-      alert(`${transferModal.student.fullName} adlı öğrenci başarıyla ${targetZone.name} mıntıkasına aktarıldı. Öğrenci artık o bölgenin havuzunda bekliyor.`);
+      alert(`${transferModal.student.fullName} adlı öğrenci ${targetZone.name} mıntıkasına aktarıldı ve bekleme havuzuna alındı.`);
       setTransferModal({ isOpen: false, student: null, targetZoneId: '' });
     } catch(e) { 
       console.error(e); 
@@ -100,13 +155,18 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
   const handleBulkSMS = async () => {
     setSmsModal({ ...smsModal, loading: true });
     
-    const targetStudents = smsModal.targetStudent ? [smsModal.targetStudent] : students;
+    const targetStudents = smsModal.targetStudent ? [smsModal.targetStudent] : displayStudents;
     const validStudents = targetStudents.filter(s => s.phone && s.phone.length >= 10);
     
     if (validStudents.length === 0) {
-      alert("Gönderilecek numara yok.");
+      alert("Gönderilecek numara yok veya filtrelediğiniz listede geçerli telefon numarası bulunmuyor.");
       setSmsModal({ ...smsModal, loading: false, isOpen: false, targetStudent: null });
       return;
+    }
+
+    if (!window.confirm(`Dikkat: Bu mesaj ekranda filtrelenmiş ${validStudents.length} kişiye gönderilecek. Onaylıyor musunuz?`)) {
+        setSmsModal({ ...smsModal, loading: false });
+        return;
     }
 
     const msgDataArray = validStudents.map(student => {
@@ -120,6 +180,8 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
           text = `🎯 Büyük fırsat yeniden kapında!\n\nDaha önce katıldığın ödüllü denemeyi hatırlıyor musun? Şimdi çok daha heyecanlısı geliyor! 🚀\n\nYeni ödüllü denememizde yine katılan HERKES kendi seçtiği ödülü kazanma şansı yakalıyor 🎁\nÜstelik dereceye girenleri çok daha büyük sürprizler bekliyor! 🏆🔥\n\nBu fırsatı kaçırma, yerini hemen ayırt!\n👉 Kayıt olmak ve detayları öğrenmek için: odullusinav.net\n\nHadi, bir adım öne geçme zamanı! 💥`;
       } else if (smsModal.type === 'reminder') {
           text = `🚀 Sınav heyecanı başlıyor!\n\nYaklaşan sınavımız için kayıtlar tüm hızıyla devam ediyor! 🎉\nSen de yerini almayı unutma — başarıya giden yol burada başlıyor!\n\nÜstelik bu heyecanı tek başına yaşamak zorunda değilsin…\nArkadaşlarını da sınava davet et, birlikte kazanmanın keyfini çıkar! 💪🔥\n\nDetayları öğrenmek ve sınav oturumunla ilgili düzenlemeleri yapmak için hemen\n👉 odullusinav.net üzerinden profiline giriş yap!\n\nHadi, şimdi harekete geçme zamanı! ⏳✨`;
+      } else if (smsModal.type === 'pool_reminder') {
+          text = `🚨 ÖNEMLİ HATIRLATMA!\n\nSayın Velimiz, ${student.fullName} isimli öğrencimizin kayıt işlemi henüz TAMAMLANMAMIŞTIR.\n\nÖğrencimiz şu an "Bekleme Havuzunda" yer almaktadır. Sınava girebilmesi için acilen odullusinav.net adresinden profiline giriş yapıp uygun bir SINAV OTURUMU (Saat ve Tarih) seçmeniz gerekmektedir.\n\nOturum seçilmeyen kayıtlar geçersiz sayılacaktır.`;
       } else if (smsModal.type === 'results') {
           text = `Tebrikler! ${student.fullName || 'Öğrencimiz'}, sınav sonuçlarınız açıklanmıştır.\nPuan ve derecenizi odullusinav.net üzerinden öğrenebilirsiniz.\nBirebir analiz ve ödülleriniz için sınav merkezimizden randevu alabilirsiniz.\nSınav Merkezi: ${stdCenter.centerName}\nİletişim: ${stdCenter.phone}\nAdres: ${stdCenter.address}\nKonum: ${stdCenter.mapLink}`;
       }
@@ -137,7 +199,12 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
 
   const handleExportExcel = () => {
      let csvContent = "Ogrenci Isim Soyisim;Veli Isim Soyisim;Telefon;Sinif;Cinsiyet;Okul Bilgisi;Ilce;Mahalle;Atanan Sinav Merkezi;Kayitli Sinav ve Seans;Aciklanan Puan;Derece;Katilim Odulu;Katilim Durumu;Gorusme Durumu;Gorusme Sonucu\n";
-     students.forEach(s => {
+     displayStudents.forEach(originalStudent => {
+        // 🚀 DÜZELTME: Excel indirmesinde de anlık güncellemeler (overrides) dikkate alınıyor
+        const s = localOverrides[originalStudent.firebaseId] 
+           ? { ...originalStudent, ...localOverrides[originalStudent.firebaseId] } 
+           : originalStudent;
+
         const stdZone = isSuperAdmin ? (zones.find(z => z.id === s.zone?.id) || s.zone) : adminZoneData;
         const center = getNeighborhoodDetails(stdZone, s.district, s.neighborhood, s.gender, s.grade)?.centerName || 'Bekleniyor';
         const hasPast = s.pastExams && s.pastExams.length > 0;
@@ -156,14 +223,17 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
      const url = URL.createObjectURL(blob);
      const link = document.createElement("a");
      link.setAttribute("href", url);
-     link.setAttribute("download", "Ogrenci_Listesi.csv");
+     link.setAttribute("download", `Ogrenci_Listesi_${new Date().toLocaleDateString('tr-TR')}.csv`);
      document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
   return (
     <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 p-10 overflow-hidden relative animate-in fade-in zoom-in-95 duration-300">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
-        <h2 className="text-3xl font-black text-slate-800">{isSuperAdmin ? "Tüm Türkiye Kayıtları" : "Bölge Kayıtları"} ({displayStudents.length})</h2>
+        <h2 className="text-3xl font-black text-slate-800">
+           {isSuperAdmin ? "Tüm Türkiye Kayıtları" : "Bölge Kayıtları"} 
+           <span className="text-indigo-600 ml-2">({displayStudents.length})</span>
+        </h2>
         <div className="flex flex-wrap gap-3">
           <button onClick={handleExportExcel} className="bg-green-50 font-black px-6 py-3 rounded-2xl text-green-700 border-2 border-green-200 hover:bg-green-100 transition flex items-center">
             <Download className="w-5 h-5 mr-2" /> Excel İndir
@@ -171,14 +241,20 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
           <button 
             onClick={() => setSmsModal({ isOpen: true, type: 'custom', customMsg: '', loading: false, targetStudent: null })}
             className="bg-indigo-600 font-black px-6 py-3 rounded-2xl text-white hover:bg-indigo-700 flex items-center shadow-xl shadow-indigo-200 transition">
-            <MessageSquare className="w-5 h-5 mr-3"/> Bölgeye Toplu SMS
+            <MessageSquare className="w-5 h-5 mr-3"/> Filtrelenenlere ({displayStudents.length}) SMS
           </button>
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 mb-6 bg-slate-50 p-5 rounded-3xl border border-slate-200 shadow-inner">
+      <div className="flex flex-col sm:flex-row flex-wrap gap-4 mb-6 bg-slate-50 p-5 rounded-3xl border border-slate-200 shadow-inner">
          <div className="flex items-center text-slate-500 font-black mr-2"><Filter className="w-5 h-5 mr-2"/> Filtreler:</div>
          
+         <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} className="p-3 rounded-xl border-2 border-amber-200 font-bold text-sm outline-none focus:border-amber-500 bg-amber-50 text-amber-800 flex-1 min-w-[200px]">
+            <option value="">Tüm Öğrenciler (Durum)</option>
+            <option value="Waiting">Sadece Havuzdakiler (Oturum Seçmeyenler)</option>
+            <option value="Assigned">Sınav Oturumu Seçenler</option>
+         </select>
+
          {isSuperAdmin && (
              <select value={filterZone} onChange={e=>setFilterZone(e.target.value)} className="p-3 rounded-xl border-2 border-slate-200 font-bold text-sm outline-none focus:border-indigo-500 bg-white">
                 <option value="">Tüm Mıntıkalar</option>
@@ -221,44 +297,48 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
                         </td>
                      </tr>
                      
-                     {groupedStudents[grade].map(student => {
-                        const hasActiveExam = !!(student.examId || student.examTitle || student.exam);
-                        const realZoneData = isSuperAdmin ? (zones.find(z => z.id === student.zone?.id) || student.zone) : adminZoneData;
-                        const stdCenter = getNeighborhoodDetails(realZoneData, student.district, student.neighborhood, student.gender, student.grade);
+                     {groupedStudents[grade].map(originalStudent => {
+                        const mergedStudent = localOverrides[originalStudent.firebaseId] 
+                             ? { ...originalStudent, ...localOverrides[originalStudent.firebaseId] } 
+                             : originalStudent;
+
+                        const hasActiveExam = !!(mergedStudent.examId || mergedStudent.examTitle || mergedStudent.exam);
+                        const realZoneData = isSuperAdmin ? (zones.find(z => z.id === mergedStudent.zone?.id) || mergedStudent.zone) : adminZoneData;
+                        const stdCenter = getNeighborhoodDetails(realZoneData, mergedStudent.district, mergedStudent.neighborhood, mergedStudent.gender, mergedStudent.grade);
                         
                         return (
-                          <tr key={student.firebaseId} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                          <tr key={mergedStudent.firebaseId} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
                             <td className="p-6 font-black text-slate-900 text-lg">
-                              {student.fullName}
-                              <div className="text-xs font-bold text-slate-400">{student.gender} - {student.phone}</div>
+                              {mergedStudent.fullName}
+                              <div className="text-xs font-bold text-slate-400">{mergedStudent.gender} - {mergedStudent.phone}</div>
                             </td>
                             <td className="p-6 font-bold text-slate-600">
-                               {student.district} / {student.neighborhood}
-                               <div className="text-xs font-bold text-indigo-500 mt-1 truncate max-w-[200px]" title={student.schoolName}>{student.schoolName || 'Okul Belirtilmemiş'}</div>
+                               {mergedStudent.district} / {mergedStudent.neighborhood}
+                               <div className="text-xs font-bold text-indigo-500 mt-1 truncate max-w-[200px]" title={mergedStudent.schoolName}>{mergedStudent.schoolName || 'Okul Belirtilmemiş'}</div>
                             </td>
                             <td className="p-6">
                               {hasActiveExam ? (
                                 <>
                                   <div className="font-bold text-slate-800">{stdCenter.centerName}</div>
-                                  <div className="text-xs font-black text-indigo-600">{student.examTitle || student.exam?.title} ({student.selectedDate || student.exam?.date} - {student.selectedTime || student.slot})</div>
+                                  <div className="text-xs font-black text-indigo-600">{mergedStudent.examTitle || mergedStudent.exam?.title} ({mergedStudent.selectedDate || mergedStudent.exam?.date} - {mergedStudent.selectedTime || mergedStudent.slot})</div>
                                 </>
                               ) : (
-                                <span className="text-sm font-bold text-slate-400">Bekleme Havuzunda</span>
+                                <span className="inline-block px-3 py-1 bg-amber-100 text-amber-800 rounded-lg text-xs font-black shadow-sm">Bekleme Havuzunda</span>
                               )}
                             </td>
                             
                             <td className="p-4 flex flex-col gap-1">
-                              <select value={student.attendance || ''} onChange={e => handleUpdateStudentStatus(student.firebaseId, 'attendance', e.target.value)} className="text-xs border border-slate-200 rounded p-1 outline-none text-slate-700 font-bold">
+                              <select value={mergedStudent.attendance || ''} onChange={e => handleUpdateStudentStatus(mergedStudent.firebaseId, 'attendance', e.target.value)} className="text-xs border border-slate-200 rounded p-1 outline-none text-slate-700 font-bold">
                                  <option value="">Katılım Durumu</option>
                                  <option value="Katıldı">Katıldı</option>
                                  <option value="Katılmadı">Katılmadı</option>
                               </select>
-                              <select value={student.interview || ''} onChange={e => handleUpdateStudentStatus(student.firebaseId, 'interview', e.target.value)} className="text-xs border border-slate-200 rounded p-1 outline-none text-slate-700 font-bold">
+                              <select value={mergedStudent.interview || ''} onChange={e => handleUpdateStudentStatus(mergedStudent.firebaseId, 'interview', e.target.value)} className="text-xs border border-slate-200 rounded p-1 outline-none text-slate-700 font-bold">
                                  <option value="">Görüşme</option>
                                  <option value="Görüşüldü">Görüşüldü</option>
                                  <option value="Görüşülmedi">Görüşülmedi</option>
                               </select>
-                              <select value={student.interviewResult || ''} onChange={e => handleUpdateStudentStatus(student.firebaseId, 'interviewResult', e.target.value)} className="text-xs border border-slate-200 rounded p-1 outline-none text-slate-700 font-bold">
+                              <select value={mergedStudent.interviewResult || ''} onChange={e => handleUpdateStudentStatus(mergedStudent.firebaseId, 'interviewResult', e.target.value)} className="text-xs border border-slate-200 rounded p-1 outline-none text-slate-700 font-bold">
                                  <option value="">Netice</option>
                                  <option value="Sıbyan">Sıbyan</option>
                                  <option value="Nehari">Nehari</option>
@@ -269,18 +349,17 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
 
                             <td className="p-6 text-right space-x-2 whitespace-nowrap">
                               {hasActiveExam && (
-                                <button onClick={() => setResultModal({ isOpen: true, student, score: '', rank: '' })} className="bg-yellow-100 text-yellow-700 font-black px-4 py-2 rounded-xl text-sm hover:bg-yellow-200 transition">
+                                <button onClick={() => setResultModal({ isOpen: true, student: mergedStudent, score: '', rank: '' })} className="bg-yellow-100 text-yellow-700 font-black px-4 py-2 rounded-xl text-sm hover:bg-yellow-200 transition">
                                   Sonuç Gir
                                 </button>
                               )}
                               
-                              {/* 🚀 YENİ: Başka Mıntıkaya Aktarma Butonu */}
-                              <button onClick={() => setTransferModal({ isOpen: true, student, targetZoneId: '' })} className="text-blue-500 hover:text-blue-700 bg-white border border-blue-200 hover:bg-blue-50 p-2 rounded-xl transition" title="Öğrenciyi Başka Mıntıkaya Gönder">
+                              <button onClick={() => setTransferModal({ isOpen: true, student: mergedStudent, targetZoneId: '' })} className="text-blue-500 hover:text-blue-700 bg-white border border-blue-200 hover:bg-blue-50 p-2 rounded-xl transition" title="Öğrenciyi Başka Mıntıkaya Gönder">
                                 <ArrowRightLeft className="w-5 h-5"/>
                               </button>
 
-                              <button onClick={() => setSmsModal({ isOpen: true, type: 'custom', customMsg: '', loading: false, targetStudent: student })} className="text-indigo-400 hover:text-indigo-600 bg-white border border-indigo-200 hover:bg-indigo-50 p-2 rounded-xl transition" title="Özel SMS Gönder"><Send className="w-5 h-5"/></button>
-                              <button onClick={() => handleDeleteStudent(student.firebaseId, student.fullName)} className="text-red-400 hover:text-red-600 bg-white border border-red-200 hover:bg-red-50 p-2 rounded-xl transition" title="Öğrenciyi Sil"><Trash2 className="w-5 h-5"/></button>
+                              <button onClick={() => setSmsModal({ isOpen: true, type: 'custom', customMsg: '', loading: false, targetStudent: mergedStudent })} className="text-indigo-400 hover:text-indigo-600 bg-white border border-indigo-200 hover:bg-indigo-50 p-2 rounded-xl transition" title="Özel SMS Gönder"><Send className="w-5 h-5"/></button>
+                              <button onClick={() => handleDeleteStudent(mergedStudent.firebaseId, mergedStudent.fullName)} className="text-red-400 hover:text-red-600 bg-white border border-red-200 hover:bg-red-50 p-2 rounded-xl transition" title="Öğrenciyi Sil"><Trash2 className="w-5 h-5"/></button>
                             </td>
                           </tr>
                         );
@@ -292,7 +371,6 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
         </table>
       </div>
 
-      {/* 🚀 YENİ: Öğrenci Aktarma Modalı */}
       {transferModal.isOpen && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-md relative animate-in zoom-in-95">
@@ -322,15 +400,19 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
           <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-2xl relative animate-in zoom-in-95">
             <button onClick={() => setSmsModal({ ...smsModal, isOpen: false })} className="absolute top-8 right-8 text-slate-400 hover:text-slate-800"><Plus className="w-8 h-8 transform rotate-45"/></button>
             <MessageSquare className="w-16 h-16 text-indigo-500 mx-auto mb-6" />
-            <h3 className="text-3xl font-black text-center text-slate-900 mb-2">Akıllı SMS Gönderimi</h3>
+            <h3 className="text-3xl font-black text-center text-slate-900 mb-2">
+               {smsModal.targetStudent ? `${smsModal.targetStudent.fullName.split(' ')[0]} İçin Özel Mesaj` : "Filtrelenmiş Toplu SMS"}
+            </h3>
+            
             <div className="space-y-6 mb-8 mt-6">
               <div>
                 <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-wider">Mesaj Şablonu Seçin</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button onClick={() => setSmsModal({...smsModal, type: 'announcement'})} className={`p-4 rounded-2xl font-bold border-4 transition-all text-sm ${smsModal.type === 'announcement' ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : 'border-slate-100 text-slate-600 hover:border-slate-200'}`}>Sınav Duyurusu</button>
-                  <button onClick={() => setSmsModal({...smsModal, type: 'reminder'})} className={`p-4 rounded-2xl font-bold border-4 transition-all text-sm ${smsModal.type === 'reminder' ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : 'border-slate-100 text-slate-600 hover:border-slate-200'}`}>Sınav Hatırlatması</button>
-                  <button onClick={() => setSmsModal({...smsModal, type: 'results'})} className={`p-4 rounded-2xl font-bold border-4 transition-all text-sm ${smsModal.type === 'results' ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : 'border-slate-100 text-slate-600 hover:border-slate-200'}`}>Sonuç ve Randevu</button>
-                  <button onClick={() => setSmsModal({...smsModal, type: 'custom'})} className={`p-4 rounded-2xl font-bold border-4 transition-all text-sm ${smsModal.type === 'custom' ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : 'border-slate-100 text-slate-600 hover:border-slate-200'}`}>Özel Mesaj</button>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <button onClick={() => setSmsModal({...smsModal, type: 'announcement'})} className={`p-4 rounded-2xl font-bold border-4 transition-all text-xs lg:text-sm ${smsModal.type === 'announcement' ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : 'border-slate-100 text-slate-600 hover:border-slate-200'}`}>Sınav Duyurusu</button>
+                  <button onClick={() => setSmsModal({...smsModal, type: 'reminder'})} className={`p-4 rounded-2xl font-bold border-4 transition-all text-xs lg:text-sm ${smsModal.type === 'reminder' ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : 'border-slate-100 text-slate-600 hover:border-slate-200'}`}>Sınav Hatırlatması</button>
+                  <button onClick={() => setSmsModal({...smsModal, type: 'pool_reminder'})} className={`p-4 rounded-2xl font-bold border-4 transition-all text-xs lg:text-sm ${smsModal.type === 'pool_reminder' ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-slate-100 text-slate-600 hover:border-slate-200'}`}>Oturum (Havuz) Uyarısı</button>
+                  <button onClick={() => setSmsModal({...smsModal, type: 'results'})} className={`p-4 rounded-2xl font-bold border-4 transition-all text-xs lg:text-sm ${smsModal.type === 'results' ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : 'border-slate-100 text-slate-600 hover:border-slate-200'}`}>Sonuç / Randevu</button>
+                  <button onClick={() => setSmsModal({...smsModal, type: 'custom'})} className={`p-4 rounded-2xl font-bold border-4 transition-all text-xs lg:text-sm col-span-2 lg:col-span-4 ${smsModal.type === 'custom' ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : 'border-slate-100 text-slate-600 hover:border-slate-200'}`}>Kendin Yaz (Özel Mesaj)</button>
                 </div>
               </div>
               {smsModal.type === 'custom' && (
