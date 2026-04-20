@@ -284,6 +284,11 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
            try { await sendSMS([{tel: [finalUserObj.phone], msg: regMsg}]); } catch(smsErr){}
         }
       }
+if (typeof window !== "undefined" && window.gtag) {
+  window.gtag('event', 'conversion', {
+    'send_to': 'AW-18022843253/AgxyCLirlZ0cEPWG-5FD'
+  });
+}
       setStep(3); 
     } catch (error) { alert("İşlem sırasında bir hata oluştu."); } 
     finally { setIsSubmitting(false); }
