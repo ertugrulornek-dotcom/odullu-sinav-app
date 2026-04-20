@@ -340,7 +340,7 @@ if (typeof window !== "undefined" && window.gtag) {
             {isMultiCenter && (
               <div className="bg-amber-50 p-6 rounded-3xl border-2 border-amber-200 mt-4">
                 <label className="block text-sm font-black text-amber-800 mb-2 uppercase">Mahallenizde Birden Fazla Sınav Merkezi Bulunuyor. Lütfen Seçin:</label>
-                <select 
+      <select 
                   onChange={(e) => {
                     const centerId = e.target.value;
                     if (!centerId) {
@@ -360,12 +360,30 @@ if (typeof window !== "undefined" && window.gtag) {
                   className="w-full border-4 border-white rounded-2xl px-6 py-4 font-bold text-lg focus:border-amber-500 outline-none bg-white"
                 >
                   <option value="">Kurum Seçiniz...</option>
-                  {zones.flatMap(z => (z.mappings || []))
-                    .filter(m => m.district === formData.district && m.neighborhood === formData.neighborhood && (m.gender === formData.gender || m.gender === 'Tümü' || (m.gender === '8. Sınıf Erkek' && formData.grade === '8' && formData.gender === 'Erkek')))
+                  
+                  {/* 🚀 DÜZELTME: 8. Sınıf Erkek Katı İzolasyon Mantığı Kayıt Ekranına da Eklendi! */}
+                  {zones.flatMap(z => (z.mappings || []).map(m => ({ ...m, sourceZoneName: z.name })))
+                    .filter(m => {
+                        // Farklı mahalle ise direkt ele
+                        if (m.district !== formData.district || m.neighborhood !== formData.neighborhood) return false;
+                        
+                        // Tümü (Karma) herkese görünür
+                        if (m.gender === 'Tümü') return true;
+
+                        // Çocuğun formda 8 ve Erkek seçip seçmediğini kontrol et
+                        const is8thGradeBoy = String(formData.grade) === '8' && formData.gender === 'Erkek';
+                        
+                        if (is8thGradeBoy) {
+                            return m.gender === '8. Sınıf Erkek'; // Sadece kendi kurumunu görsün
+                        } else {
+                            return m.gender === formData.gender; // Diğerleri de sadece kendi kurumunu görsün
+                        }
+                    })
                     .map(m => {
                       const center = zones.flatMap(z => z.centers).find(c => c.id === m.centerId);
                       if(center && center.name) {
-                         return <option key={m.centerId} value={m.centerId}>{center.name} ({findZoneByName(zones, m.zoneName || zones.find(z=>z.mappings.includes(m))?.name)?.name} Mıntıkası)</option>;
+                         const zoneDisplayName = findZoneByName(zones, m.sourceZoneName)?.name || m.sourceZoneName;
+                         return <option key={m.centerId} value={m.centerId}>{center.name} ({zoneDisplayName} Mıntıkası)</option>;
                       }
                       return null;
                     })}
