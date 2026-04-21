@@ -14,7 +14,6 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
      setLocalMappings(adminZoneData.mappings || []);
   }, [adminZoneData]);
   
-  // 🚀 DÜZELTME: Hatalı state tanımlaması tek ve doğru satıra indirgendi
   const [newCenter, setNewCenter] = useState({ name: '', address: '', mapLink: '' });
   
   const [mappingData, setMappingData] = useState({ district: '', neighborhood: '', centerId: '', gender: '', contactName: '', phone: '' });
@@ -44,9 +43,10 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
     }
     
     return allHoods.filter(hood => {
+       // 🚀 DÜZELTME: Gebze kızları alır, Akarçeşme kızları ALAMAZ. (Tam izolasyon)
        if (district === 'Körfez' && (hood === '17 Ağustos' || hood === 'Cumhuriyet')) {
-          if (adminZoneData.name === 'Gebze' && (gender === 'Kız' || gender === '8. Sınıf Erkek' || gender === 'Tümü')) return false;
-          if (adminZoneData.name === 'Akarçeşme' && (gender === 'Erkek' || gender === 'Tümü')) return false; 
+          if (adminZoneData.name === 'Gebze' && (gender === '8. Sınıf Erkek' || gender === 'Tümü')) return false;
+          if (adminZoneData.name === 'Akarçeşme' && (gender === 'Erkek' || gender === 'Kız' || gender === 'Tümü')) return false; 
        }
        
        const hoodMappings = localMappings.filter(m => m.district === district && m.neighborhood === hood);
@@ -84,7 +84,6 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
   });
 
   const handleAddCenter = async () => {
-    // 🚀 DÜZELTME: newCenterState yerine newCenter kullanıldı
     if(!newCenter.name || !newCenter.address) return alert("Kurum adı ve açık adres zorunludur.");
     try {
       const centerObj = { id: "c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9), name: newCenter.name, address: newCenter.address, mapLink: newCenter.mapLink || "" };
@@ -190,9 +189,10 @@ export default function CentersTab({ adminZoneData, adminZoneId, setHasMadeChang
 
        if (!matchedDistrict || !matchedNeighborhood) { errors.push(`Satır ${i+1}: Veritabanında "${rawDistrict}" ilçesinde "${rawNeighborhood}" bulunamadı.`); continue; }
        
+       // 🚀 DÜZELTME: Gebze kızları alır, Akarçeşme kızları ALAMAZ.
        if (matchedDistrict === 'Körfez' && (matchedNeighborhood === '17 Ağustos' || matchedNeighborhood === 'Cumhuriyet')) {
-          if (adminZoneData.name === 'Gebze' && (rawGender === 'Kız' || rawGender === '8. Sınıf Erkek' || rawGender === 'Tümü')) { errors.push(`Satır ${i+1}: Gebze mıntıkası bu mahalleye Kız veya 8. Sınıf atayamaz.`); continue; }
-          if (adminZoneData.name === 'Akarçeşme' && (rawGender === 'Erkek' || rawGender === 'Tümü')) { errors.push(`Satır ${i+1}: Akarçeşme mıntıkası bu mahalleye 3-7 Erkek atayamaz.`); continue; }
+          if (adminZoneData.name === 'Gebze' && (rawGender === '8. Sınıf Erkek' || rawGender === 'Tümü')) { errors.push(`Satır ${i+1}: Gebze mıntıkası bu mahalleye 8. Sınıf veya Tümü atayamaz.`); continue; }
+          if (adminZoneData.name === 'Akarçeşme' && (rawGender === 'Erkek' || rawGender === 'Kız' || rawGender === 'Tümü')) { errors.push(`Satır ${i+1}: Akarçeşme mıntıkası bu mahalleye Kız, 3-7 Erkek veya Tümü atayamaz.`); continue; }
        }
 
        let center = updatedCenters.find(c => normalizeForSearch(c.name) === normalizeForSearch(centerName));

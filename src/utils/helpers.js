@@ -38,11 +38,11 @@ export const determineZoneName = (province, district, neighborhood, gender, grad
     if (possibleMappings.length > 1) return 'MULTI';
   }
 
-  // 2. Eğer veritabanında atama yoksa statik istisnalara bak (Körfez vb.)
-  if (district === 'Körfez' && (neighborhood === '17 Ağustos' || neighborhood === 'Cumhuriyet')) {
-      if (gender === 'Kız' || (gender === 'Erkek' && String(grade) === '8')) return 'Akarçeşme';
-      return 'Gebze';
-  }
+// YENİ — Sadece 8. sınıflar (kız+erkek) Akarçeşme'de kalır, geri kalanlar Gebze'ye
+if (district === 'Körfez' && (neighborhood === '17 Ağustos' || neighborhood === 'Cumhuriyet')) {
+    if (String(grade) === '8') return 'Akarçeşme';
+    return 'Gebze';
+}
   
   // 3. Hiçbiri yoksa varsayılan listeye bak
   const zList = zonesFromDb.length > 0 ? zonesFromDb : INITIAL_ZONES;
