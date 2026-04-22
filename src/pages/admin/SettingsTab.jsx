@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Gift, Trophy, Award, Plus, Trash2, CalendarIcon, CheckCircle2, Edit, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Gift, Trophy, Award, Plus, Trash2, CalendarIcon, CheckCircle2, Edit, AlertCircle, Eye, EyeOff, ShieldAlert, X } from 'lucide-react';
 import { db, appId } from '../../services/firebase';
-import { updateDoc, doc, addDoc, collection, deleteDoc, getDocs, query, where } from "firebase/firestore";
+import { updateDoc, doc, addDoc, collection, deleteDoc, getDocs, query, where, arrayUnion, arrayRemove } from "firebase/firestore";
 import { INITIAL_ZONES } from '../../data/constants';
 import { parsePrizeArray } from '../../utils/helpers';
 import { sendSMS, SMS_FOOTER } from '../../services/smsService'; 
@@ -13,18 +13,17 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
   const [editingExamId, setEditingExamId] = useState(null);
 
   const [prizeMappingModal, setPrizeMappingModal] = useState({
-      isOpen: false,
-      unmatchedOldPrizes: [],
-      newPrizes: [],
-      affectedStudents: [],
-      targetZoneIds: [],
-      currentMapping: {} 
+      isOpen: false, unmatchedOldPrizes: [], newPrizes: [], affectedStudents: [], targetZoneIds: [], currentMapping: {} 
   });
 
-// 🚀 DÜZELTME KRİTİK 4: Genel Merkez modunda ödüllerin boş obje ile silinmesini engelledik.
+  const [restrictGrade, setRestrictGrade] = useState('8');
+  const [restrictGender, setRestrictGender] = useState('Kız');
+  
+  // 🚀 DÜZELTME 4: Çift tıklama (Race Condition) koruması için kilit state'i
+  const [togglingSlot, setTogglingSlot] = useState(null);
+
   useEffect(() => {
     if (isSuperAdmin && zones && zones.length > 0) {
-      // SuperAdmin için, ilk bölgenin ödüllerini ekrana "şablon" olarak getiriyoruz.
       const sample = zones[0]?.prizes;
       if (sample) {
         setLocalPrizes({
@@ -45,44 +44,30 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
   const handleUpdatePrizes = async () => {
     try {
       const targetZoneIds = isSuperAdmin ? INITIAL_ZONES.map(z => z.id) : [adminZoneId];
-      // 🚀 DÜZELTME: Eşleştirme yaparken isHidden olanları da saymalıyız ki eski ödüller kaybolmasın
       const newPartPrizes = localPrizes.participation.filter(p => p.title).map(p => p.title);
       const newPartPrizesLower = newPartPrizes.map(p => p.toLowerCase().trim());
 
       let allAffectedStudents = [];
-      
       for (const zId of targetZoneIds) {
           const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'students'), where("zone.id", "==", parseInt(zId)));
           const studentsSnap = await getDocs(q);
           studentsSnap.docs.forEach(d => {
               const s = { firebaseId: d.id, ...d.data() };
-              if (s.selectedParticipationPrize) {
-                  allAffectedStudents.push(s);
-              }
+              if (s.selectedParticipationPrize) allAffectedStudents.push(s);
           });
       }
 
       const uniqueOldPrizes = [...new Set(allAffectedStudents.map(s => s.selectedParticipationPrize))];
       const unmatched = [];
-
       uniqueOldPrizes.forEach(oldPrize => {
           const oldLower = oldPrize.toLowerCase().trim();
-          if (!newPartPrizesLower.includes(oldLower)) {
-              unmatched.push(oldPrize);
-          }
+          if (!newPartPrizesLower.includes(oldLower)) unmatched.push(oldPrize);
       });
 
       if (unmatched.length > 0) {
           const initialMapping = {};
           unmatched.forEach(p => initialMapping[p] = '');
-          setPrizeMappingModal({
-              isOpen: true,
-              unmatchedOldPrizes: unmatched,
-              newPrizes: newPartPrizes,
-              affectedStudents: allAffectedStudents,
-              targetZoneIds: targetZoneIds,
-              currentMapping: initialMapping
-          });
+          setPrizeMappingModal({ isOpen: true, unmatchedOldPrizes: unmatched, newPrizes: newPartPrizes, affectedStudents: allAffectedStudents, targetZoneIds: targetZoneIds, currentMapping: initialMapping });
       } else {
           await executeFinalPrizeUpdate(targetZoneIds, allAffectedStudents, newPartPrizes, {});
       }
@@ -92,9 +77,7 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
   const executeFinalPrizeUpdate = async (targetZoneIds, affectedStudents, newPrizes, manualMapping) => {
     try {
         setHasMadeChanges(true);
-        let totalSmsCount = 0;
-        let smsQueue = [];
-        let updatePromises = [];
+        let totalSmsCount = 0; let smsQueue = []; let updatePromises = [];
 
         for (const zId of targetZoneIds) {
             updatePromises.push(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', zId.toString()), { prizes: localPrizes }));
@@ -106,14 +89,10 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
         for (const s of affectedStudents) {
             const oldPrize = s.selectedParticipationPrize;
             const oldLower = oldPrize.toLowerCase().trim();
-
             let finalPrizeForStudent = oldPrize; 
 
-            if (newPrizesLowerMap[oldLower]) {
-                finalPrizeForStudent = newPrizesLowerMap[oldLower];
-            } else if (manualMapping[oldPrize]) {
-                finalPrizeForStudent = manualMapping[oldPrize];
-            }
+            if (newPrizesLowerMap[oldLower]) finalPrizeForStudent = newPrizesLowerMap[oldLower];
+            else if (manualMapping[oldPrize]) finalPrizeForStudent = manualMapping[oldPrize];
 
             if (finalPrizeForStudent === 'DELETE') {
                 updatePromises.push(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', s.firebaseId), { selectedParticipationPrize: '' }));
@@ -124,23 +103,13 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
         }
 
         await Promise.all(updatePromises);
-        if (smsQueue.length > 0) { 
-           await sendSMS(smsQueue); 
-           totalSmsCount += smsQueue.length;
-        }
+        if (smsQueue.length > 0) { await sendSMS(smsQueue); totalSmsCount += smsQueue.length; }
 
         setPrizeMappingModal({ isOpen: false, unmatchedOldPrizes: [], newPrizes: [], affectedStudents: [], targetZoneIds: [], currentMapping: {} });
 
-        if (totalSmsCount > 0) {
-            alert(`Ödüller güncellendi! İptal edilen ${totalSmsCount} öğrenciye SMS ile haber verildi.`);
-        } else {
-            alert(`Ödüller başarıyla güncellendi! Hiçbir öğrenciye SMS gitmedi, profilleri sessizce güncellendi.`);
-        }
-
-    } catch (e) {
-        console.error("Güncelleme hatası", e);
-        alert("Ödüller güncellenirken bir hata oluştu.");
-    }
+        if (totalSmsCount > 0) alert(`Ödüller güncellendi! İptal edilen ${totalSmsCount} öğrenciye SMS ile haber verildi.`);
+        else alert(`Ödüller başarıyla güncellendi! Hiçbir öğrenciye SMS gitmedi, profilleri sessizce güncellendi.`);
+    } catch (e) { console.error("Güncelleme hatası", e); alert("Ödüller güncellenirken bir hata oluştu."); }
   };
 
   const handleAddSessionRow = () => setExamSessions([...examSessions, { date: '', times: '' }]);
@@ -164,9 +133,23 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
 
   const handleAddOrUpdateExam = async () => {
     if(!examData.title) return alert("Sınav Adı boş bırakılamaz.");
+    
+    let existingClosedSlotsMap = {};
+    if (editingExamId) {
+       const existingExam = filteredExams.find(e => e.firebaseId === editingExamId);
+       if (existingExam && existingExam.sessions) {
+          existingExam.sessions.forEach(s => { existingClosedSlotsMap[s.date] = s.closedSlots || []; });
+       }
+    }
+
     const formattedSessions = examSessions
       .filter(s => s.date && s.times)
-      .map(s => ({ date: s.date, slots: s.times.split(',').map(t => t.trim()).filter(t => t) }));
+      .map(s => {
+          const slotsArray = s.times.split(',').map(t => t.trim()).filter(t => t);
+          const previouslyClosed = existingClosedSlotsMap[s.date] || [];
+          const currentlyClosed = slotsArray.filter(slot => previouslyClosed.includes(slot));
+          return { date: s.date, slots: slotsArray, closedSlots: currentlyClosed };
+      });
     
     if(formattedSessions.length === 0) return alert("Lütfen en az bir geçerli tarih ve saat girin.");
 
@@ -181,8 +164,7 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
          const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'students'), where("examId", "==", editingExamId));
          const studentsSnap = await getDocs(q);
          
-         let smsQueue = [];
-         let updatePromises = [];
+         let smsQueue = []; let updatePromises = [];
          
          studentsSnap.docs.forEach(d => {
              const s = { firebaseId: d.id, ...d.data() };
@@ -221,8 +203,7 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
           const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'students'), where("examId", "==", examId));
           const studentsSnap = await getDocs(q);
           
-          let smsQueue = [];
-          let updatePromises = [];
+          let smsQueue = []; let updatePromises = [];
           
           studentsSnap.docs.forEach(d => {
               const s = { firebaseId: d.id, ...d.data() };
@@ -235,11 +216,63 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
       } catch(e) { console.error(e); }
   };
 
-  // 🚀 YENİ FONKSİYON: Ödülü Gizle / Göster
   const togglePrizeVisibility = (category, index) => {
       const newArr = [...localPrizes[category]];
       newArr[index].isHidden = !newArr[index].isHidden;
       setLocalPrizes({ ...localPrizes, [category]: newArr });
+  };
+
+  const toggleSlotCapacityStatus = async (examId, sIdx, slotTime, isCurrentlyClosed) => {
+      // 🚀 DÜZELTME 4: Çift tıklama (Race Condition) Kilidi
+      const key = `${examId}-${sIdx}-${slotTime}`;
+      if (togglingSlot === key) return; 
+      setTogglingSlot(key);
+
+      try {
+          setHasMadeChanges(true);
+          const examToUpdate = filteredExams.find(e => e.firebaseId === examId);
+          if (!examToUpdate) return;
+
+          let updatedSessions = [...examToUpdate.sessions];
+          let closedSlotsArr = updatedSessions[sIdx].closedSlots || [];
+
+          if (isCurrentlyClosed) closedSlotsArr = closedSlotsArr.filter(t => t !== slotTime);
+          else if (!closedSlotsArr.includes(slotTime)) closedSlotsArr.push(slotTime);
+
+          updatedSessions[sIdx].closedSlots = closedSlotsArr;
+          await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'exams', examId), { sessions: updatedSessions });
+
+      } catch (e) { console.error(e); alert("Oturum durumu güncellenirken hata oluştu."); } 
+      finally { setTogglingSlot(null); }
+  };
+
+  // 🚀 DÜZELTME 1: Kısıtlamaları eklerken ve çıkarırken arrayUnion / arrayRemove kullanarak Race Condition engellendi.
+  const handleAddRestriction = async () => {
+    const groupStr = `${restrictGrade}-${restrictGender}`;
+    try {
+        setHasMadeChanges(true);
+        const targetZoneIds = isSuperAdmin ? INITIAL_ZONES.map(z => z.id) : [adminZoneId];
+        
+        for (const zId of targetZoneIds) {
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', zId.toString()), {
+                restrictedGroups: arrayUnion(groupStr)
+            });
+        }
+        alert(`${restrictGrade}. Sınıf ${restrictGender} kayıtları durduruldu!`);
+    } catch (e) { console.error(e); alert("Kısıtlama eklenirken hata oluştu."); }
+  };
+
+  const handleRemoveRestriction = async (groupStr) => {
+    try {
+        setHasMadeChanges(true);
+        const targetZoneIds = isSuperAdmin ? INITIAL_ZONES.map(z => z.id) : [adminZoneId];
+        
+        for (const zId of targetZoneIds) {
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'zones', zId.toString()), {
+                restrictedGroups: arrayRemove(groupStr)
+            });
+        }
+    } catch (e) { console.error(e); alert("Kısıtlama kaldırılırken hata oluştu."); }
   };
 
   return (
@@ -310,9 +343,47 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
         <div>
+          <div className="text-sm font-black text-red-600 uppercase mb-4 tracking-wider flex items-center"><ShieldAlert className="w-6 h-6 mr-2"/> Kapasite & Özel Kısıtlamalar</div>
+          
+          <div className="bg-red-50 p-6 rounded-3xl border-2 border-red-100 mb-10 relative overflow-hidden">
+              <h4 className="font-black text-lg text-red-900 mb-2">Sınıf ve Cinsiyet Bazlı Kayıt Kısıtlamaları</h4>
+              <p className="text-sm font-bold text-red-700 mb-4">Kapasitesi dolan grupların sisteme yeni kayıt olmasını buradan durdurabilirsiniz.</p>
+
+              <div className="flex flex-col sm:flex-row gap-3 mb-6 relative z-10">
+                  <select value={restrictGrade} onChange={e=>setRestrictGrade(e.target.value)} className="flex-1 p-3 rounded-xl border-2 border-red-200 font-bold outline-none focus:border-red-500 bg-white text-red-900">
+                      {[3,4,5,6,7,8].map(g => <option key={g} value={g}>{g}. Sınıf</option>)}
+                  </select>
+                  <select value={restrictGender} onChange={e=>setRestrictGender(e.target.value)} className="flex-1 p-3 rounded-xl border-2 border-red-200 font-bold outline-none focus:border-red-500 bg-white text-red-900">
+                      <option value="Kız">Kız</option>
+                      <option value="Erkek">Erkek</option>
+                  </select>
+                  <button onClick={handleAddRestriction} className="bg-red-600 text-white font-black px-6 py-3 rounded-xl hover:bg-red-700 transition shadow-md whitespace-nowrap">
+                      Kayıtları Kapat
+                  </button>
+              </div>
+
+              <div className="relative z-10">
+                  <h5 className="text-xs font-black text-red-800 uppercase tracking-wider mb-3">Şu An Kayda Kapalı Olan Gruplar:</h5>
+                  {(adminZoneData?.restrictedGroups || []).length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                          {(adminZoneData?.restrictedGroups || []).map(group => (
+                              <span key={group} className="bg-red-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center shadow-sm">
+                                  <ShieldAlert className="w-4 h-4 mr-2"/>
+                                  {group.split('-')[0]}. Sınıf {group.split('-')[1]} (KAPALI)
+                                  <button onClick={() => handleRemoveRestriction(group)} className="ml-3 bg-white/20 hover:bg-white/40 rounded-full p-1 transition" title="Kilidi Kaldır (Kayda Aç)">
+                                      <X className="w-4 h-4"/>
+                                  </button>
+                              </span>
+                          ))}
+                      </div>
+                  ) : (
+                      <div className="text-sm font-bold text-red-700/70 italic">Şu an kısıtlanmış bir grup yok. Tüm sınıfların kayıtları açık.</div>
+                  )}
+              </div>
+          </div>
+
           <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider flex items-center"><Gift className="w-6 h-6 mr-2"/> {isSuperAdmin ? 'Tüm Türkiye' : 'Bölge'} Ödüllerini Yönet</div>
           <div className="space-y-6 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
-            {/* Büyük Ödül */}
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative">
               <div className="text-sm font-black text-slate-800 mb-3 flex items-center"><Trophy className="w-5 h-5 text-yellow-500 mr-2"/> Büyük Ödül</div>
               <input type="text" value={localPrizes.grand.title} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, title: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2" placeholder="Ödül Başlığı (Örn: PlayStation 5)"/>
@@ -320,7 +391,6 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
               <input type="text" value={localPrizes.grand.img} onChange={e=>setLocalPrizes({...localPrizes, grand: {...localPrizes.grand, img: e.target.value}})} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500" placeholder="Resim Linki veya Dosya Adı"/>
             </div>
 
-            {/* Derece Ödülleri */}
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
               <div className="text-sm font-black text-slate-800 mb-3 flex justify-between items-center">
                  <span className="flex items-center"><Award className="w-5 h-5 text-indigo-500 mr-2"/> Derece Ödülleri</span>
@@ -331,12 +401,7 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
                   <div className="flex gap-2 mb-2 items-center">
                       <span className="text-xs font-black text-slate-400 w-4">{idx+1}.</span>
                       <input type="text" value={pz.title} onChange={e => { const newArr=[...localPrizes.degree]; newArr[idx].title=e.target.value; setLocalPrizes({...localPrizes, degree: newArr}); }} className={`flex-1 text-sm font-bold p-3 rounded-xl border outline-none focus:border-indigo-500 ${pz.isHidden ? 'border-red-200 bg-red-50 text-red-700 line-through decoration-red-300' : 'border-slate-200 bg-white text-slate-800'}`} placeholder={`${idx+1}. Ödül Başlığı`}/>
-                      
-                      {/* 🚀 GİZLEME (GÖZ) BUTONU */}
-                      <button onClick={() => togglePrizeVisibility('degree', idx)} className={`p-3 rounded-xl transition ${pz.isHidden ? 'text-red-500 bg-red-100 hover:bg-red-200' : 'text-blue-500 bg-blue-50 hover:bg-blue-100'}`} title={pz.isHidden ? "Ödül Gizli (Göstermek İçin Tıkla)" : "Ödülü Gizle"}>
-                          {pz.isHidden ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
-                      </button>
-
+                      <button onClick={() => togglePrizeVisibility('degree', idx)} className={`p-3 rounded-xl transition ${pz.isHidden ? 'text-red-500 bg-red-100 hover:bg-red-200' : 'text-blue-500 bg-blue-50 hover:bg-blue-100'}`} title={pz.isHidden ? "Ödül Gizli (Göstermek İçin Tıkla)" : "Ödülü Gizle"}>{pz.isHidden ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}</button>
                       <button onClick={() => { const newArr=localPrizes.degree.filter((_,i)=>i!==idx); setLocalPrizes({...localPrizes, degree:newArr}); }} className="p-3 text-red-500 bg-red-50 hover:bg-red-100 rounded-xl" title="Ödülü Tamamen Sil"><Trash2 className="w-4 h-4"/></button>
                   </div>
                   <input type="text" value={pz.img} onChange={e => { const newArr=[...localPrizes.degree]; newArr[idx].img=e.target.value; setLocalPrizes({...localPrizes, degree: newArr}); }} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2" placeholder="Resim Linki veya Dosya Adı"/>
@@ -345,7 +410,6 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
               ))}
             </div>
 
-            {/* Katılım Ödülleri */}
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
               <div className="text-sm font-black text-slate-800 mb-3 flex justify-between items-center">
                  <span className="flex items-center"><Gift className="w-5 h-5 text-emerald-500 mr-2"/> Katılım Ödülleri</span>
@@ -356,12 +420,7 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
                   <div className="flex gap-2 mb-2 items-center">
                       <span className="text-xs font-black text-slate-400 w-4">{idx+1}.</span>
                       <input type="text" value={pz.title} onChange={e => { const newArr=[...localPrizes.participation]; newArr[idx].title=e.target.value; setLocalPrizes({...localPrizes, participation: newArr}); }} className={`flex-1 text-sm font-bold p-3 rounded-xl border outline-none focus:border-indigo-500 ${pz.isHidden ? 'border-red-200 bg-red-50 text-red-700 line-through decoration-red-300' : 'border-slate-200 bg-white text-slate-800'}`} placeholder={`${idx+1}. Ödül Başlığı`}/>
-                      
-                      {/* 🚀 GİZLEME (GÖZ) BUTONU */}
-                      <button onClick={() => togglePrizeVisibility('participation', idx)} className={`p-3 rounded-xl transition ${pz.isHidden ? 'text-red-500 bg-red-100 hover:bg-red-200' : 'text-blue-500 bg-blue-50 hover:bg-blue-100'}`} title={pz.isHidden ? "Ödül Gizli (Göstermek İçin Tıkla)" : "Ödülü Gizle"}>
-                          {pz.isHidden ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
-                      </button>
-
+                      <button onClick={() => togglePrizeVisibility('participation', idx)} className={`p-3 rounded-xl transition ${pz.isHidden ? 'text-red-500 bg-red-100 hover:bg-red-200' : 'text-blue-500 bg-blue-50 hover:bg-blue-100'}`} title={pz.isHidden ? "Ödül Gizli (Göstermek İçin Tıkla)" : "Ödülü Gizle"}>{pz.isHidden ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}</button>
                       {idx > 0 && <button onClick={() => { const newArr=localPrizes.participation.filter((_,i)=>i!==idx); setLocalPrizes({...localPrizes, participation:newArr}); }} className="p-3 text-red-500 bg-red-50 hover:bg-red-100 rounded-xl" title="Ödülü Tamamen Sil"><Trash2 className="w-4 h-4"/></button>}
                   </div>
                   <input type="text" value={pz.img} onChange={e => { const newArr=[...localPrizes.participation]; newArr[idx].img=e.target.value; setLocalPrizes({...localPrizes, participation: newArr}); }} className="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 mb-2" placeholder="Resim Linki veya Dosya Adı"/>
@@ -428,11 +487,25 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
                            const [y, m, d] = session.date.split('-');
                            const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
                            const finalDateDisplay = `${d}.${m}.${y} (${parseInt(d)} ${monthNames[parseInt(m)-1]})`;
+                           const closedSlots = session.closedSlots || []; 
+
                            return (
                              <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-3 bg-white/50 p-2 rounded-xl">
                                <span className="bg-white px-3 py-1.5 rounded-lg border border-indigo-200 text-sm font-bold text-slate-800 w-max shadow-sm"><CalendarIcon className="inline w-4 h-4 mr-1.5 text-indigo-500"/>{finalDateDisplay}</span>
                                <div className="flex flex-wrap gap-2">
-                                 {session.slots && session.slots.map(s => <span key={s} className="bg-indigo-600 shadow-sm text-white px-3 py-1 text-sm font-black rounded-lg">{s}</span>)}
+                                 {session.slots && session.slots.map(s => {
+                                    const isClosed = closedSlots.includes(s);
+                                    return (
+                                        <button 
+                                            key={s} 
+                                            onClick={() => toggleSlotCapacityStatus(exam.firebaseId, idx, s, isClosed)}
+                                            className={`shadow-sm px-3 py-1 text-sm font-black rounded-lg transition hover:scale-105 ${isClosed ? 'bg-red-500 text-white border border-red-600' : 'bg-emerald-500 text-white border border-emerald-600'}`}
+                                            title={isClosed ? "Şu an KAPALI. Açmak için tıkla." : "Şu an AÇIK. Kapatmak için tıkla."}
+                                        >
+                                            {s} {isClosed && "(Dolu)"}
+                                        </button>
+                                    )
+                                 })}
                                </div>
                              </div>
                            )

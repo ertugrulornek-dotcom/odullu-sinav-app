@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Settings, Lock, CalendarIcon, Clock, MapPin, Map, Phone, Trophy, ChevronRight, Award, Gift, AlertCircle } from 'lucide-react';
+import { Plus, Settings, Lock, CalendarIcon, Clock, MapPin, Map, Phone, Trophy, ChevronRight, Award, Gift, AlertCircle, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { db, appId } from '../services/firebase';
 import { doc, updateDoc } from "firebase/firestore";
 import { getNeighborhoodDetails, findZoneByName, parsePrizeArray, formatToTurkishDate } from '../utils/helpers';
@@ -13,6 +13,9 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
   const [newPrize, setNewPrize] = useState(currentUser?.selectedParticipationPrize || '');
   
   const [newCenterId, setNewCenterId] = useState(currentUser?.selectedCenterId || '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedExam, setSelectedExam] = useState(null);
+  const [selectedSlot, setSelectedSlot] = useState(null);
 
   if (!currentUser) return <div className="text-center py-32 text-2xl font-black text-slate-500">Lütfen önce giriş yapın veya kayıt oluşturun.</div>;
 
@@ -34,6 +37,11 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
       actualCenterObj = actualZone?.centers?.find(c => c.id === currentUser.selectedCenterId);
   }
 
+  // 🚀 GÜNCELLEME: Canlı Kısıtlama Kontrolü (Admin paneline eklendiği için buradan canlı okunuyor)
+  const currentZoneForRestrictions = zones.find(z => z.id === actualZone?.id) || actualZone;
+  const isGroupRestricted = currentZoneForRestrictions?.restrictedGroups?.includes(`${currentUser.grade}-${currentUser.gender}`);
+
+
   const fallbackDetails = getNeighborhoodDetails(actualZone, currentUser.district, currentUser.neighborhood, currentUser.gender, currentUser.grade);
   const neighborhoodDetails = actualCenterObj ? {
       phone: actualCenterMapping?.phone || fallbackDetails.phone,
@@ -43,34 +51,24 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
       address: actualCenterObj?.address || fallbackDetails.address
   } : fallbackDetails;
 
- // 🚀 OPTİMİZASYON: Sınavlar sadece exams veya actualZone değiştiğinde filtrelenir
   const zoneExams = React.useMemo(() => {
       return exams.filter(e => e.zoneId === actualZone?.id);
   }, [exams.length, actualZone?.id]);
 
-  // 🚀 OPTİMİZASYON: Ödüller JSON'dan sadece ödül verisi değiştiğinde parse edilir
   const partPrizesList = React.useMemo(() => {
       return parsePrizeArray(actualZone?.prizes?.participation);
   }, [actualZone?.prizes?.participation]);
 
-  // 🚀 DÜZELTME: 8. Sınıf Erkekler tamamen ayrı bir cinsiyet gibi izole edildi!
   const availableMappings = React.useMemo(() => {
-      // Çocuğun 8. sınıf erkek olup olmadığını kesin olarak belirliyoruz
       const is8thGradeBoy = String(currentUser?.grade) === '8' && currentUser?.gender === 'Erkek';
       
       return zones.flatMap(z => (z.mappings || []).map(m => ({...m, zoneId: z.id, zoneName: z.name})))
           .filter(m => {
-              // Farklı mahallenin kurumuysa zaten gizle
               if (m.district !== currentUser?.district || m.neighborhood !== currentUser?.neighborhood) return false;
-              
-              // Tümü (Karma) ise herkese göster
               if (m.gender === 'Tümü') return true;
-
               if (is8thGradeBoy) {
-                  // Eğer çocuk 8. Sınıf Erkek ise SADECE 8. Sınıf Erkek kurumunu görsün (Normal Erkek kurumlarını GÖRMEZ)
                   return m.gender === '8. Sınıf Erkek';
               } else {
-                  // Diğerleri (Kız veya 3-7 Sınıf Erkek) kendi cinsiyetini görsün
                   return m.gender === currentUser?.gender;
               }
           });
@@ -85,6 +83,7 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
       if (examDateTime < new Date()) isExamTimePassed = true;
     }
   }
+  
   const handleSaveSettings = async () => {
     if(newPassword && newPassword.length > 0 && newPassword.length < 4) return alert("Şifre en az 4 haneli olmalıdır.");
     if (newEmail && newEmail !== currentUser.email) {
@@ -124,16 +123,43 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
     } catch(e) { console.error(e); alert("Bir hata oluştu."); }
   };
 
+  const handleSelectSession = async () => {
+      if (!selectedExam || !selectedSlot) return alert("Lütfen bir oturum seçin.");
+      
+      try {
+          setIsSubmitting(true);
+          const updates = {
+              examId: selectedExam.firebaseId || selectedExam.id,
+              examTitle: selectedExam.title,
+              selectedDate: selectedSlot.date,
+              selectedTime: selectedSlot.time,
+              isWaitingPool: false
+          };
+
+          await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', currentUser.firebaseId), updates);
+          setCurrentUser({ ...currentUser, ...updates });
+          alert("Sınav oturumunuz başarıyla oluşturuldu!");
+          setSelectedExam(null);
+          setSelectedSlot(null);
+      } catch (e) {
+          console.error(e);
+          alert("Oturum kaydedilirken bir hata oluştu.");
+      } finally {
+          setIsSubmitting(false);
+      }
+  };
+
   let rawContactPhone = neighborhoodDetails?.phone || "0553 973 54 40";
   let cleanContactPhone = String(rawContactPhone).replace(/\D/g, '');
   if (cleanContactPhone.startsWith('90')) cleanContactPhone = cleanContactPhone.substring(2);
   if (cleanContactPhone.startsWith('0')) cleanContactPhone = cleanContactPhone.substring(1);
   if (cleanContactPhone.length === 0) cleanContactPhone = "5539735440";
 
+  const validPartPrizes = partPrizesList.filter(p => !p.isHidden || p.title === currentUser.selectedParticipationPrize);
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-16 relative">
       
-      {/* 🚀 YENİ EKLENDİ: Zorlayıcı alert yerine Şık ve Güvenli Banner */}
       {partPrizesList.length > 0 && !currentUser.selectedParticipationPrize && (
          <div className="mb-8 bg-red-50 border-2 border-red-200 rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm animate-in fade-in slide-in-from-top-4">
              <div className="flex items-center text-red-800">
@@ -187,7 +213,7 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
                      </label>
                      <select value={newPrize} onChange={e=>setNewPrize(e.target.value)} className={`w-full text-lg border-4 rounded-2xl px-5 py-4 font-bold outline-none transition-colors ${!currentUser.selectedParticipationPrize ? 'border-red-200 bg-red-50 focus:border-red-500 text-red-900' : 'border-slate-100 focus:border-indigo-500'}`}>
                         <option value="">Seçilmedi</option>
-                        {partPrizesList.map(p => <option key={p.title} value={p.title}>{p.title}</option>)}
+                        {validPartPrizes.map(p => <option key={p.title} value={p.title}>{p.title}</option>)}
                      </select>
                    </div>
                  )}
@@ -271,7 +297,6 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
                       <a href={`tel:+90${cleanContactPhone}`} className="inline-flex items-center justify-center text-sm font-black bg-white/10 px-5 py-3 rounded-xl hover:bg-white/20 transition">
                          <Phone className="w-5 h-5 mr-2"/> {neighborhoodDetails.contactName ? `${neighborhoodDetails.contactName}: ` : ''}0{cleanContactPhone}
                       </a>
-
                   </div>
                 </div>
               </div>
@@ -282,11 +307,67 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
               </div>
             </div>
           ) : (
-            <div className="bg-white border-4 border-indigo-100 rounded-[3rem] p-12 text-center shadow-xl animate-in zoom-in-95">
-              <Award className="w-24 h-24 text-indigo-300 mx-auto mb-6" />
-              <h3 className="text-3xl font-black text-slate-800 mb-4">Şu an aktif bir sınavınız yok.</h3>
-              <p className="text-lg text-slate-600 mb-8 font-medium">Bölgenizde açılan yeni sınavlara hemen başvurabilir veya kayıtlı sınavlarınızı buradan yönetebilirsiniz.</p>
-              <button onClick={() => navigateTo('register')} className="text-white font-black text-xl py-5 px-10 rounded-2xl hover:scale-105 transition shadow-xl" style={{ backgroundColor: 'var(--color-main)' }}>Yeni Bir Sınava Başvur</button>
+            <div className="bg-amber-50 rounded-[3rem] p-8 md:p-12 shadow-xl border-4 border-amber-200 text-center">
+                <AlertCircle className="w-20 h-20 text-amber-500 mx-auto mb-6" />
+                <h3 className="text-3xl font-black text-amber-900 mb-4">Bekleme Havuzundasınız</h3>
+                
+                {/* 🚀 GÜNCELLEME: Öğrenci Profili Kısıtlama Kontrolü */}
+                {isGroupRestricted ? (
+                    <div className="mt-8 bg-red-100 text-red-800 p-6 rounded-3xl max-w-2xl mx-auto border-2 border-red-200">
+                        <ShieldAlert className="w-12 h-12 text-red-500 mx-auto mb-4"/>
+                        <h4 className="font-black text-xl mb-2">Kontenjan Doldu</h4>
+                        <p className="font-bold">Bölgenizdeki <strong>{currentUser.grade}. Sınıf {currentUser.gender}</strong> kontenjanları tamamen dolduğu için şu an aktif sınav oturumlarına kayıt olamazsınız. İlginiz için teşekkür ederiz.</p>
+                    </div>
+                ) : zoneExams.length > 0 ? (
+                    <div className="mt-10 text-left bg-white p-8 rounded-3xl shadow-sm border border-amber-100">
+                       <p className="font-black text-slate-800 text-xl mb-6 text-center">Sınava girebilmek için lütfen aşağıdaki oturumlardan birini seçiniz:</p>
+                       <div className="grid gap-6">
+                         {zoneExams.map(exam => {
+                           const examSessions = exam.sessions || [];
+                           return (
+                             <div key={exam.firebaseId || exam.id} className={`border-4 rounded-3xl p-6 transition-all ${(selectedExam?.firebaseId || selectedExam?.id) === (exam.firebaseId || exam.id) ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100 hover:border-indigo-300'}`}>
+                               <h4 className="font-black text-2xl text-slate-800 mb-4">{exam.title}</h4>
+                               <div className="space-y-6">
+                                 {examSessions.map((session, sIdx) => (
+                                   <div key={sIdx} className="pt-4 border-t-2 border-slate-100">
+                                     <span className="text-sm font-black text-slate-500 mb-3 block flex items-center"><CalendarIcon className="w-5 h-5 mr-2 text-indigo-400"/> {formatToTurkishDate(session.date)} Tarihli Oturumlar:</span>
+                                     <div className="flex flex-wrap gap-3 mt-2">
+                                       {session.slots && session.slots.map(slot => {
+                                         // 🚀 GÜNCELLEME: Öğrenci Profili Saat Kapanma Kontrolü
+                                         const isClosed = session.closedSlots?.includes(slot);
+                                         const isSelected = selectedExam && (selectedExam.firebaseId === exam.firebaseId || selectedExam.id === exam.id) && selectedSlot?.date === session.date && selectedSlot?.time === slot;
+                                         
+                                         return (
+                                           <button 
+                                             key={slot} 
+                                             onClick={() => { 
+                                                 if (isClosed) return;
+                                                 setSelectedExam(exam); setSelectedSlot({ date: session.date, time: slot }); 
+                                             }}
+                                             className={`px-6 py-3 rounded-xl text-lg font-black border-2 transition-all flex items-center ${isClosed ? 'opacity-50 cursor-not-allowed bg-slate-100 text-slate-500 border-slate-200' : isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-md scale-105' : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-400'}`}>
+                                             {isSelected ? <CheckCircle2 className="w-5 h-5 mr-2" /> : isClosed ? <AlertCircle className="w-5 h-5 mr-2" /> : <Clock className="w-5 h-5 mr-2 opacity-60" />} {slot.replace(':', '.')} {isClosed ? '(Dolu)' : ''}
+                                           </button>
+                                         )
+                                       })}
+                                     </div>
+                                   </div>
+                                 ))}
+                               </div>
+                             </div>
+                           )
+                         })}
+                       </div>
+                       {selectedSlot && (
+                          <div className="mt-8 text-center border-t-2 border-slate-100 pt-8">
+                              <button onClick={handleSelectSession} disabled={isSubmitting} className="bg-green-500 text-white font-black text-xl py-5 px-10 rounded-2xl hover:bg-green-600 transition shadow-xl shadow-green-500/30 disabled:opacity-50 flex items-center justify-center mx-auto">
+                                  {isSubmitting ? "Kaydediliyor..." : "Seçili Oturumu Onayla ve Kaydol"}
+                              </button>
+                          </div>
+                       )}
+                    </div>
+                ) : (
+                    <p className="text-amber-800 text-lg max-w-xl mx-auto font-bold">Şu an bölgenizde aktif bir sınav oturumu bulunmamaktadır. Yeni bir sınav açıldığında size SMS ile bilgi vereceğiz.</p>
+                )}
             </div>
           )}
 
@@ -307,7 +388,7 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
                     </div>
                     <div className="flex gap-4">
                       <div className="bg-indigo-50 border-2 border-indigo-100 px-6 py-4 rounded-2xl text-center"><div className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-1">Puanın</div><div className="text-3xl font-black text-indigo-700">{past.score}</div></div>
-                      <div className="bg-yellow-50 border-2 border-yellow-200 px-6 py-4 rounded-2xl text-center"><div className="text-xs font-black text-yellow-500 uppercase tracking-widest mb-1">Derecen</div><div className="text-3xl font-black text-yellow-600">{past.rank}.</div></div>
+                      <div className="bg-yellow-50 border-2 border-yellow-200 px-6 py-4 rounded-2xl text-center"><div className="text-xs font-black text-yellow-500 uppercase tracking-widest mb-1">Derecen</div><div className="text-3xl font-black text-yellow-600">{past.rank || '-'}</div></div>
                     </div>
                   </div>
                 ))}

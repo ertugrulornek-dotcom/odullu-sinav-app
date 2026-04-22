@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Phone, Plus, MapPin, AlertCircle, CalendarIcon, Clock, CheckCircle2, Gift, ChevronRight, School, Trophy } from 'lucide-react';
 import { Image as ImageIcon } from 'lucide-react';
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, onSnapshot } from "firebase/firestore";
+// 🚀 DÜZELTME 3: Gereksiz onSnapshot importu kaldırıldı.
+import { collection, query, where, getDocs, addDoc, updateDoc, doc } from "firebase/firestore";
 import { db, appId } from '../services/firebase';
 import { sendSMS, SMS_FOOTER } from '../services/smsService';
 import { LOCATIONS } from '../data/constants';
@@ -207,8 +208,6 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
   const partPrizesList = safeArray(matchedZone?.prizes?.participation);
   const degreePrizesList = safeArray(matchedZone?.prizes?.degree);
   
-  // 🚀 YENİ PROFESYONEL MANTIK: Gizlenmiş (isHidden: true) olanları yeni kullanıcılara gösterme!
-  // Eğer kullanıcının daha önceden seçtiği ödül gizlenmişse bile, sırf onun ekranında görebilmesi için listeye dahil et.
   const validPartPrizesList = partPrizesList.filter(p => 
       p && p.title && String(p.title).trim() !== '' && 
       (!p.isHidden || p.title === currentUser?.selectedParticipationPrize)
@@ -265,7 +264,6 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
         setCurrentUser(finalUserObj);
 
         if (!withoutExam && finalUserObj.selectedDate) {
-           const contactPhone = initialCenterInfo.phone || "0553 973 54 40";
            const updateMsg = `Sayın ${finalUserObj.fullName},\nodullusinav.net başvurunuz GÜNCELLENDİ!\n\nYeni Oturum Bilgileriniz:\nSınav: ${finalUserObj.examTitle}\nTarih: ${finalUserObj.selectedDate}\nSaat: ${finalUserObj.selectedTime}\nKonum: ${initialCenterInfo.mapLink || 'Belirtilmedi'}\n\nDetaylı bilgi için profilinize giriş yapabilirsiniz. Başarılar!${SMS_FOOTER}`;
            try { await sendSMS([{tel: [finalUserObj.phone], msg: updateMsg}]); } catch (smsErr) { console.warn("SMS Hatası", smsErr); }
         }
@@ -284,11 +282,9 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
            try { await sendSMS([{tel: [finalUserObj.phone], msg: regMsg}]); } catch(smsErr){}
         }
       }
-if (typeof window !== "undefined" && window.gtag) {
-  window.gtag('event', 'conversion', {
-    'send_to': 'AW-18022843253/AgxyCLirlZ0cEPWG-5FD'
-  });
-}
+      if (typeof window !== "undefined" && window.gtag) {
+        window.gtag('event', 'conversion', { 'send_to': 'AW-18022843253/AgxyCLirlZ0cEPWG-5FD' });
+      }
       setStep(3); 
     } catch (error) { alert("İşlem sırasında bir hata oluştu."); } 
     finally { setIsSubmitting(false); }
@@ -340,7 +336,7 @@ if (typeof window !== "undefined" && window.gtag) {
             {isMultiCenter && (
               <div className="bg-amber-50 p-6 rounded-3xl border-2 border-amber-200 mt-4">
                 <label className="block text-sm font-black text-amber-800 mb-2 uppercase">Mahallenizde Birden Fazla Sınav Merkezi Bulunuyor. Lütfen Seçin:</label>
-      <select 
+                <select 
                   onChange={(e) => {
                     const centerId = e.target.value;
                     if (!centerId) {
@@ -361,23 +357,13 @@ if (typeof window !== "undefined" && window.gtag) {
                 >
                   <option value="">Kurum Seçiniz...</option>
                   
-                  {/* 🚀 DÜZELTME: 8. Sınıf Erkek Katı İzolasyon Mantığı Kayıt Ekranına da Eklendi! */}
                   {zones.flatMap(z => (z.mappings || []).map(m => ({ ...m, sourceZoneName: z.name })))
                     .filter(m => {
-                        // Farklı mahalle ise direkt ele
                         if (m.district !== formData.district || m.neighborhood !== formData.neighborhood) return false;
-                        
-                        // Tümü (Karma) herkese görünür
                         if (m.gender === 'Tümü') return true;
-
-                        // Çocuğun formda 8 ve Erkek seçip seçmediğini kontrol et
                         const is8thGradeBoy = String(formData.grade) === '8' && formData.gender === 'Erkek';
-                        
-                        if (is8thGradeBoy) {
-                            return m.gender === '8. Sınıf Erkek'; // Sadece kendi kurumunu görsün
-                        } else {
-                            return m.gender === formData.gender; // Diğerleri de sadece kendi kurumunu görsün
-                        }
+                        if (is8thGradeBoy) { return m.gender === '8. Sınıf Erkek'; } 
+                        else { return m.gender === formData.gender; }
                     })
                     .map(m => {
                       const center = zones.flatMap(z => z.centers).find(c => c.id === m.centerId);
@@ -409,66 +395,95 @@ if (typeof window !== "undefined" && window.gtag) {
 
             {formData.district && formData.neighborhood && (
               <div className="mt-10 pt-10 border-t-2 border-slate-100 animate-in fade-in">
-                {matchedZone && matchedZone.active && availableExams.length > 0 ? (
-                  <div className="space-y-6">
-                    <p className="font-black text-slate-700 text-2xl mb-6">Lütfen uygun oturumunuzu seçin <span className="text-red-500">*</span>:</p>
-                    <div className="grid gap-6">
-                      {availableExams.map(exam => {
-                        const examSessions = exam.sessions || (exam.date && exam.slots ? [{ date: exam.date, slots: exam.slots }] : []);
-                        return (
-                          <div key={exam.firebaseId || exam.id} className={`border-4 rounded-3xl p-6 md:p-8 transition-all hover:-translate-y-1 ${(selectedExam?.firebaseId || selectedExam?.id) === (exam.firebaseId || exam.id) ? 'border-indigo-600 bg-indigo-50 ring-4 ring-indigo-500/20 shadow-xl' : 'border-slate-100 bg-white hover:border-indigo-300 hover:shadow-lg cursor-pointer'}`} onClick={() => { setSelectedExam(exam); setSelectedSlot(null); }}>
-                            <h4 className="font-black text-3xl text-slate-800 mb-4">{exam.title}</h4>
-                            <div className="space-y-6">
-                              {examSessions.map((session, sIdx) => (
-                                <div key={sIdx} className="pt-4 border-t-2 border-indigo-200/50">
-                                  <span className="text-lg font-black text-slate-700 mb-4 flex items-center"><CalendarIcon className="w-6 h-6 mr-3 text-indigo-500"/> {formatToTurkishDate(session.date)} Tarihli Oturumlar:</span>
-                                  <div className="flex flex-wrap gap-4 mt-4">
-                                    {session.slots && session.slots.map(slot => {
-                                      const isSelected = selectedExam && (selectedExam.firebaseId === exam.firebaseId || selectedExam.id === exam.id) && selectedSlot?.date === session.date && selectedSlot?.time === slot;
-                                      return (
-                                        <div key={slot} onClick={(e) => { e.stopPropagation(); setSelectedExam(exam); setSelectedSlot({ date: session.date, time: slot }); }}
-                                          className={`px-8 py-4 rounded-2xl text-xl font-black border-4 transition-all hover:scale-105 flex items-center cursor-pointer ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-xl' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-indigo-400'}`}>
-                                          {isSelected ? <CheckCircle2 className="w-5 h-5 mr-2" /> : <Clock className="w-5 h-5 mr-2 opacity-70" />} {slot.replace(':', '.')}
-                                        </div>
-                                      )
-                                    })}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                    
-                    {selectedSlot && (needsPartSelection || validDegreePrizesList.length > 0) && (
-                       <RegistrationPrizeSelector 
-                           partPrizes={validPartPrizesList} 
-                           degreePrizes={validDegreePrizesList} 
-                           selectedPrize={selectedParticipationPrize} 
-                           onSelect={setSelectedParticipationPrize} 
-                       />
-                    )}
+                
+                {(() => {
+                  // 🚀 DÜZELTME 2: matchedZone state'ini değil, her zaman en güncel (canlı) zones prop'unu oku!
+                  const currentZone = zones.find(z => z.id === matchedZone?.id) || matchedZone;
+                  const isGroupRestricted = currentZone?.restrictedGroups?.includes(`${formData.grade}-${formData.gender}`);
 
-                    <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-6 mt-12 pt-8 border-t-2 border-slate-100">
-                      <button onClick={() => setStep(1)} disabled={isSubmitting} className="w-full sm:w-1/3 bg-slate-100 text-slate-700 font-black py-6 rounded-2xl hover:bg-slate-200 transition text-xl disabled:opacity-50">Geri Dön</button>
-                      <button onClick={() => handleComplete(false)} disabled={!isFormValid || isSubmitting} className="w-full bg-green-500 text-white font-black py-6 rounded-2xl hover:bg-green-600 hover:scale-[1.02] disabled:scale-100 disabled:opacity-50 disabled:hover:bg-green-500 transition-all flex justify-center items-center text-xl shadow-2xl shadow-green-500/40">
-                        {isSubmitting ? "Sisteme Kaydediliyor..." : "Kaydı Tamamla"} {!isSubmitting && <CheckCircle2 className="ml-3 w-8 h-8"/>}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-amber-50 border-4 border-amber-200 rounded-3xl p-10 text-center shadow-lg animate-in zoom-in-95">
-                    <AlertCircle className="w-20 h-20 text-amber-500 mx-auto mb-6" />
-                    <h4 className="font-black text-amber-900 text-3xl mb-4">Açık Sınav Yok</h4>
-                    <p className="text-amber-800 text-xl mb-10 max-w-2xl mx-auto leading-relaxed">
-                      Şu an bölgede aktif sınav bulunmamaktadır. Sisteme "Sınavsız Kayıt" oluşturarak beklemeye geçebilirsiniz. Veya birden fazla merkez varsa lütfen yukarıdan bir merkez seçin.
-                    </p>
-                    <button onClick={() => handleComplete(true)} disabled={isSubmitting} className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white font-black py-5 px-8 rounded-2xl text-xl transition shadow-xl shadow-amber-500/40 disabled:opacity-50">
-                      Daha Sonra Haber Ver (Sınavsız Kayıt)
-                    </button>
-                  </div>
-                )}
+                  if (isGroupRestricted) {
+                     return (
+                        <div className="bg-red-50 border-4 border-red-200 rounded-3xl p-10 text-center shadow-lg animate-in zoom-in-95 mt-6">
+                          <AlertCircle className="w-20 h-20 text-red-500 mx-auto mb-6" />
+                          <h4 className="font-black text-red-900 text-3xl mb-4">Kontenjan Doldu</h4>
+                          <p className="text-red-800 text-xl max-w-2xl mx-auto leading-relaxed">
+                            Üzgünüz, bulunduğunuz bölgedeki <strong>{formData.grade}. Sınıf {formData.gender}</strong> kontenjanlarımız maksimum kapasiteye ulaşmıştır. İlginiz için teşekkür ederiz.
+                          </p>
+                        </div>
+                     );
+                  }
+
+                  if (currentZone && currentZone.active && availableExams.length > 0) {
+                    return (
+                      <div className="space-y-6">
+                        <p className="font-black text-slate-700 text-2xl mb-6">Lütfen uygun oturumunuzu seçin <span className="text-red-500">*</span>:</p>
+                        <div className="grid gap-6">
+                          {availableExams.map(exam => {
+                            const examSessions = exam.sessions || (exam.date && exam.slots ? [{ date: exam.date, slots: exam.slots }] : []);
+                            return (
+                              <div key={exam.firebaseId || exam.id} className={`border-4 rounded-3xl p-6 md:p-8 transition-all hover:-translate-y-1 ${(selectedExam?.firebaseId || selectedExam?.id) === (exam.firebaseId || exam.id) ? 'border-indigo-600 bg-indigo-50 ring-4 ring-indigo-500/20 shadow-xl' : 'border-slate-100 bg-white hover:border-indigo-300 hover:shadow-lg cursor-pointer'}`} onClick={() => { setSelectedExam(exam); setSelectedSlot(null); }}>
+                                <h4 className="font-black text-3xl text-slate-800 mb-4">{exam.title}</h4>
+                                <div className="space-y-6">
+                                  {examSessions.map((session, sIdx) => (
+                                    <div key={sIdx} className="pt-4 border-t-2 border-indigo-200/50">
+                                      <span className="text-lg font-black text-slate-700 mb-4 flex items-center"><CalendarIcon className="w-6 h-6 mr-3 text-indigo-500"/> {formatToTurkishDate(session.date)} Tarihli Oturumlar:</span>
+                                      <div className="flex flex-wrap gap-4 mt-4">
+                                        {session.slots && session.slots.map(slot => {
+                                          const isClosed = session.closedSlots?.includes(slot);
+                                          const isSelected = selectedExam && (selectedExam.firebaseId === exam.firebaseId || selectedExam.id === exam.id) && selectedSlot?.date === session.date && selectedSlot?.time === slot;
+                                          
+                                          return (
+                                            <div key={slot} onClick={(e) => { 
+                                                e.stopPropagation(); 
+                                                if (isClosed) return; 
+                                                setSelectedExam(exam); setSelectedSlot({ date: session.date, time: slot }); 
+                                              }}
+                                              className={`px-8 py-4 rounded-2xl text-xl font-black border-4 transition-all flex items-center ${isClosed ? 'opacity-60 cursor-not-allowed bg-red-50 text-red-700 border-red-200' : isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-xl hover:scale-105 cursor-pointer' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-indigo-400 hover:scale-105 cursor-pointer'}`}>
+                                              {isSelected ? <CheckCircle2 className="w-5 h-5 mr-2" /> : isClosed ? <AlertCircle className="w-5 h-5 mr-2" /> : <Clock className="w-5 h-5 mr-2 opacity-70" />} {slot.replace(':', '.')} {isClosed ? '(Kapasite Doldu)' : ''}
+                                            </div>
+                                          )
+                                        })}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                        
+                        {selectedSlot && (needsPartSelection || validDegreePrizesList.length > 0) && (
+                           <RegistrationPrizeSelector 
+                               partPrizes={validPartPrizesList} 
+                               degreePrizes={validDegreePrizesList} 
+                               selectedPrize={selectedParticipationPrize} 
+                               onSelect={setSelectedParticipationPrize} 
+                           />
+                        )}
+
+                        <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-6 mt-12 pt-8 border-t-2 border-slate-100">
+                          <button onClick={() => setStep(1)} disabled={isSubmitting} className="w-full sm:w-1/3 bg-slate-100 text-slate-700 font-black py-6 rounded-2xl hover:bg-slate-200 transition text-xl disabled:opacity-50">Geri Dön</button>
+                          <button onClick={() => handleComplete(false)} disabled={!isFormValid || isSubmitting} className="w-full bg-green-500 text-white font-black py-6 rounded-2xl hover:bg-green-600 hover:scale-[1.02] disabled:scale-100 disabled:opacity-50 disabled:hover:bg-green-500 transition-all flex justify-center items-center text-xl shadow-2xl shadow-green-500/40">
+                            {isSubmitting ? "Sisteme Kaydediliyor..." : "Kaydı Tamamla"} {!isSubmitting && <CheckCircle2 className="ml-3 w-8 h-8"/>}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <div className="bg-amber-50 border-4 border-amber-200 rounded-3xl p-10 text-center shadow-lg animate-in zoom-in-95">
+                        <AlertCircle className="w-20 h-20 text-amber-500 mx-auto mb-6" />
+                        <h4 className="font-black text-amber-900 text-3xl mb-4">Açık Sınav Yok</h4>
+                        <p className="text-amber-800 text-xl mb-10 max-w-2xl mx-auto leading-relaxed">
+                          Şu an bölgede aktif sınav bulunmamaktadır. Sisteme "Sınavsız Kayıt" oluşturarak beklemeye geçebilirsiniz. Veya birden fazla merkez varsa lütfen yukarıdan bir merkez seçin.
+                        </p>
+                        <button onClick={() => handleComplete(true)} disabled={isSubmitting} className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white font-black py-5 px-8 rounded-2xl text-xl transition shadow-xl shadow-amber-500/40 disabled:opacity-50">
+                          Daha Sonra Haber Ver (Sınavsız Kayıt)
+                        </button>
+                      </div>
+                    );
+                  }
+                })()}
               </div>
             )}
           </div>
