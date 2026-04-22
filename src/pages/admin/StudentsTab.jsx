@@ -1,14 +1,16 @@
 import React, { useState, useMemo } from 'react';
-import { Download, MessageSquare, Plus, Trash2, Send, Trophy, Filter, ArrowRightLeft } from 'lucide-react';
+import { Download, MessageSquare, Plus, Trash2, Send, Trophy, Filter, ArrowRightLeft, Edit3, Save } from 'lucide-react';
 import { db, appId } from '../../services/firebase';
 import { doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { sendSMS, SMS_FOOTER } from '../../services/smsService';
-import { getNeighborhoodDetails } from '../../utils/helpers';
+import { getNeighborhoodDetails, parsePrizeArray } from '../../utils/helpers';
 
-export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zones, setHasMadeChanges }) {
+export default function StudentsTab({ students, exams = [], isSuperAdmin, adminZoneData, zones, setHasMadeChanges }) {
   const [resultModal, setResultModal] = useState({ isOpen: false, student: null, score: '', rank: '' });
   const [smsModal, setSmsModal] = useState({ isOpen: false, type: 'custom', customMsg: '', loading: false, targetStudent: null });
   const [transferModal, setTransferModal] = useState({ isOpen: false, student: null, targetZoneId: '' });
+  
+  const [editModal, setEditModal] = useState({ isOpen: false, student: null, prize: '', examId: '', sessionStr: '', fullName: '', phone: '', schoolName: '', grade: '' });
 
   const [filterGrade, setFilterGrade] = useState('');
   const [filterSchool, setFilterSchool] = useState('');
@@ -24,10 +26,11 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
 
   const displayStudents = useMemo(() => {
       return students.filter(s => {
-          if (filterGrade && s.grade !== filterGrade) return false;
+          // 🚀 DÜZELTME 4: Sınıf eşleşmesi sırasında sayı/metin uyuşmazlığı garanti altına alındı
+          if (filterGrade && String(s.grade) !== String(filterGrade)) return false;
           if (filterSchool && s.schoolName !== filterSchool) return false;
           if (isSuperAdmin && filterZone) {
-             if (s.zone?.id !== parseInt(filterZone) && s.zone?.name !== filterZone) return false;
+             if (s.zone?.id?.toString() !== filterZone.toString() && s.zone?.name !== filterZone) return false;
           }
           
           const hasSession = !!(s.examId || s.examTitle || s.exam);
@@ -90,32 +93,37 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
   const handleSaveResult = async () => {
     const student = resultModal.student;
     
+    // 🚀 DÜZELTME 2: Çift kayıt riskine karşı en güncel state kullanılıyor (mergedStudent mantığı)
+    const mergedForResult = localOverrides[student.firebaseId] 
+        ? { ...student, ...localOverrides[student.firebaseId] } 
+        : student;
+
     const pastExam = { 
-        id: student.examId || student.exam?.firebaseId, 
-        title: student.examTitle || student.exam?.title, 
-        date: student.selectedDate || student.exam?.date, 
-        time: student.selectedTime || student.slot, 
+        id: mergedForResult.examId || mergedForResult.exam?.firebaseId, 
+        title: mergedForResult.examTitle || mergedForResult.exam?.title, 
+        date: mergedForResult.selectedDate || mergedForResult.exam?.date, 
+        time: mergedForResult.selectedTime || mergedForResult.slot, 
         score: resultModal.score, 
         rank: resultModal.rank,
-        participationPrize: student.selectedParticipationPrize || '' 
+        participationPrize: mergedForResult.selectedParticipationPrize || '' 
     };
     
-    const pastExams = [...(student.pastExams || []), pastExam];
+    const pastExams = [...(mergedForResult.pastExams || []), pastExam];
 
     try {
       setHasMadeChanges(true);
+      
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', student.firebaseId), {
-          pastExams: pastExams, 
-          examId: null, 
-          examTitle: null, 
-          selectedDate: null, 
-          selectedTime: null, 
-          exam: null, 
-          slot: null, 
-          selectedDegreePrize: null
+          pastExams: pastExams
       });
+      
+      setLocalOverrides(prev => ({
+          ...prev,
+          [student.firebaseId]: { ...(prev[student.firebaseId] || {}), pastExams }
+      }));
+
       setResultModal({ isOpen: false, student: null, score: '', rank: '' });
-      alert("Sonuç kaydedildi.");
+      alert("Sonuç başarıyla kaydedildi. Öğrencinin aktif sınav oturumu KORUNDU.");
     } catch (err) { console.error(err); }
   };
 
@@ -124,6 +132,13 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
       try {
         setHasMadeChanges(true);
         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', studentId));
+        
+        // 🚀 DÜZELTME 5: Öğrenci silindiğinde hafızadaki override kalıntıları temizleniyor
+        setLocalOverrides(prev => {
+            const next = { ...prev };
+            delete next[studentId];
+            return next;
+        });
       } catch (e) { console.error(e); }
     }
   };
@@ -141,9 +156,19 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
         examTitle: null,
         selectedDate: null,
         selectedTime: null,
+        exam: null,
+        slot: null,
         notifiedCenter: null,
         isWaitingPool: true 
       });
+      
+      // 🚀 DÜZELTME 5: Transfer edilen öğrencinin override kalıntıları temizleniyor
+      setLocalOverrides(prev => {
+          const next = { ...prev };
+          delete next[transferModal.student.firebaseId];
+          return next;
+      });
+
       alert(`${transferModal.student.fullName} adlı öğrenci ${targetZone.name} mıntıkasına aktarıldı ve bekleme havuzuna alındı.`);
       setTransferModal({ isOpen: false, student: null, targetZoneId: '' });
     } catch(e) { 
@@ -152,9 +177,63 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
     }
   };
 
+  const handleSaveEdit = async () => {
+    try {
+        const { student, prize, examId, sessionStr, fullName, phone, schoolName, grade } = editModal;
+        
+        if (examId && !sessionStr) {
+            return alert("Lütfen sınav için bir oturum seçiniz.");
+        }
+
+        const updates = {};
+        
+        if (fullName !== student.fullName) updates.fullName = fullName;
+        if (phone !== student.phone) updates.phone = phone;
+        if (schoolName !== student.schoolName) updates.schoolName = schoolName;
+        if (String(grade) !== String(student.grade)) updates.grade = grade;
+
+        if (prize !== student.selectedParticipationPrize) {
+            updates.selectedParticipationPrize = prize;
+        }
+
+        if (examId && sessionStr) {
+            const selectedExam = exams.find(e => e.firebaseId === examId || e.id === examId);
+            const [sDate, sTime] = sessionStr.split('_');
+
+            updates.examId = examId;
+            updates.examTitle = selectedExam?.title || "Deneme Sınavı";
+            updates.selectedDate = sDate;
+            updates.selectedTime = sTime;
+            updates.isWaitingPool = false;
+            updates.exam = selectedExam || null;
+            updates.slot = sTime;
+        }
+
+        if (Object.keys(updates).length === 0) {
+            return setEditModal({ isOpen: false, student: null, prize: '', examId: '', sessionStr: '', fullName: '', phone: '', schoolName: '', grade: '' });
+        }
+
+        setHasMadeChanges(true);
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', student.firebaseId), updates);
+
+        const uiUpdates = { ...updates };
+        delete uiUpdates.exam;
+
+        setLocalOverrides(prev => ({
+            ...prev,
+            [student.firebaseId]: { ...(prev[student.firebaseId] || {}), ...uiUpdates }
+        }));
+
+        setEditModal({ isOpen: false, student: null, prize: '', examId: '', sessionStr: '', fullName: '', phone: '', schoolName: '', grade: '' });
+        alert("Öğrenci bilgileri başarıyla güncellendi!");
+    } catch (e) {
+        console.error(e);
+        alert("Güncelleme sırasında bir hata oluştu.");
+    }
+  };
+
   const handleBulkSMS = async () => {
     setSmsModal({ ...smsModal, loading: true });
-    
     const targetStudents = smsModal.targetStudent ? [smsModal.targetStudent] : displayStudents;
     const validStudents = targetStudents.filter(s => s.phone && s.phone.length >= 10);
     
@@ -174,17 +253,11 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
       const stdCenter = getNeighborhoodDetails(zone, student.district, student.neighborhood, student.gender, student.grade);
       let text = "";
 
-      if (smsModal.type === 'custom') {
-          text = smsModal.customMsg;
-      } else if (smsModal.type === 'announcement') {
-          text = `🎯 Büyük fırsat yeniden kapında!\n\nDaha önce katıldığın ödüllü denemeyi hatırlıyor musun? Şimdi çok daha heyecanlısı geliyor! 🚀\n\nYeni ödüllü denememizde yine katılan HERKES kendi seçtiği ödülü kazanma şansı yakalıyor 🎁\nÜstelik dereceye girenleri çok daha büyük sürprizler bekliyor! 🏆🔥\n\nBu fırsatı kaçırma, yerini hemen ayırt!\n👉 Kayıt olmak ve detayları öğrenmek için: odullusinav.net\n\nHadi, bir adım öne geçme zamanı! 💥`;
-      } else if (smsModal.type === 'reminder') {
-          text = `🚀 Sınav heyecanı başlıyor!\n\nYaklaşan sınavımız için kayıtlar tüm hızıyla devam ediyor! 🎉\nSen de yerini almayı unutma — başarıya giden yol burada başlıyor!\n\nÜstelik bu heyecanı tek başına yaşamak zorunda değilsin…\nArkadaşlarını da sınava davet et, birlikte kazanmanın keyfini çıkar! 💪🔥\n\nDetayları öğrenmek ve sınav oturumunla ilgili düzenlemeleri yapmak için hemen\n👉 odullusinav.net üzerinden profiline giriş yap!\n\nHadi, şimdi harekete geçme zamanı! ⏳✨`;
-      } else if (smsModal.type === 'pool_reminder') {
-          text = `🚨 ÖNEMLİ HATIRLATMA!\n\nSayın Velimiz, ${student.fullName} isimli öğrencimizin kayıt işlemi henüz TAMAMLANMAMIŞTIR.\n\nÖğrencimiz şu an "Bekleme Havuzunda" yer almaktadır. Sınava girebilmesi için acilen odullusinav.net adresinden profiline giriş yapıp uygun bir SINAV OTURUMU (Saat ve Tarih) seçmeniz gerekmektedir.\n\nOturum seçilmeyen kayıtlar geçersiz sayılacaktır.`;
-      } else if (smsModal.type === 'results') {
-          text = `Tebrikler! ${student.fullName || 'Öğrencimiz'}, sınav sonuçlarınız açıklanmıştır.\nPuan ve derecenizi odullusinav.net üzerinden öğrenebilirsiniz.\nBirebir analiz ve ödülleriniz için sınav merkezimizden randevu alabilirsiniz.\nSınav Merkezi: ${stdCenter.centerName}\nİletişim: ${stdCenter.phone}\nAdres: ${stdCenter.address}\nKonum: ${stdCenter.mapLink}`;
-      }
+      if (smsModal.type === 'custom') text = smsModal.customMsg;
+      else if (smsModal.type === 'announcement') text = `BUYUK FIRSAT YENIDEN KAPINDA!\n\nDaha once katildigin odullu denemeyi hatirliyor musun? Simdi cok daha heyecanlisi geliyor!\n\nYeni odullu denememizde katilan HERKES kendi sectigi odulu kazanma sansi yakaliyor.\nUstelik dereceye girenleri buyuk surprizler bekliyor!\n\nBu firsati kacirma, yerini hemen ayirt!\nKayit olmak icin: odullusinav.net\n\nBir adim one gecme zamani!`;
+      else if (smsModal.type === 'reminder') text = `SINAV HEYECANI BASLIYOR!\n\nYaklasan sinavimiz icin kayitlar tum hiziyla devam ediyor!\nSen de yerini almayi unutma.\n\nArkadaslarini da sinava davet et, birlikte kazanmanin keyfini cikar!\n\nDetaylari ogrenmek ve sinav oturumunu duzenlemek icin hemen odullusinav.net uzerinden profiline giris yap!\n\nHarekete gecme zamani!`;
+      else if (smsModal.type === 'pool_reminder') text = `ONEMLI HATIRLATMA!\n\nSayin Velimiz, ${student.fullName} isimli ogrencimizin kayit islemi henuz TAMAMLANMAMISTIR.\n\nOgrencimiz "Bekleme Havuzunda" yer almaktadir. Sinava girebilmesi icin odullusinav.net adresinden profiline giris yapip SINAV OTURUMU secmeniz gerekmektedir.\n\nOturum secilmeyen kayitlar gecersiz sayilacaktir.`;
+      else if (smsModal.type === 'results') text = `Tebrikler! ${student.fullName || 'Ogrencimiz'}, sinav sonuclariniz aciklanmistir.\nPuan ve derecenizi odullusinav.net uzerinden ogrenebilirsiniz.\n\nBirebir analiz icin sinav merkezimizden randevu alabilirsiniz.\nMerkez: ${stdCenter.centerName}\nIletisim: ${stdCenter.phone}\nAdres: ${stdCenter.address}`;
 
       text += SMS_FOOTER;
       return { tel: [student.phone], msg: text };
@@ -200,7 +273,6 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
   const handleExportExcel = () => {
      let csvContent = "Ogrenci Isim Soyisim;Veli Isim Soyisim;Telefon;Sinif;Cinsiyet;Okul Bilgisi;Ilce;Mahalle;Atanan Sinav Merkezi;Kayitli Sinav ve Seans;Aciklanan Puan;Derece;Katilim Odulu;Katilim Durumu;Gorusme Durumu;Gorusme Sonucu\n";
      displayStudents.forEach(originalStudent => {
-        // 🚀 DÜZELTME: Excel indirmesinde de anlık güncellemeler (overrides) dikkate alınıyor
         const s = localOverrides[originalStudent.firebaseId] 
            ? { ...originalStudent, ...localOverrides[originalStudent.firebaseId] } 
            : originalStudent;
@@ -353,6 +425,24 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
                                   Sonuç Gir
                                 </button>
                               )}
+
+                              <button onClick={() => {
+                                  const sDate = mergedStudent.selectedDate || mergedStudent.exam?.date;
+                                  const sTime = mergedStudent.selectedTime || mergedStudent.slot;
+                                  setEditModal({ 
+                                      isOpen: true, 
+                                      student: mergedStudent, 
+                                      prize: mergedStudent.selectedParticipationPrize || '', 
+                                      examId: mergedStudent.examId || mergedStudent.exam?.firebaseId || '', 
+                                      sessionStr: (sDate && sTime) ? `${sDate}_${sTime}` : '',
+                                      fullName: mergedStudent.fullName || '',
+                                      phone: mergedStudent.phone || '',
+                                      schoolName: mergedStudent.schoolName || '',
+                                      grade: mergedStudent.grade || ''
+                                  });
+                              }} className="text-emerald-500 hover:text-emerald-700 bg-white border border-emerald-200 hover:bg-emerald-50 p-2 rounded-xl transition" title="Öğrenciyi Düzenle (Kişisel Bilgi / Oturum / Ödül Seç)">
+                                <Edit3 className="w-5 h-5"/>
+                              </button>
                               
                               <button onClick={() => setTransferModal({ isOpen: true, student: mergedStudent, targetZoneId: '' })} className="text-blue-500 hover:text-blue-700 bg-white border border-blue-200 hover:bg-blue-50 p-2 rounded-xl transition" title="Öğrenciyi Başka Mıntıkaya Gönder">
                                 <ArrowRightLeft className="w-5 h-5"/>
@@ -370,6 +460,16 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
           </tbody>
         </table>
       </div>
+
+      <EditStudentModal 
+        editModal={editModal} 
+        setEditModal={setEditModal} 
+        handleSaveEdit={handleSaveEdit} 
+        zones={zones} 
+        exams={exams} 
+        isSuperAdmin={isSuperAdmin} 
+        adminZoneData={adminZoneData} 
+      />
 
       {transferModal.isOpen && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -449,5 +549,91 @@ export default function StudentsTab({ students, isSuperAdmin, adminZoneData, zon
         </div>
       )}
     </div>
+  );
+}
+
+function EditStudentModal({ editModal, setEditModal, handleSaveEdit, zones, exams, isSuperAdmin, adminZoneData }) {
+  if (!editModal.isOpen) return null;
+
+  const studentZone = isSuperAdmin ? (zones.find(z => z.id === editModal.student?.zone?.id) || editModal.student?.zone) : adminZoneData;
+  const availablePrizes = parsePrizeArray(studentZone?.prizes?.participation) || [];
+  const availableExams = exams.filter(e => e.zoneId?.toString() === studentZone?.id?.toString() && e.active !== false);
+  
+  const selectedExamObj = availableExams.find(e => e.firebaseId === editModal.examId || e.id === editModal.examId);
+  let sessionOptions = [];
+  if (selectedExamObj) {
+      const sessions = selectedExamObj.sessions || (selectedExamObj.date && selectedExamObj.slots ? [{ date: selectedExamObj.date, slots: selectedExamObj.slots }] : []);
+      sessions.forEach(s => {
+          (s.slots || []).forEach(time => {
+              sessionOptions.push(`${s.date}_${time}`);
+          });
+      });
+  }
+
+  const closeModal = () => setEditModal({ isOpen: false, student: null, prize: '', examId: '', sessionStr: '', fullName: '', phone: '', schoolName: '', grade: '' });
+
+  return (
+     <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+       <div className="bg-white rounded-[3rem] shadow-2xl p-10 w-full max-w-lg relative animate-in zoom-in-95 my-8">
+         <button onClick={closeModal} className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"><Plus className="w-8 h-8 transform rotate-45"/></button>
+         <Edit3 className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
+         <h3 className="text-2xl font-black text-center text-slate-900 mb-6">Öğrenciyi Düzenle</h3>
+         
+         <div className="space-y-5 mb-8">
+           
+           <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+               <div className="col-span-2">
+                  <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">Öğrenci Adı</label>
+                  <input type="text" value={editModal.fullName || ''} onChange={e => setEditModal({...editModal, fullName: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-emerald-500"/>
+               </div>
+               <div>
+                  <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">Telefon</label>
+                  <input type="tel" value={editModal.phone || ''} onChange={e => setEditModal({...editModal, phone: e.target.value.replace(/\D/g, '')})} className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-emerald-500" maxLength="10"/>
+               </div>
+               <div>
+                  <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">Sınıfı</label>
+                  <select value={editModal.grade || ''} onChange={e => setEditModal({...editModal, grade: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-emerald-500">
+                      {[3,4,5,6,7,8].map(g => <option key={g} value={g}>{g}. Sınıf</option>)}
+                  </select>
+               </div>
+               <div className="col-span-2">
+                  <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">Okul</label>
+                  <input type="text" value={editModal.schoolName || ''} onChange={e => setEditModal({...editModal, schoolName: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-emerald-500"/>
+               </div>
+           </div>
+
+           <div>
+              <label className="block text-xs font-black text-slate-700 mb-2 uppercase tracking-wider">Katılım Ödülü</label>
+              <select value={editModal.prize} onChange={e => setEditModal({...editModal, prize: e.target.value})} className="w-full border-4 border-slate-100 rounded-2xl px-4 py-3 text-sm font-bold outline-none focus:border-emerald-500">
+                 <option value="">Seçilmedi</option>
+                 {availablePrizes.map(p => <option key={p.title} value={p.title}>{p.title}</option>)}
+                 {editModal.student?.selectedParticipationPrize && !availablePrizes.find(p => p.title === editModal.student.selectedParticipationPrize) && (
+                     <option value={editModal.student.selectedParticipationPrize}>{editModal.student.selectedParticipationPrize} (Eski/Kaldırılmış)</option>
+                 )}
+              </select>
+           </div>
+           
+           <div className="border-t-2 border-slate-100 pt-5">
+              <label className="block text-xs font-black text-slate-700 mb-2 uppercase tracking-wider">Sınava Ata (Havuzdan Çıkar)</label>
+              <select value={editModal.examId} onChange={e => setEditModal({...editModal, examId: e.target.value, sessionStr: ''})} className="w-full border-4 border-slate-100 rounded-2xl px-4 py-3 text-sm font-bold outline-none focus:border-emerald-500 mb-3">
+                 <option value="">Sınav Seçiniz</option>
+                 {availableExams.map(ex => <option key={ex.firebaseId || ex.id} value={ex.firebaseId || ex.id}>{ex.title}</option>)}
+              </select>
+
+              <select disabled={!editModal.examId} value={editModal.sessionStr} onChange={e => setEditModal({...editModal, sessionStr: e.target.value})} className="w-full border-4 border-slate-100 rounded-2xl px-4 py-3 text-sm font-bold outline-none focus:border-emerald-500 disabled:opacity-50">
+                 <option value="">Oturum Seçiniz</option>
+                 {sessionOptions.map(opt => {
+                    const [d, t] = opt.split('_');
+                    return <option key={opt} value={opt}>{d} - {t} Oturumu</option>
+                 })}
+              </select>
+           </div>
+         </div>
+
+         <button onClick={handleSaveEdit} className="w-full bg-emerald-600 text-white font-black text-lg py-4 rounded-2xl hover:bg-emerald-700 transition shadow-xl shadow-emerald-500/30 flex justify-center items-center">
+           <Save className="w-5 h-5 mr-2"/> Kaydet
+         </button>
+       </div>
+     </div>
   );
 }

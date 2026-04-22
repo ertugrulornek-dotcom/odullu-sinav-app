@@ -36,8 +36,8 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
            let requiredGenders = ['Erkek', 'Kız', '8. Sınıf Erkek'];
            
            if (dist === 'Körfez' && (hood === '17 Ağustos' || hood === 'Cumhuriyet')) {
-               if (z.name === 'Gebze') requiredGenders = ['Erkek']; 
-               else if (z.name === 'Akarçeşme') requiredGenders = ['Kız', '8. Sınıf Erkek']; 
+               if (z.name === 'Gebze') requiredGenders = ['Erkek', 'Kız']; 
+               else if (z.name === 'Akarçeşme') requiredGenders = ['8. Sınıf Erkek']; 
            }
 
            const hoodMappings = mappings.filter(m => m.district === dist && m.neighborhood === hood);
@@ -117,7 +117,6 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
           newCenters.push(exceptionModal.center);
       }
 
-      // 🚀 YENİ: isException bayrağı eklendi
       const newMapObj = { district, neighborhood, gender, centerId: exceptionModal.center.id, contactName, phone: phone || "0553 973 54 40", isException: true };
       newMappings.push(newMapObj);
 
@@ -129,7 +128,6 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
       } catch(e) { console.error(e) }
   };
 
-  // 🚀 YENİ FONKSİYON: İstisna Silme İşlemi
   const handleDeleteException = async (zoneId, district, neighborhood, gender) => {
       if(!window.confirm(`${district} / ${neighborhood} istisna atamasını silmek istediğinize emin misiniz?`)) return;
       
@@ -160,9 +158,8 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
       groupedMissing[m.zone].push(m);
   });
 
-  // Excel ve İstisna Listesi İçin Veri Hazırlığı
   let allAssignments = [];
-  let exceptionAssignments = []; // 🚀 İstisnaları tutacağımız yeni dizi
+  let exceptionAssignments = []; 
 
   zones.forEach(z => {
       const zMappings = z.mappings || [];
@@ -190,9 +187,15 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
 
           allAssignments.push(assignmentObj);
 
-          // Eğer manuel isException işaretlenmişse VEYA mahalle o mıntıkanın normal sınırlarında değilse İstisna sayılır
-          const isNormalDistrict = z.districts?.includes(m.district) || z.partialDistricts?.[m.district] !== undefined;
-          if (m.isException || !isNormalDistrict) {
+          // 🚀 DÜZELTME: Artık sadece ilçeye değil, o mahallenin mıntıkanın yasal listesinde olup olmadığına KESİN bakıyor.
+          let isNormal = false;
+          if (z.districts && z.districts.includes(m.district)) {
+              isNormal = true;
+          } else if (z.partialDistricts && z.partialDistricts[m.district] && z.partialDistricts[m.district].includes(m.neighborhood)) {
+              isNormal = true;
+          }
+
+          if (m.isException || !isNormal) {
               exceptionAssignments.push(assignmentObj);
           }
       });
@@ -454,7 +457,6 @@ export default function StatsTab({ zones, setHasMadeChanges }) {
         )}
       </div>
 
-      {/* 🚀 YENİ BÖLÜM: Kayıtlı İstisna (Paylaşımlı) Mahalleler Listesi */}
       <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12 animate-in fade-in zoom-in-95 duration-300">
           <h3 className="font-black text-3xl text-slate-900 mb-2 flex items-center"><MapPin className="mr-3 w-8 h-8 text-amber-500"/> Paylaşımlı (İstisna) Atanan Mahalleler</h3>
           <p className="text-slate-500 font-bold mb-8">Kendi mıntıkası dışında, başka bir mıntıkanın kurumuna atanan mahallelerin listesi.</p>

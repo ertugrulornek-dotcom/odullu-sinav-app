@@ -224,7 +224,7 @@ export default function SpecialBoysCentersTab({ zones, setHasMadeChanges }) {
               <div className="bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
                  <h4 className="font-black text-slate-800 text-lg mb-4 flex items-center"><FileText className="w-5 h-5 mr-2 text-indigo-500"/> Toplu Ekle (Excel'den)</h4>
                  <p className="text-xs font-bold text-slate-500 mb-2">Format: İlçe | Mahalle | Kurum Adı | Sorumlu | Tel | Adres | Harita</p>
-                 <textarea rows=\"4\" value={bulkExcelData} onChange={e=>setBulkExcelData(e.target.value)} className="w-full text-sm font-medium p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 resize-none mb-3" placeholder="Excel verisini buraya yapıştırın..."/>
+                 <textarea rows="4" value={bulkExcelData} onChange={e=>setBulkExcelData(e.target.value)} className="w-full text-sm font-medium p-3 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 resize-none mb-3" placeholder="Excel verisini buraya yapıştırın..."/>
                  <button onClick={handleBulkUpload} className="w-full bg-slate-800 text-white font-black py-3 rounded-xl hover:bg-slate-900 transition shadow-md">Toplu Yükle</button>
               </div>
             </div>

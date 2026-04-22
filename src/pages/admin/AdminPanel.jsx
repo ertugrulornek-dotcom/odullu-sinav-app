@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Building2, Users, Map, ShieldAlert, LogOut, KeyRound, AlertTriangle, Download, Search, Link } from 'lucide-react';
-import { collection, query, where, getDocs, getCountFromServer } from "firebase/firestore"; 
+import { Settings, Building2, Users, Map, ShieldAlert, LogOut, KeyRound, AlertTriangle, Download, Search, Link, Database } from 'lucide-react';
+import { collection, query, where, getDocs, getCountFromServer, onSnapshot } from "firebase/firestore"; 
 import { db, appId } from "../../services/firebase"; 
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { sendSMS, SMS_FOOTER } from '../../services/smsService';
 import { DEFAULT_PRIZE_OBJ, INITIAL_ZONES } from '../../data/constants';
 import { getNeighborhoodDetails, normalizeForSearch, parsePrizeArray, determineZoneName, findZoneByName } from '../../utils/helpers';
@@ -12,7 +12,8 @@ import CentersTab from './CentersTab';
 import StudentsTab from './StudentsTab';
 import StatsTab from './StatsTab';
 import BlacklistTab from './BlacklistTab';
-import ExceptionsTab from './ExceptionsTab'; // 🚀 YENİ EKLENDİ
+import ExceptionsTab from './ExceptionsTab';
+import DatabaseBackupTab from './DatabaseBackupTab';
 
 export function AdminLogin({ setAdminAuth, zones }) {
   const [username, setUsername] = useState('');
@@ -180,9 +181,11 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
 
       for (let student of fetchedStudents) {
         let latestZone = null;
+        
         if (student.zone && student.zone.id) {
-           latestZone = zones.find(z => z.id == student.zone.id);
+           latestZone = zones.find(z => z.id?.toString() === student.zone.id?.toString());
         }
+        
         if (!latestZone) {
            const zName = determineZoneName(student.province, student.district, student.neighborhood, student.gender, student.grade, zones);
            if (zName !== 'MULTI') latestZone = findZoneByName(zones, zName);
@@ -196,7 +199,8 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
         const centerInfo = getNeighborhoodDetails(latestZone, student.district, student.neighborhood, student.gender, student.grade);
         const hasValidCenter = centerInfo.centerName !== "Sınav Merkezi Bekleniyor";
         const minimalZone = { id: latestZone.id, name: latestZone.name };
-        if (!student.zone || student.zone.id !== latestZone.id) {
+        
+        if (!student.zone || student.zone.id?.toString() !== latestZone.id?.toString()) {
             updates.zone = minimalZone;
         }
 
@@ -350,6 +354,10 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
              <button onClick={() => setActiveTab('karaliste')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'karaliste' ? 'bg-red-600 text-white shadow-lg' : 'bg-white text-red-600 border border-red-200 hover:bg-red-50'}`}>
                <ShieldAlert className="w-5 h-5 inline mr-2"/> Kara Liste Yönetimi
              </button>
+             {/* 🚀 DÜZELTME 1: Yedekleme Sekmesi butonu eklendi */}
+             <button onClick={() => setActiveTab('backup')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'backup' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>
+               <Database className="w-5 h-5 inline mr-2"/> Yedekleme (Önemli)
+             </button>
            </>
         )}
       </div>
@@ -360,6 +368,8 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
         {activeTab === 'istisnalar' && isSuperAdmin && <ExceptionsTab zones={zones} setHasMadeChanges={setHasMadeChanges} />}
         {activeTab === 'mahalleler' && isSuperAdmin && <StatsTab zones={zones} setHasMadeChanges={setHasMadeChanges} />}
         {activeTab === 'karaliste' && isSuperAdmin && <BlacklistTab setHasMadeChanges={setHasMadeChanges} />}
+        {/* 🚀 DÜZELTME 1: students değişkeni fetchedStudents olarak düzeltildi */}
+        {activeTab === 'backup' && isSuperAdmin && <DatabaseBackupTab zones={zones} students={fetchedStudents} exams={exams} />}
         
         {activeTab === 'ogrenci' && (
            <>
@@ -386,7 +396,7 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
                 </button>
              </div>
              {fetchedStudents.length > 0 ? (
-                <StudentsTab students={fetchedStudents} isSuperAdmin={isSuperAdmin} adminZoneData={adminZoneData} zones={zones} setHasMadeChanges={setHasMadeChanges} />
+                <StudentsTab students={fetchedStudents} exams={exams} isSuperAdmin={isSuperAdmin} adminZoneData={adminZoneData} zones={zones} setHasMadeChanges={setHasMadeChanges} />
              ) : (
                 <div className="text-center font-bold text-slate-400 py-10 bg-white rounded-3xl border-4 border-slate-50">Lütfen yukarıdan bölgeyi seçip "Verileri İndir" butonuna tıklayın. Cinsiyet, Sınıf vb. filtrelemeleri aşağıda liste açıldıktan sonra yapabilirsiniz.</div>
              )}
