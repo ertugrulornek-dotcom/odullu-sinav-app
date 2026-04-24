@@ -1,3 +1,4 @@
+import AnnouncementBanner from './components/AnnouncementBanner';
 import React, { useState, useEffect, useRef } from 'react';
 import { Award, Users, LogOut, Phone, MapPin, UserPlus } from 'lucide-react';
 import { db, auth, appId } from './services/firebase';
@@ -25,8 +26,11 @@ const mirrorFrameStyle = {
 };
 
 export default function App() {
-  // SİTE ŞU AN BAKIM MODUNDA (Açmak için false yapın)
+  // SİTE ŞU AN BAKIM MODUNDA MI? (Sistemi tamamen kapatır - Beyaz sayfa)
   const IS_UNDER_MAINTENANCE = false;
+
+  // 🚀 YENİ: KAYITLAR KAPALI MI? (Sadece kayıtları durdurur, süslü afişi çıkarır)
+  const IS_REGISTRATION_CLOSED = true;
 
   const [currentView, setCurrentView] = useState('landing'); 
   const [currentUser, setCurrentUser] = useState(null);
@@ -41,12 +45,16 @@ export default function App() {
   useEffect(() => {
     const checkRoute = () => { 
         if (window.location.pathname === '/admin' || window.location.hash === '#admin') setCurrentView('admin'); 
-        else if (window.location.hash === '#register') setCurrentView('register');
+        // 🚀 KORUMA: Eğer kayıtlar kapalıysa ve birisi zorla #register yazarsa, ana sayfada tut.
+        else if (window.location.hash === '#register') {
+            setCurrentView(IS_REGISTRATION_CLOSED ? 'landing' : 'register');
+        }
+        else setCurrentView('landing');
     };
     checkRoute();
     window.addEventListener('hashchange', checkRoute);
     return () => window.removeEventListener('hashchange', checkRoute);
-  }, []);
+  }, [IS_REGISTRATION_CLOSED]);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -60,7 +68,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 🚀 DÜZELTİLMİŞ VE BİRLEŞTİRİLMİŞ VERİ ÇEKME MANTIĞI
   useEffect(() => {
     if (!authUser) return;
 
@@ -107,12 +114,11 @@ export default function App() {
 
       return () => { unsubZones(); unsubExams(); };
     } else {
-      // 🚀 ZİYARETÇİLER İÇİN CACHE SİSTEMİ (KOTA DOSTU)
       const fetchInitialData = async () => {
         setLoading(true);
         try {
           const CACHE_KEY = 'os_cache_v1';
-          const CACHE_TTL = 5 * 60 * 1000; // 5 dakika
+          const CACHE_TTL = 5 * 60 * 1000; 
           const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
 
           if (cached && Date.now() - cached.t < CACHE_TTL) {
@@ -137,7 +143,6 @@ export default function App() {
             const examsData = examsSnap.docs.map(d => ({ firebaseId: d.id, ...d.data() }));
             setExams(examsData);
 
-            // Veriyi 5 dakikalığına tarayıcıya kaydet
             localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), zones: sortedZones, exams: examsData }));
           }
         } catch(e) { console.error(e); }
@@ -266,6 +271,7 @@ export default function App() {
     }
   }
 
+  // 1. KORUMA: SİTE TAMAMEN BAKIMDA MI?
   if (IS_UNDER_MAINTENANCE) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 relative z-50">
@@ -293,6 +299,7 @@ export default function App() {
   let headerPhone = userLocDetails?.phone || "0553 973 54 40";
 
   return (
+    
     <ThemeProvider>
       <div className="fixed inset-0 z-[-1] bg-slate-50 pointer-events-none overflow-hidden transition-colors duration-500">
          <div className="absolute -top-40 -left-40 w-[500px] md:w-[700px] h-[500px] md:h-[700px] rounded-full opacity-100 blur-[80px] md:blur-[120px] transition-colors duration-1000 mix-blend-multiply" style={{ backgroundColor: 'var(--color-light-bg)' }}></div>
@@ -302,6 +309,11 @@ export default function App() {
 
       <div className="min-h-screen font-sans text-slate-800 transition-colors duration-300 bg-transparent relative z-10">
         
+        {/* 🚀 2. KORUMA: SÜSLÜ AFİŞ BURADA ÇAĞRILIYOR */}
+        {IS_REGISTRATION_CLOSED && currentView === 'landing' && (
+           <AnnouncementBanner navigateTo={navigateTo} />
+        )}
+
         <div className="text-white text-xs py-2 px-4 flex justify-between items-center sm:px-8 border-b border-black/10 transition-colors z-50 relative" style={{ backgroundColor: 'var(--color-main)' }}>
           <div className="flex items-center space-x-4">
             <span className="flex items-center font-bold"><Phone className="w-3.5 h-3.5 mr-1 opacity-80"/> {headerPhone}</span>
@@ -361,9 +373,13 @@ export default function App() {
                     <button onClick={() => navigateTo('login')} className="bg-white border text-slate-700 font-black px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl text-[11px] sm:text-base shadow-sm hover:bg-slate-50 flex items-center justify-center whitespace-nowrap">
                        Giriş Yap
                     </button>
-                    <button onClick={() => navigateTo('register')} className="text-white px-4 py-2 sm:px-6 sm:py-2.5 rounded-xl font-black shadow-lg text-[11px] sm:text-base hover:scale-105 transition-transform flex items-center justify-center whitespace-nowrap" style={{ backgroundColor: 'var(--color-main)' }}>
-                       Kayıt Ol
-                    </button>
+                    
+                    {/* 🚀 3. KORUMA: SADECE KAYIT AÇIKSA "KAYIT OL" BUTONUNU GÖSTER */}
+                    {!IS_REGISTRATION_CLOSED && (
+                        <button onClick={() => navigateTo('register')} className="text-white px-4 py-2 sm:px-6 sm:py-2.5 rounded-xl font-black shadow-lg text-[11px] sm:text-base hover:scale-105 transition-transform flex items-center justify-center whitespace-nowrap" style={{ backgroundColor: 'var(--color-main)' }}>
+                           Kayıt Ol
+                        </button>
+                    )}
                   </>
                 )}
               </div>
@@ -374,7 +390,7 @@ export default function App() {
 
         <main className="pb-0 animate-in fade-in duration-500 mt-10">
           {currentView === 'landing' && <LandingPage navigateTo={navigateTo} currentUser={currentUser} detectedZone={detectedZone} scrollToSection={scrollToSection} exams={exams} zones={zones} />}
-          {currentView === 'register' && <RegistrationProcess navigateTo={navigateTo} currentUser={currentUser} setCurrentUser={setCurrentUser} zones={zones} exams={exams} refreshData={() => {}} />}
+          {currentView === 'register' && !IS_REGISTRATION_CLOSED && <RegistrationProcess navigateTo={navigateTo} currentUser={currentUser} setCurrentUser={setCurrentUser} zones={zones} exams={exams} refreshData={() => {}} />}
           {currentView === 'login' && <LoginPage setCurrentUser={setCurrentUser} navigateTo={navigateTo} />}
           {currentView === 'profile' && <StudentProfile currentUser={currentUser} exams={exams} navigateTo={navigateTo} setCurrentUser={setCurrentUser} zones={zones} />}
           {currentView === 'admin' && !adminAuth.isAuthenticated && <AdminLogin setAdminAuth={setAdminAuth} zones={zones} />}
