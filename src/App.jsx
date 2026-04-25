@@ -30,7 +30,7 @@ export default function App() {
   const IS_UNDER_MAINTENANCE = false;
 
   // 🚀 YENİ: KAYITLAR KAPALI MI? (Sadece kayıtları durdurur, süslü afişi çıkarır)
-  const IS_REGISTRATION_CLOSED = false;
+  const IS_REGISTRATION_CLOSED = true;
 
   const [currentView, setCurrentView] = useState('landing'); 
   const [currentUser, setCurrentUser] = useState(null);
