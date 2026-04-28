@@ -27,7 +27,8 @@ export default function CenterAdminPanel({ adminAuth, onLogout, zones, exams }) 
 
   const [borrowData, setBorrowData] = useState({ district: '', neighborhood: '', gender: '' });
 
-  const centerExams = exams.filter(e => e.centerId === centerData?.id && e.active !== false);
+  // 🚀 DÜZELTME 2: Kurumlar hem Mıntıka sınavlarını (!e.centerId) hem de kendi sınavlarını görebilir.
+  const centerExams = exams.filter(e => e.zoneId === adminAuth.zoneId && (!e.centerId || e.centerId === centerData?.id));
   const [examData, setExamData] = useState({ title: '' });
   const [examSessions, setExamSessions] = useState([{ date: '', times: '' }]);
   const [editingExamId, setEditingExamId] = useState(null);
@@ -35,7 +36,6 @@ export default function CenterAdminPanel({ adminAuth, onLogout, zones, exams }) 
   const [useCustomPrizes, setUseCustomPrizes] = useState(centerData?.useCustomPrizes || false);
   const [localPrizes, setLocalPrizes] = useState(centerData?.customPrizes || { participation: [{title:'', desc:'', img:''}], degree: [{title:'', desc:'', img:''}] });
 
-  // 🚀 DÜZELTME 2: useCallback ile sabitledik
   const handleFetchStudents = useCallback(async () => {
       setIsFetchingData(true);
       try {
@@ -54,7 +54,6 @@ export default function CenterAdminPanel({ adminAuth, onLogout, zones, exams }) 
 
   useEffect(() => { handleFetchStudents(); }, [handleFetchStudents]);
 
-  // 🚀 DÜZELTME 3: Yazma öncesi güncel zone verisini çekiyoruz ki başka yöneticinin değişikliği ezilmesin (Concurrent Write Fix)
   const handleSaveCenterInfo = async () => {
      try {
          const zoneDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneData.id.toString());
@@ -66,7 +65,7 @@ export default function CenterAdminPanel({ adminAuth, onLogout, zones, exams }) 
          
          alert("Kurum bilgileriniz başarıyla güncellendi.");
          window.location.reload();
-     } catch(e) { alert("Güncelleme hatası: Lütfen internetinizi kontrol edin."); }
+     } catch(e) { alert("Güncelleme hatası"); }
   };
 
   const handleToggleAppointmentMode = async () => {
@@ -74,11 +73,17 @@ export default function CenterAdminPanel({ adminAuth, onLogout, zones, exams }) 
          const zoneDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneData.id.toString());
          const zoneDoc = await getDoc(zoneDocRef);
          const freshCenters = zoneDoc.data()?.centers || [];
+         let freshMappings = zoneDoc.data()?.mappings || [];
          
          const newMode = !centerData.isAppointmentModeActive;
          const updatedCenters = freshCenters.map(c => c.id === centerData.id ? { ...c, isAppointmentModeActive: newMode } : c);
-         await updateDoc(zoneDocRef, { centers: updatedCenters });
          
+         // 🚀 DÜZELTME 1: Kurum "Aktif" hale gelirse, başkasına ödünç verdiği mahalleleri geri alır!
+         if (newMode) {
+             freshMappings = freshMappings.filter(m => !(m.isBorrowed && m.originalCenterId === centerData.id));
+         }
+
+         await updateDoc(zoneDocRef, { centers: updatedCenters, mappings: freshMappings });
          alert(`Randevulu sistem ${newMode ? 'AKTİF' : 'PASİF'} yapıldı.`);
          window.location.reload();
      } catch(e) { alert("Hata oluştu."); }
@@ -126,10 +131,19 @@ export default function CenterAdminPanel({ adminAuth, onLogout, zones, exams }) 
         setHasMadeChanges(true);
         if (editingExamId) {
            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'exams', editingExamId), {
-              title: examData.title, sessions: formattedSessions, updatedAt: new Date().getTime()
+              title: examData.title, sessions: formattedSessions, updatedAt: new Date().getTime(), active: true, status: 'active'
            });
+           
+           // Sınav eklendiğinde/düzenlendiğinde de ödünçleri geri al (Çünkü aktif hale geldi)
+           const zoneDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneData.id.toString());
+           const zoneDoc = await getDoc(zoneDocRef);
+           let freshMappings = zoneDoc.data()?.mappings || [];
+           freshMappings = freshMappings.filter(m => !(m.isBorrowed && m.originalCenterId === centerData.id));
+           await updateDoc(zoneDocRef, { mappings: freshMappings });
+
            alert("Sınav başarıyla güncellendi!");
            setEditingExamId(null);
+           window.location.reload();
         } else {
            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'exams'), { 
                zoneId: adminZoneData.id, centerId: centerData.id, title: examData.title, sessions: formattedSessions, createdAt: new Date().getTime(), active: true, status: 'active' 
@@ -161,38 +175,51 @@ export default function CenterAdminPanel({ adminAuth, onLogout, zones, exams }) 
       } catch(e) { alert("Güncelleme hatası"); }
   };
 
-  const getZoneDistricts = () => {
-      const dists = [...(adminZoneData?.districts || [])];
-      if (adminZoneData?.partialDistricts) {
-          Object.keys(adminZoneData.partialDistricts).forEach(d => {
-              if (!dists.includes(d)) dists.push(d);
-          });
-      }
-      return dists.sort();
+  // 🚀 DÜZELTME 1: PASİF (Devam etmeyen) kurumların mahallelerini bulma
+  const inactiveCenters = adminZoneData.centers.filter(c => {
+      if (c.id === centerData.id) return false;
+      if (c.isAppointmentModeActive) return false; // Randevu aktifse pasif DEĞİLDİR
+      const hasActiveExam = exams.some(e => e.centerId === c.id && e.active !== false);
+      if (hasActiveExam) return false; // Sınavı varsa pasif DEĞİLDİR
+      return true; // Ne randevusu ne de sınavı var, PASİF.
+  });
+  const inactiveCenterIds = inactiveCenters.map(c => c.id);
+
+  const borrowableMappings = (adminZoneData.mappings || []).filter(m => {
+      if (!inactiveCenterIds.includes(m.centerId)) return false; // Sadece pasiflerin mahalleleri alınır
+      if (m.isBorrowed) return false; // Zaten başkası ödünç almışsa gizle
+      if (borrowData.gender && m.gender !== borrowData.gender && m.gender !== 'Tümü') return false;
+      return true;
+  });
+
+  const getBorrowableDistricts = () => {
+      return [...new Set(borrowableMappings.map(m => m.district))].sort();
   };
 
-  const getAvailableNeighborhoodsToBorrow = () => {
-      if(!borrowData.district || !borrowData.gender) return [];
-      const dist = borrowData.district;
-      const gender = borrowData.gender;
-      let allHoods = [];
-      if (adminZoneData?.partialDistricts?.[dist]) { allHoods = adminZoneData.partialDistricts[dist]; } 
-      else { for (let prov in LOCATIONS) { if (LOCATIONS[prov][dist]) { allHoods = LOCATIONS[prov][dist]; break; } } }
-      return allHoods.filter(h => {
-         const isMapped = adminZoneData.mappings?.some(m => m.district === dist && m.neighborhood === h && (m.gender === gender || m.gender === 'Tümü'));
-         return !isMapped;
-      }).sort();
+  const getBorrowableNeighborhoods = () => {
+      return borrowableMappings.filter(m => m.district === borrowData.district).map(m => m.neighborhood).sort();
   };
 
   const handleBorrowNeighborhood = async () => {
       if(!borrowData.district || !borrowData.neighborhood || !borrowData.gender) return alert("Lütfen tüm alanları seçiniz.");
       try {
+         const origMapping = adminZoneData.mappings.find(m => m.district === borrowData.district && m.neighborhood === borrowData.neighborhood && (m.gender === borrowData.gender || m.gender === 'Tümü') && !m.isBorrowed);
+         
+         const newMapping = { 
+            district: borrowData.district, 
+            neighborhood: borrowData.neighborhood, 
+            gender: borrowData.gender, 
+            centerId: centerData.id, 
+            isBorrowed: true,
+            originalCenterId: origMapping ? origMapping.centerId : null
+         };
+         
          const zoneDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneData.id.toString());
          const zoneDoc = await getDoc(zoneDocRef);
          const freshMappings = zoneDoc.data()?.mappings || [];
 
-         const newMapping = { district: borrowData.district, neighborhood: borrowData.neighborhood, gender: borrowData.gender, centerId: centerData.id, isBorrowed: true };
-         const updatedMappings = [...freshMappings, newMapping];
+         // 🚀 DÜZELTME: Ödünç alınan mahalle listesinin EN BAŞINA eklenir ki arama yaparken bu çıksın!
+         const updatedMappings = [newMapping, ...freshMappings];
          
          await updateDoc(zoneDocRef, { mappings: updatedMappings });
          alert("Mahalle başarıyla ödünç alındı.");
@@ -202,7 +229,7 @@ export default function CenterAdminPanel({ adminAuth, onLogout, zones, exams }) 
   };
 
   const handleDeleteBorrowed = async (district, neighborhood, gender) => {
-      if(!window.confirm("Ödünç aldığınız bu mahalleyi bırakmak istiyor musunuz?")) return;
+      if(!window.confirm("Ödünç aldığınız bu mahalleyi asıl sahibine geri bırakmak istiyor musunuz?")) return;
       try {
          const zoneDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'zones', adminZoneData.id.toString());
          const zoneDoc = await getDoc(zoneDocRef);
@@ -254,6 +281,7 @@ export default function CenterAdminPanel({ adminAuth, onLogout, zones, exams }) 
            </div>
         )}
 
+        {/* SINAV VE ÖDÜL AYARLARI SEKMESİ */}
         {activeTab === 'ayarlar' && (
            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
               <div className="bg-white rounded-[3rem] shadow-xl border-4 border-amber-100 p-8 md:p-12">
@@ -281,7 +309,7 @@ export default function CenterAdminPanel({ adminAuth, onLogout, zones, exams }) 
                      </div>
                      
                      {centerData.isAppointmentModeActive ? (
-                         <div className="bg-emerald-50 text-emerald-700 p-4 rounded-xl text-sm font-bold border border-emerald-200">Randevulu sistem aktif olduğu için oturum saati girmenize gerek yoktur.</div>
+                         <div className="bg-emerald-50 text-emerald-700 p-4 rounded-xl text-sm font-bold border border-emerald-200">Randevulu sistem aktif olduğu için oturum saati girmenize gerek yoktur. Sadece Sınav Adını kaydetmeniz yeterlidir.</div>
                      ) : (
                          <div className="pt-2 border-t-2 border-slate-200/50">
                            <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-3 block">Tarih ve Saatler (Çoklu Eklenebilir)</label>
@@ -303,13 +331,15 @@ export default function CenterAdminPanel({ adminAuth, onLogout, zones, exams }) 
                  </div>
 
                  <div className="mt-8 space-y-4">
+                    <h5 className="font-bold text-slate-500 uppercase tracking-widest text-xs mb-2">Kayıtlı Sınavlarınız</h5>
                     {centerExams.map(exam => (
-                        <div key={exam.firebaseId} className="border-2 p-5 rounded-2xl bg-indigo-50 border-indigo-100 relative">
+                        <div key={exam.firebaseId} className={`border-2 p-5 rounded-2xl relative ${exam.centerId ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
                             <div className="absolute top-4 right-4 flex gap-2">
-                                <button onClick={() => {setEditingExamId(exam.firebaseId); setExamData({title:exam.title}); setExamSessions(exam.sessions?.map(s=>({date:s.date, times:s.slots.join(', ')})) || [{date:'', times:''}]);}} className="p-2 text-indigo-500 bg-white shadow-sm border rounded-xl"><Edit className="w-4 h-4"/></button>
-                                <button onClick={() => handleDeleteCenterExam(exam.firebaseId)} className="p-2 text-red-500 bg-white shadow-sm border rounded-xl"><Trash2 className="w-4 h-4"/></button>
+                                <button onClick={() => {setEditingExamId(exam.firebaseId); setExamData({title:exam.title}); setExamSessions(exam.sessions?.map(s=>({date:s.date, times:s.slots.join(', ')})) || [{date:'', times:''}]);}} className="p-2 text-indigo-500 bg-white shadow-sm border rounded-xl" title="Sınavı/Oturumları Düzenle"><Edit className="w-4 h-4"/></button>
+                                {/* Sadece Kurum kendi oluşturduğu sınavı silebilir, Mıntıka sınavını silemez! */}
+                                {exam.centerId === centerData.id && <button onClick={() => handleDeleteCenterExam(exam.firebaseId)} className="p-2 text-red-500 bg-white shadow-sm border rounded-xl" title="Sınavı Sil"><Trash2 className="w-4 h-4"/></button>}
                             </div>
-                            <h4 className="font-black text-lg text-indigo-900 mb-2">{exam.title}</h4>
+                            <h4 className="font-black text-lg text-indigo-900 mb-2">{exam.title} {!exam.centerId && <span className="text-[10px] bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-md ml-2">Ortak Sınav</span>}</h4>
                             {exam.sessions?.map((s, i) => (
                                 <div key={i} className="text-sm font-bold text-slate-600"><CalendarIcon className="inline w-4 h-4 mr-1"/> {formatToTurkishDate(s.date)} - {s.slots?.join(', ')}</div>
                             ))}
@@ -360,6 +390,7 @@ export default function CenterAdminPanel({ adminAuth, onLogout, zones, exams }) 
            </div>
         )}
 
+        {/* RANDEVU PANELİ */}
         {activeTab === 'randevu' && (
            <div className="bg-white rounded-[3rem] shadow-xl border-4 border-amber-100 p-8 md:p-12">
                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b-2 border-slate-100 pb-6 gap-4">
@@ -400,6 +431,7 @@ export default function CenterAdminPanel({ adminAuth, onLogout, zones, exams }) 
            </div>
         )}
 
+        {/* KURUM BİLGİLERİ VE MAHALLELER */}
         {activeTab === 'merkezler' && (
            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
               <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12">
@@ -464,7 +496,7 @@ export default function CenterAdminPanel({ adminAuth, onLogout, zones, exams }) 
 
                  <div className="bg-rose-50 rounded-[3rem] shadow-sm border-4 border-rose-100 p-8">
                     <h3 className="font-black text-xl text-rose-900 mb-4 flex items-center"><Plus className="w-6 h-6 mr-2"/> Mahalle Ödünç Al</h3>
-                    <p className="text-xs font-bold text-rose-700 mb-4">Mıntıkanızda henüz başka bir kuruma atanmamış olan mahalleleri geçici olarak kendi üzerinize (kırmızı renkle) alabilirsiniz.</p>
+                    <p className="text-xs font-bold text-rose-700 mb-4">Mıntıkanızda sınav/randevu sistemini kapatan (pasif) kurumların mahallelerini geçici olarak (kırmızı renkle) alabilirsiniz.</p>
                     <div className="space-y-3">
                        <select value={borrowData.gender} onChange={e=>setBorrowData({...borrowData, gender: e.target.value, neighborhood: ''})} className="w-full p-3 rounded-xl border border-rose-200 bg-white font-bold text-sm outline-none focus:border-rose-500">
                           <option value="">Cinsiyet Seçin</option>
@@ -474,11 +506,11 @@ export default function CenterAdminPanel({ adminAuth, onLogout, zones, exams }) 
                        </select>
                        <select value={borrowData.district} onChange={e=>setBorrowData({...borrowData, district: e.target.value, neighborhood: ''})} className="w-full p-3 rounded-xl border border-rose-200 bg-white font-bold text-sm outline-none focus:border-rose-500">
                           <option value="">İlçe Seçin</option>
-                          {getZoneDistricts().map(d => <option key={d} value={d}>{d}</option>)}
+                          {getBorrowableDistricts().map(d => <option key={d} value={d}>{d}</option>)}
                        </select>
                        <select value={borrowData.neighborhood} onChange={e=>setBorrowData({...borrowData, neighborhood: e.target.value})} disabled={!borrowData.district || !borrowData.gender} className="w-full p-3 rounded-xl border border-rose-200 bg-white font-bold text-sm disabled:opacity-50 outline-none focus:border-rose-500">
                           <option value="">Boşta Olan Mahalle Seçin</option>
-                          {getAvailableNeighborhoodsToBorrow().map(h => <option key={h} value={h}>{h}</option>)}
+                          {getBorrowableNeighborhoods().map(h => <option key={h} value={h}>{h}</option>)}
                        </select>
                        <button onClick={handleBorrowNeighborhood} disabled={!borrowData.neighborhood} className="bg-rose-600 text-white font-black w-full py-4 rounded-xl hover:bg-rose-700 disabled:opacity-50 transition shadow-md">Ödünç Al ve Ata</button>
                     </div>

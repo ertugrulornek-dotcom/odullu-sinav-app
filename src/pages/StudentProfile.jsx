@@ -35,12 +35,18 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
       actualZone = zones.find(z => z.mappings?.some(m => m.centerId === currentUser.selectedCenterId)) || actualZone;
       actualCenterMapping = actualZone?.mappings?.find(m => m.centerId === currentUser.selectedCenterId);
       actualCenterObj = actualZone?.centers?.find(c => c.id === currentUser.selectedCenterId);
+  } else {
+      const fallbackDetails = getNeighborhoodDetails(actualZone, currentUser.district, currentUser.neighborhood, currentUser.gender, currentUser.grade);
+      if (fallbackDetails?.centerName && fallbackDetails?.centerName !== "Sınav Merkezi Bekleniyor") {
+          actualCenterObj = actualZone?.centers?.find(c => c.name === fallbackDetails.centerName);
+      }
   }
 
-  // 🚀 GÜNCELLEME: Canlı Kısıtlama Kontrolü (Admin paneline eklendiği için buradan canlı okunuyor)
   const currentZoneForRestrictions = zones.find(z => z.id === actualZone?.id) || actualZone;
   const isGroupRestricted = currentZoneForRestrictions?.restrictedGroups?.includes(`${currentUser.grade}-${currentUser.gender}`);
 
+  // 🚀 DÜZELTME: Randevu durumu tespiti (Hem kendi profili, hem de kurum şalteri)
+  const isAppointmentMode = actualCenterObj?.isAppointmentModeActive === true || currentUser?.registeredViaAppointment === true;
 
   const fallbackDetails = getNeighborhoodDetails(actualZone, currentUser.district, currentUser.neighborhood, currentUser.gender, currentUser.grade);
   const neighborhoodDetails = actualCenterObj ? {
@@ -51,9 +57,19 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
       address: actualCenterObj?.address || fallbackDetails.address
   } : fallbackDetails;
 
+  // 🚀 DÜZELTME: Öğrencinin görebileceği sınavlar filtreleniyor
   const zoneExams = React.useMemo(() => {
       return exams.filter(e => e.zoneId === actualZone?.id);
   }, [exams.length, actualZone?.id]);
+
+  const availableExamsToJoin = React.useMemo(() => {
+      return zoneExams.filter(e => {
+          if (e.active === false) return false; // Bitmiş sınavları gizle
+          if (pastExams.some(pe => pe.id === (e.firebaseId || e.id))) return false; // Geçmişte girdiği sınavı gizle
+          if (e.centerId && e.centerId !== actualCenterObj?.id) return false; // Başka kurumun özel sınavını gizle
+          return true;
+      });
+  }, [zoneExams, pastExams, actualCenterObj?.id]);
 
   const partPrizesList = React.useMemo(() => {
       return parsePrizeArray(actualZone?.prizes?.participation);
@@ -309,64 +325,78 @@ export default function StudentProfile({ currentUser, exams, navigateTo, setCurr
           ) : (
             <div className="bg-amber-50 rounded-[3rem] p-8 md:p-12 shadow-xl border-4 border-amber-200 text-center">
                 <AlertCircle className="w-20 h-20 text-amber-500 mx-auto mb-6" />
-                <h3 className="text-3xl font-black text-amber-900 mb-4">Bekleme Havuzundasınız</h3>
                 
-                {/* 🚀 GÜNCELLEME: Öğrenci Profili Kısıtlama Kontrolü */}
-                {isGroupRestricted ? (
-                    <div className="mt-8 bg-red-100 text-red-800 p-6 rounded-3xl max-w-2xl mx-auto border-2 border-red-200">
-                        <ShieldAlert className="w-12 h-12 text-red-500 mx-auto mb-4"/>
-                        <h4 className="font-black text-xl mb-2">Kontenjan Doldu</h4>
-                        <p className="font-bold">Bölgenizdeki <strong>{currentUser.grade}. Sınıf {currentUser.gender}</strong> kontenjanları tamamen dolduğu için şu an aktif sınav oturumlarına kayıt olamazsınız. İlginiz için teşekkür ederiz.</p>
-                    </div>
-                ) : zoneExams.length > 0 ? (
-                    <div className="mt-10 text-left bg-white p-8 rounded-3xl shadow-sm border border-amber-100">
-                       <p className="font-black text-slate-800 text-xl mb-6 text-center">Sınava girebilmek için lütfen aşağıdaki oturumlardan birini seçiniz:</p>
-                       <div className="grid gap-6">
-                         {zoneExams.map(exam => {
-                           const examSessions = exam.sessions || [];
-                           return (
-                             <div key={exam.firebaseId || exam.id} className={`border-4 rounded-3xl p-6 transition-all ${(selectedExam?.firebaseId || selectedExam?.id) === (exam.firebaseId || exam.id) ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100 hover:border-indigo-300'}`}>
-                               <h4 className="font-black text-2xl text-slate-800 mb-4">{exam.title}</h4>
-                               <div className="space-y-6">
-                                 {examSessions.map((session, sIdx) => (
-                                   <div key={sIdx} className="pt-4 border-t-2 border-slate-100">
-                                     <span className="text-sm font-black text-slate-500 mb-3 block flex items-center"><CalendarIcon className="w-5 h-5 mr-2 text-indigo-400"/> {formatToTurkishDate(session.date)} Tarihli Oturumlar:</span>
-                                     <div className="flex flex-wrap gap-3 mt-2">
-                                       {session.slots && session.slots.map(slot => {
-                                         // 🚀 GÜNCELLEME: Öğrenci Profili Saat Kapanma Kontrolü
-                                         const isClosed = session.closedSlots?.includes(slot);
-                                         const isSelected = selectedExam && (selectedExam.firebaseId === exam.firebaseId || selectedExam.id === exam.id) && selectedSlot?.date === session.date && selectedSlot?.time === slot;
-                                         
-                                         return (
-                                           <button 
-                                             key={slot} 
-                                             onClick={() => { 
-                                                 if (isClosed) return;
-                                                 setSelectedExam(exam); setSelectedSlot({ date: session.date, time: slot }); 
-                                             }}
-                                             className={`px-6 py-3 rounded-xl text-lg font-black border-2 transition-all flex items-center ${isClosed ? 'opacity-50 cursor-not-allowed bg-slate-100 text-slate-500 border-slate-200' : isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-md scale-105' : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-400'}`}>
-                                             {isSelected ? <CheckCircle2 className="w-5 h-5 mr-2" /> : isClosed ? <AlertCircle className="w-5 h-5 mr-2" /> : <Clock className="w-5 h-5 mr-2 opacity-60" />} {slot.replace(':', '.')} {isClosed ? '(Dolu)' : ''}
-                                           </button>
-                                         )
-                                       })}
-                                     </div>
-                                   </div>
-                                 ))}
-                               </div>
-                             </div>
-                           )
-                         })}
-                       </div>
-                       {selectedSlot && (
-                          <div className="mt-8 text-center border-t-2 border-slate-100 pt-8">
-                              <button onClick={handleSelectSession} disabled={isSubmitting} className="bg-green-500 text-white font-black text-xl py-5 px-10 rounded-2xl hover:bg-green-600 transition shadow-xl shadow-green-500/30 disabled:opacity-50 flex items-center justify-center mx-auto">
-                                  {isSubmitting ? "Kaydediliyor..." : "Seçili Oturumu Onayla ve Kaydol"}
-                              </button>
-                          </div>
-                       )}
+                {isAppointmentMode ? (
+                    <div className="animate-in fade-in zoom-in-95">
+                        <h3 className="text-3xl font-black text-amber-900 mb-4">Randevu Bekliyorsunuz</h3>
+                        <p className="text-amber-800 text-lg max-w-xl mx-auto font-bold mb-4">
+                            Kurumumuz birebir randevu sistemiyle çalışmaktadır.
+                        </p>
+                        <div className="bg-white p-6 rounded-3xl border-2 border-amber-100 max-w-md mx-auto text-left shadow-sm">
+                            <p className="text-slate-600 font-bold mb-2 flex items-center"><CheckCircle2 className="w-5 h-5 mr-2 text-emerald-500"/> Kaydınız başarılı bir şekilde alındı.</p>
+                            <p className="text-slate-600 font-bold flex items-center"><Clock className="w-5 h-5 mr-2 text-amber-500"/> Sorumlu hocamız sınav gününüzü belirlemek için sizi arayacaktır. Lütfen bekleyiniz.</p>
+                        </div>
                     </div>
                 ) : (
-                    <p className="text-amber-800 text-lg max-w-xl mx-auto font-bold">Şu an bölgenizde aktif bir sınav oturumu bulunmamaktadır. Yeni bir sınav açıldığında size SMS ile bilgi vereceğiz.</p>
+                    <>
+                        <h3 className="text-3xl font-black text-amber-900 mb-4">Bekleme Havuzundasınız</h3>
+                        
+                        {isGroupRestricted ? (
+                            <div className="mt-8 bg-red-100 text-red-800 p-6 rounded-3xl max-w-2xl mx-auto border-2 border-red-200">
+                                <ShieldAlert className="w-12 h-12 text-red-500 mx-auto mb-4"/>
+                                <h4 className="font-black text-xl mb-2">Kontenjan Doldu</h4>
+                                <p className="font-bold">Bölgenizdeki <strong>{currentUser.grade}. Sınıf {currentUser.gender}</strong> kontenjanları tamamen dolduğu için şu an aktif sınav oturumlarına kayıt olamazsınız. İlginiz için teşekkür ederiz.</p>
+                            </div>
+                        ) : availableExamsToJoin.length > 0 ? (
+                            <div className="mt-10 text-left bg-white p-8 rounded-3xl shadow-sm border border-amber-100 animate-in fade-in">
+                               <p className="font-black text-slate-800 text-xl mb-6 text-center">Sınava girebilmek için lütfen aşağıdaki oturumlardan birini seçiniz:</p>
+                               <div className="grid gap-6">
+                                 {availableExamsToJoin.map(exam => {
+                                   const examSessions = exam.sessions || [];
+                                   return (
+                                     <div key={exam.firebaseId || exam.id} className={`border-4 rounded-3xl p-6 transition-all ${(selectedExam?.firebaseId || selectedExam?.id) === (exam.firebaseId || exam.id) ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100 hover:border-indigo-300'}`}>
+                                       <h4 className="font-black text-2xl text-slate-800 mb-4">{exam.title}</h4>
+                                       <div className="space-y-6">
+                                         {examSessions.map((session, sIdx) => (
+                                           <div key={sIdx} className="pt-4 border-t-2 border-slate-100">
+                                             <span className="text-sm font-black text-slate-500 mb-3 block flex items-center"><CalendarIcon className="w-5 h-5 mr-2 text-indigo-400"/> {formatToTurkishDate(session.date)} Tarihli Oturumlar:</span>
+                                             <div className="flex flex-wrap gap-3 mt-2">
+                                               {session.slots && session.slots.map(slot => {
+                                                 const isClosed = session.closedSlots?.includes(slot);
+                                                 const isSelected = selectedExam && (selectedExam.firebaseId === exam.firebaseId || selectedExam.id === exam.id) && selectedSlot?.date === session.date && selectedSlot?.time === slot;
+                                                 
+                                                 return (
+                                                   <button 
+                                                     key={slot} 
+                                                     onClick={() => { 
+                                                         if (isClosed) return;
+                                                         setSelectedExam(exam); setSelectedSlot({ date: session.date, time: slot }); 
+                                                     }}
+                                                     className={`px-6 py-3 rounded-xl text-lg font-black border-2 transition-all flex items-center ${isClosed ? 'opacity-50 cursor-not-allowed bg-slate-100 text-slate-500 border-slate-200' : isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-md scale-105' : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-400'}`}>
+                                                     {isSelected ? <CheckCircle2 className="w-5 h-5 mr-2" /> : isClosed ? <AlertCircle className="w-5 h-5 mr-2" /> : <Clock className="w-5 h-5 mr-2 opacity-60" />} {slot.replace(':', '.')} {isClosed ? '(Dolu)' : ''}
+                                                   </button>
+                                                 )
+                                               })}
+                                             </div>
+                                           </div>
+                                         ))}
+                                       </div>
+                                     </div>
+                                   )
+                                 })}
+                               </div>
+                               {selectedSlot && (
+                                  <div className="mt-8 text-center border-t-2 border-slate-100 pt-8">
+                                      <button onClick={handleSelectSession} disabled={isSubmitting} className="bg-green-500 text-white font-black text-xl py-5 px-10 rounded-2xl hover:bg-green-600 transition shadow-xl shadow-green-500/30 disabled:opacity-50 flex items-center justify-center mx-auto">
+                                          {isSubmitting ? "Kaydediliyor..." : "Seçili Oturumu Onayla ve Kaydol"}
+                                      </button>
+                                  </div>
+                               )}
+                            </div>
+                        ) : (
+                            <p className="text-amber-800 text-lg max-w-xl mx-auto font-bold">Şu an bölgenizde katılabileceğiniz yeni bir sınav oturumu bulunmamaktadır. Yeni bir sınav açıldığında size SMS ile bilgi vereceğiz.</p>
+                        )}
+                    </>
                 )}
             </div>
           )}

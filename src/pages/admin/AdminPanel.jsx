@@ -145,7 +145,10 @@ export default function AdminPanel({ adminAuth, onLogout, zones, exams }) {
      ? { id: 'ALL', name: "Genel Merkez (Tüm Mıntıkalar)", active: true, districts: [], prizes: {grand: DEFAULT_PRIZE_OBJ, degree: [], participation: []}, centers: [], mappings: [] } 
      : zones.find(z => z.id === adminZoneId);
      
-  const filteredExams = isSuperAdmin ? exams : exams.filter(e => e.zoneId === adminZoneId);
+  // 🚀 DÜZELTME: Mıntıka panelinde Kurumlara Özel sınavlar (centerId olanlar) gizlendi!
+  const filteredExams = isSuperAdmin 
+     ? exams.filter(e => !e.centerId) 
+     : exams.filter(e => e.zoneId === adminZoneId && !e.centerId);
 
   useEffect(() => {
     if (!isSuperAdmin && adminZoneId) {
@@ -212,7 +215,6 @@ export default function AdminPanel({ adminAuth, onLogout, zones, exams }) {
       setShowQuotaWarning(false);
       setFetchedStudents(pendingFilteredData);
       if (pendingFilteredData.length === 0) alert("Seçtiğiniz kuruma/filtreye uyan öğrenci bulunamadı.");
-      // 🚀 DÜZELTME 4: Sadece öğrenci listesi indirildiğinde 'Değişiklik yapıldı' uyarısı verilmemesi için alttaki satırı sildik.
   };
 
   const handleLogoutWithSync = async () => {
@@ -413,7 +415,7 @@ export default function AdminPanel({ adminAuth, onLogout, zones, exams }) {
         {activeTab === 'istisnalar' && isSuperAdmin && <ExceptionsTab zones={zones} setHasMadeChanges={setHasMadeChanges} />}
         {activeTab === 'mahalleler' && isSuperAdmin && <StatsTab zones={zones} setHasMadeChanges={setHasMadeChanges} />}
         {activeTab === 'karaliste' && isSuperAdmin && <BlacklistTab setHasMadeChanges={setHasMadeChanges} />}
-        {activeTab === 'backup' && isSuperAdmin && <DatabaseBackupTab />}
+        {activeTab === 'backup' && isSuperAdmin && <DatabaseBackupTab zones={zones} exams={exams} />}
         
         {activeTab === 'ogrenci' && (
            <>

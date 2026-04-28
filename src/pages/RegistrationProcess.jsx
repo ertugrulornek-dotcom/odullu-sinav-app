@@ -187,7 +187,8 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
         const zone = findZoneByName(zones, zoneResult);
         setMatchedZone(zone);
         setIsMultiCenter(false);
-        if (zone && zone.active) setAvailableExams(exams.filter(e => e.zoneId == zone.id && e.active !== false));
+        // 🚀 DÜZELTME: Sadece Mıntıkanın Genel Sınavlarını Al (centerId'si olmayanları)
+        if (zone && zone.active) setAvailableExams(exams.filter(e => e.zoneId == zone.id && e.active !== false && !e.centerId));
         else setAvailableExams([]);
       }
     }
@@ -196,9 +197,8 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
   useEffect(() => {
     setSelectedExam(null); setSelectedSlot(null);
     if (!currentUser) setSelectedParticipationPrize('');
-  }, [formData.district, formData.neighborhood, formData.selectedCenterId]); // Center değiştiğinde de sıfırla
+  }, [formData.district, formData.neighborhood, formData.selectedCenterId]); 
 
-  // 🚀 KURUMA ÖZEL ÖZELLİKLERİN (Sınav, Randevu, Ödül) HESAPLANMASI
   let selectedCenterObj = null;
   const activeZone = zones.find(z => z.id === matchedZone?.id) || matchedZone;
 
@@ -206,25 +206,16 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
       if (isMultiCenter && formData.selectedCenterId) {
           selectedCenterObj = activeZone.centers?.find(c => c.id === formData.selectedCenterId);
       } else if (!isMultiCenter) {
-          const is8thGradeBoy = String(formData.grade) === '8' && formData.gender === 'Erkek';
-          let mapping = activeZone.mappings?.find(m => m.district === formData.district && m.neighborhood === formData.neighborhood && is8thGradeBoy && m.gender === '8. Sınıf Erkek');
-          
-          if (!mapping) {
-              mapping = activeZone.mappings?.find(m => m.district === formData.district && m.neighborhood === formData.neighborhood && m.gender === formData.gender);
-          }
-          if (!mapping) {
-              mapping = activeZone.mappings?.find(m => m.district === formData.district && m.neighborhood === formData.neighborhood && (m.gender === 'Tümü' || !m.gender));
-          }
-
-          if (mapping) {
-              selectedCenterObj = activeZone.centers?.find(c => c.id === mapping.centerId);
+          const centerDetails = getNeighborhoodDetails(activeZone, formData.district, formData.neighborhood, formData.gender, formData.grade);
+          if (centerDetails && centerDetails.centerName && centerDetails.centerName !== "Sınav Merkezi Bekleniyor") {
+              selectedCenterObj = activeZone.centers?.find(c => c.name === centerDetails.centerName);
           }
       }
   }
 
   const isAppointmentMode = selectedCenterObj?.isAppointmentModeActive === true;
 
-  // KURUMUN KENDİ SINAVI VARSA ONU GÖSTER, YOKSA MINTIKANIN SINAVINI GÖSTER
+  // 🚀 DÜZELTME: Kurumun Kendi Sınavı varsa Mıntıkayı Gizle, Sadece Kurum Sınavını Göster.
   let examsToShow = availableExams; 
   if (selectedCenterObj) {
       const centerSpecificExams = exams.filter(e => e.centerId === selectedCenterObj.id && e.active !== false);
@@ -233,7 +224,6 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
       }
   }
 
-  // KURUMUN KENDİ ÖDÜLÜ VARSA ONU KULLAN
   const customPrizes = selectedCenterObj?.useCustomPrizes ? selectedCenterObj.customPrizes : null;
   
   const safeArray = (data) => {
@@ -257,7 +247,6 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
   }, [needsPartSelection, validPartPrizesList.length, selectedParticipationPrize]);
 
   const isFormValid = (isAppointmentMode || selectedSlot !== null) && (!needsPartSelection || selectedParticipationPrize !== '');
-
 
   const handleComplete = async (withoutExam = false) => {
     if (!withoutExam && !isAppointmentMode && (!selectedExam || !selectedSlot)) {
@@ -414,7 +403,7 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
                     setMatchedZone(selectedMappingZone); 
                     setFormData({...formData, selectedCenterId: centerId}); 
                     if (selectedMappingZone && selectedMappingZone.active) {
-                        setAvailableExams(exams.filter(ex => ex.zoneId == selectedMappingZone.id && ex.active !== false));
+                        setAvailableExams(exams.filter(ex => ex.zoneId == selectedMappingZone.id && ex.active !== false && !ex.centerId));
                     } else {
                         setAvailableExams([]);
                     }
