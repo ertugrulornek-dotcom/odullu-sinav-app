@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Building2, Users, Map, ShieldAlert, LogOut, KeyRound, AlertTriangle, Download, Search, Link, Database } from 'lucide-react';
+import { Settings, Building2, Users, Map, ShieldAlert, LogOut, KeyRound, AlertTriangle, Download, Search, Link, Database, LayoutDashboard } from 'lucide-react';
 import { collection, query, where, getDocs, getCountFromServer, onSnapshot } from "firebase/firestore"; 
 import { db, appId } from "../../services/firebase"; 
 import { doc, updateDoc, getDoc } from "firebase/firestore";
@@ -14,8 +14,10 @@ import StatsTab from './StatsTab';
 import BlacklistTab from './BlacklistTab';
 import ExceptionsTab from './ExceptionsTab';
 import DatabaseBackupTab from './DatabaseBackupTab';
+import CenterAdminPanel from './CenterAdminPanel';
 
 export function AdminLogin({ setAdminAuth, zones }) {
+  const [loginType, setLoginType] = useState('zone'); 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -23,60 +25,100 @@ export function AdminLogin({ setAdminAuth, zones }) {
   const handleLogin = (e) => {
     e.preventDefault();
     setError('');
-
-    if (password !== '19031966') {
-      setError('Hatalı şifre girdiniz.');
-      return;
-    }
-
     const searchStr = normalizeForSearch(username);
-    if (searchStr === 'genel merkez') {
-      setAdminAuth({ isAuthenticated: true, zoneId: 'ALL', isSuperAdmin: true });
-      return;
-    }
 
-    const activeZones = zones && zones.length > 0 ? zones : INITIAL_ZONES;
-    const matchedZone = activeZones.find(z => 
-      normalizeForSearch(z.name) === searchStr || 
-      (z.districts && z.districts.some(d => normalizeForSearch(d) === searchStr)) ||
-      (z.partialDistricts && Object.keys(z.partialDistricts).some(d => normalizeForSearch(d) === searchStr))
-    );
+    if (loginType === 'zone') {
+        if (password !== '19031966') {
+          setError('Hatalı şifre girdiniz.');
+          return;
+        }
 
-    if (matchedZone) {
-      setAdminAuth({ isAuthenticated: true, zoneId: matchedZone.id, isSuperAdmin: false });
+        if (searchStr === 'genel merkez') {
+          setAdminAuth({ isAuthenticated: true, zoneId: 'ALL', isSuperAdmin: true, isCenterAdmin: false });
+          return;
+        }
+
+        const activeZones = zones && zones.length > 0 ? zones : INITIAL_ZONES;
+        const matchedZone = activeZones.find(z => 
+          normalizeForSearch(z.name) === searchStr || 
+          (z.districts && z.districts.some(d => normalizeForSearch(d) === searchStr)) ||
+          (z.partialDistricts && Object.keys(z.partialDistricts).some(d => normalizeForSearch(d) === searchStr))
+        );
+
+        if (matchedZone) {
+          setAdminAuth({ isAuthenticated: true, zoneId: matchedZone.id, isSuperAdmin: false, isCenterAdmin: false });
+        } else {
+          setError(`Tanımsız Bölge. Lütfen "Genel Merkez" veya sorumlu olduğunuz ilçe/bölge adını girin.`);
+        }
     } else {
-      setError(`Tanımsız Bölge. Lütfen "Genel Merkez" veya sorumlu olduğunuz ilçe/bölge adını girin.`);
+        let matchedCenter = null;
+        let matchedZoneId = null;
+        const activeZones = zones && zones.length > 0 ? zones : INITIAL_ZONES;
+
+        for (const z of activeZones) {
+            if (!z.active) continue;
+            const center = (z.centers || []).find(c => normalizeForSearch(c.name) === searchStr && c.password === password);
+            if (center) {
+                matchedCenter = center;
+                matchedZoneId = z.id;
+                break;
+            }
+        }
+
+        if (matchedCenter) {
+            if (!matchedCenter.isActive) {
+                setError("Kurum paneliniz Mıntıka Yöneticiniz tarafından PASİF duruma getirilmiştir.");
+                return;
+            }
+            setAdminAuth({ isAuthenticated: true, zoneId: matchedZoneId, isSuperAdmin: false, isCenterAdmin: true, centerId: matchedCenter.id });
+        } else {
+            setError('Kurum adı veya şifre hatalı. Lütfen kontrol ediniz.');
+        }
     }
   };
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4 py-20">
-      <div className="bg-white p-10 md:p-14 rounded-[3rem] shadow-2xl shadow-indigo-100/50 border border-slate-100 w-full max-w-md">
-        <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner">
-          <KeyRound className="w-10 h-10 text-indigo-600" />
+      <div className="bg-white p-10 md:p-14 rounded-[3rem] shadow-2xl shadow-indigo-100/50 border border-slate-100 w-full max-w-md animate-in zoom-in-95">
+        <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-10">
+           <button onClick={() => {setLoginType('zone'); setError(''); setPassword('');}} className={`flex-1 py-3 text-sm font-black rounded-xl transition-all ${loginType === 'zone' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Mıntıka Girişi</button>
+           <button onClick={() => {setLoginType('center'); setError(''); setPassword('');}} className={`flex-1 py-3 text-sm font-black rounded-xl transition-all ${loginType === 'center' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Kurum Girişi</button>
         </div>
-        <h2 className="text-3xl font-black text-center text-slate-900 mb-2">Yönetici Girişi</h2>
-        <p className="text-center text-slate-500 font-bold mb-8">Sorumlu olduğunuz mıntıkayı yönetmek için giriş yapın.</p>
+
+        <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner">
+          {loginType === 'zone' ? <KeyRound className="w-10 h-10 text-indigo-600" /> : <Building2 className="w-10 h-10 text-indigo-600" />}
+        </div>
+        <h2 className="text-3xl font-black text-center text-slate-900 mb-2">{loginType === 'zone' ? 'Mıntıka Yöneticisi' : 'Kurum Paneli'}</h2>
+        <p className="text-center text-slate-500 font-bold mb-8">
+           {loginType === 'zone' ? 'Sorumlu olduğunuz mıntıkayı yönetmek için giriş yapın.' : 'Sınav merkezinizi yönetmek ve öğrencileri görmek için giriş yapın.'}
+        </p>
         
         {error && <div className="bg-red-50 text-red-600 font-bold p-4 rounded-2xl mb-6 text-sm text-center border border-red-100">{error}</div>}
 
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
-            <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">İlçe / Mıntıka Adı</label>
-            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Örn: Gebze, Serdivan..." className="w-full border-4 border-slate-100 rounded-2xl px-6 py-4 text-lg font-bold focus:border-indigo-500 outline-none transition" required />
+            <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">{loginType === 'zone' ? 'İlçe / Mıntıka Adı' : 'Kurum Adı'}</label>
+            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder={loginType === 'zone' ? "Örn: Gebze, Serdivan..." : "Örn: Şekerpınar Eğitim..."} className="w-full border-4 border-slate-100 rounded-2xl px-6 py-4 text-lg font-bold focus:border-indigo-500 outline-none transition" required />
           </div>
           <div>
             <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-wider">Şifre</label>
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full border-4 border-slate-100 rounded-2xl px-6 py-4 text-lg font-bold focus:border-indigo-500 outline-none transition" required />
           </div>
-          <button type="submit" className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 transition shadow-xl shadow-indigo-500/30 mt-4">Sisteme Giriş Yap</button>
+          <button type="submit" className="w-full bg-indigo-600 text-white font-black text-xl py-5 rounded-2xl hover:bg-indigo-700 transition shadow-xl shadow-indigo-500/30 mt-4">
+             {loginType === 'zone' ? 'Mıntıka Paneline Gir' : 'Kurum Paneline Gir'}
+          </button>
         </form>
       </div>
     </div>
   );
 }
 
-export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones, exams }) {
+export default function AdminPanel({ adminAuth, onLogout, zones, exams }) {
+  const adminZoneId = adminAuth?.zoneId;
+  const isSuperAdmin = adminAuth?.isSuperAdmin;
+  const isCenterAdmin = adminAuth?.isCenterAdmin;
+  const centerId = adminAuth?.centerId;
+
   const [activeTab, setActiveTab] = useState('ayarlar'); 
   const [isSyncing, setIsSyncing] = useState(false); 
   const [hasMadeChanges, setHasMadeChanges] = useState(false);
@@ -94,6 +136,10 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
   
   const [pendingFilteredData, setPendingFilteredData] = useState([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
+
+  if (isCenterAdmin && centerId && adminZoneId) {
+      return <CenterAdminPanel adminAuth={adminAuth} onLogout={onLogout} zones={zones} exams={exams} />;
+  }
 
   const adminZoneData = isSuperAdmin 
      ? { id: 'ALL', name: "Genel Merkez (Tüm Mıntıkalar)", active: true, districts: [], prizes: {grand: DEFAULT_PRIZE_OBJ, degree: [], participation: []}, centers: [], mappings: [] } 
@@ -166,7 +212,7 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
       setShowQuotaWarning(false);
       setFetchedStudents(pendingFilteredData);
       if (pendingFilteredData.length === 0) alert("Seçtiğiniz kuruma/filtreye uyan öğrenci bulunamadı.");
-      setHasMadeChanges(true);
+      // 🚀 DÜZELTME 4: Sadece öğrenci listesi indirildiğinde 'Değişiklik yapıldı' uyarısı verilmemesi için alttaki satırı sildik.
   };
 
   const handleLogoutWithSync = async () => {
@@ -354,7 +400,6 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
              <button onClick={() => setActiveTab('karaliste')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'karaliste' ? 'bg-red-600 text-white shadow-lg' : 'bg-white text-red-600 border border-red-200 hover:bg-red-50'}`}>
                <ShieldAlert className="w-5 h-5 inline mr-2"/> Kara Liste Yönetimi
              </button>
-             {/* 🚀 DÜZELTME 1: Yedekleme Sekmesi butonu eklendi */}
              <button onClick={() => setActiveTab('backup')} className={`px-6 py-3 rounded-2xl font-black transition-all text-base ${activeTab === 'backup' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>
                <Database className="w-5 h-5 inline mr-2"/> Yedekleme (Önemli)
              </button>
@@ -368,8 +413,7 @@ export default function AdminPanel({ adminZoneId, isSuperAdmin, onLogout, zones,
         {activeTab === 'istisnalar' && isSuperAdmin && <ExceptionsTab zones={zones} setHasMadeChanges={setHasMadeChanges} />}
         {activeTab === 'mahalleler' && isSuperAdmin && <StatsTab zones={zones} setHasMadeChanges={setHasMadeChanges} />}
         {activeTab === 'karaliste' && isSuperAdmin && <BlacklistTab setHasMadeChanges={setHasMadeChanges} />}
-        {/* 🚀 DÜZELTME 1: students değişkeni fetchedStudents olarak düzeltildi */}
-        {activeTab === 'backup' && isSuperAdmin && <DatabaseBackupTab zones={zones} students={fetchedStudents} exams={exams} />}
+        {activeTab === 'backup' && isSuperAdmin && <DatabaseBackupTab />}
         
         {activeTab === 'ogrenci' && (
            <>

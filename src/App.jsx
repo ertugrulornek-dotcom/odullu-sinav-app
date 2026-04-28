@@ -394,7 +394,7 @@ export default function App() {
           {currentView === 'login' && <LoginPage setCurrentUser={setCurrentUser} navigateTo={navigateTo} />}
           {currentView === 'profile' && <StudentProfile currentUser={currentUser} exams={exams} navigateTo={navigateTo} setCurrentUser={setCurrentUser} zones={zones} />}
           {currentView === 'admin' && !adminAuth.isAuthenticated && <AdminLogin setAdminAuth={setAdminAuth} zones={zones} />}
-          {currentView === 'admin' && adminAuth.isAuthenticated && <AdminPanel adminZoneId={adminAuth.zoneId} isSuperAdmin={adminAuth.isSuperAdmin} onLogout={() => setAdminAuth({ isAuthenticated: false, zoneId: null, isSuperAdmin: false })} zones={zones} exams={exams} />}
+         {currentView === 'admin' && adminAuth.isAuthenticated && <AdminPanel adminAuth={adminAuth} onLogout={() => setAdminAuth({ isAuthenticated: false, zoneId: null, isSuperAdmin: false, isCenterAdmin: false, centerId: null })} zones={zones} exams={exams} />}
         </main>
 
         {currentView === 'landing' && <CountdownTimer examDate={targetCountdownDate} mode={countdownMode} />}

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Phone, Plus, MapPin, AlertCircle, CalendarIcon, Clock, CheckCircle2, Gift, ChevronRight, School, Trophy } from 'lucide-react';
+import { Phone, Plus, MapPin, AlertCircle, CalendarIcon, Clock, CheckCircle2, Gift, ChevronRight, School, Trophy, PhoneCall } from 'lucide-react';
 import { Image as ImageIcon } from 'lucide-react';
-// 🚀 DÜZELTME 3: Gereksiz onSnapshot importu kaldırıldı.
 import { collection, query, where, getDocs, addDoc, updateDoc, doc } from "firebase/firestore";
 import { db, appId } from '../services/firebase';
 import { sendSMS, SMS_FOOTER } from '../services/smsService';
@@ -197,26 +196,57 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
   useEffect(() => {
     setSelectedExam(null); setSelectedSlot(null);
     if (!currentUser) setSelectedParticipationPrize('');
-  }, [formData.district, formData.neighborhood]);
+  }, [formData.district, formData.neighborhood, formData.selectedCenterId]); // Center değiştiğinde de sıfırla
 
+  // 🚀 KURUMA ÖZEL ÖZELLİKLERİN (Sınav, Randevu, Ödül) HESAPLANMASI
+  let selectedCenterObj = null;
+  const activeZone = zones.find(z => z.id === matchedZone?.id) || matchedZone;
+
+  if (activeZone && formData.district && formData.neighborhood) {
+      if (isMultiCenter && formData.selectedCenterId) {
+          selectedCenterObj = activeZone.centers?.find(c => c.id === formData.selectedCenterId);
+      } else if (!isMultiCenter) {
+          const is8thGradeBoy = String(formData.grade) === '8' && formData.gender === 'Erkek';
+          let mapping = activeZone.mappings?.find(m => m.district === formData.district && m.neighborhood === formData.neighborhood && is8thGradeBoy && m.gender === '8. Sınıf Erkek');
+          
+          if (!mapping) {
+              mapping = activeZone.mappings?.find(m => m.district === formData.district && m.neighborhood === formData.neighborhood && m.gender === formData.gender);
+          }
+          if (!mapping) {
+              mapping = activeZone.mappings?.find(m => m.district === formData.district && m.neighborhood === formData.neighborhood && (m.gender === 'Tümü' || !m.gender));
+          }
+
+          if (mapping) {
+              selectedCenterObj = activeZone.centers?.find(c => c.id === mapping.centerId);
+          }
+      }
+  }
+
+  const isAppointmentMode = selectedCenterObj?.isAppointmentModeActive === true;
+
+  // KURUMUN KENDİ SINAVI VARSA ONU GÖSTER, YOKSA MINTIKANIN SINAVINI GÖSTER
+  let examsToShow = availableExams; 
+  if (selectedCenterObj) {
+      const centerSpecificExams = exams.filter(e => e.centerId === selectedCenterObj.id && e.active !== false);
+      if (centerSpecificExams.length > 0) {
+          examsToShow = centerSpecificExams;
+      }
+  }
+
+  // KURUMUN KENDİ ÖDÜLÜ VARSA ONU KULLAN
+  const customPrizes = selectedCenterObj?.useCustomPrizes ? selectedCenterObj.customPrizes : null;
+  
   const safeArray = (data) => {
      if (!data) return [];
      const parsed = parsePrizeArray(data);
      return Array.isArray(parsed) ? parsed : [parsed];
   };
 
-  const partPrizesList = safeArray(matchedZone?.prizes?.participation);
-  const degreePrizesList = safeArray(matchedZone?.prizes?.degree);
+  const partPrizesList = safeArray(customPrizes?.participation || matchedZone?.prizes?.participation);
+  const degreePrizesList = safeArray(customPrizes?.degree || matchedZone?.prizes?.degree);
   
-  const validPartPrizesList = partPrizesList.filter(p => 
-      p && p.title && String(p.title).trim() !== '' && 
-      (!p.isHidden || p.title === currentUser?.selectedParticipationPrize)
-  );
-
-  const validDegreePrizesList = degreePrizesList.filter(p => 
-      p && p.title && String(p.title).trim() !== '' && 
-      !p.isHidden
-  );
+  const validPartPrizesList = partPrizesList.filter(p => p && p.title && String(p.title).trim() !== '' && (!p.isHidden || p.title === currentUser?.selectedParticipationPrize));
+  const validDegreePrizesList = degreePrizesList.filter(p => p && p.title && String(p.title).trim() !== '' && !p.isHidden);
 
   const needsPartSelection = validPartPrizesList.length > 0;
 
@@ -226,11 +256,11 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
      }
   }, [needsPartSelection, validPartPrizesList.length, selectedParticipationPrize]);
 
-  const isFormValid = selectedSlot !== null && (!needsPartSelection || selectedParticipationPrize !== '');
+  const isFormValid = (isAppointmentMode || selectedSlot !== null) && (!needsPartSelection || selectedParticipationPrize !== '');
 
 
   const handleComplete = async (withoutExam = false) => {
-    if (!withoutExam && (!selectedExam || !selectedSlot)) {
+    if (!withoutExam && !isAppointmentMode && (!selectedExam || !selectedSlot)) {
       alert("Lütfen bir sınav oturumu seçiniz.");
       setIsSubmitting(false);
       return;
@@ -254,40 +284,76 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
         notifiedCenter: initialCenterInfo.centerName
     };
 
+    if (isAppointmentMode && !withoutExam) {
+        baseData.registeredViaAppointment = true;
+        baseData.isWaitingPool = false; 
+        baseData.examId = null;
+        baseData.examTitle = null;
+        baseData.selectedDate = null;
+        baseData.selectedTime = null;
+    }
+
     try {
       let finalUserObj;
       if (isUpdate) {
-        const updatedData = withoutExam ? { ...baseData, examId: null, examTitle: null, selectedDate: null, selectedTime: null, isWaitingPool: true } 
-        : { ...baseData, examId: selectedExam.firebaseId || selectedExam.id, examTitle: selectedExam.title, selectedDate: selectedSlot.date, selectedTime: selectedSlot.time, isWaitingPool: false };
+        const updatedData = withoutExam ? { ...baseData, examId: null, examTitle: null, selectedDate: null, selectedTime: null, isWaitingPool: true, registeredViaAppointment: false } 
+        : isAppointmentMode ? { ...baseData }
+        : { ...baseData, examId: selectedExam.firebaseId || selectedExam.id, examTitle: selectedExam.title, selectedDate: selectedSlot.date, selectedTime: selectedSlot.time, isWaitingPool: false, registeredViaAppointment: false };
+        
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', currentUser.firebaseId), updatedData);
         finalUserObj = { ...currentUser, ...updatedData };
         setCurrentUser(finalUserObj);
 
-        if (!withoutExam && finalUserObj.selectedDate) {
+        if (!withoutExam && !isAppointmentMode && finalUserObj.selectedDate) {
            const updateMsg = `Sayın ${finalUserObj.fullName},\nodullusinav.net başvurunuz GÜNCELLENDİ!\n\nYeni Oturum Bilgileriniz:\nSınav: ${finalUserObj.examTitle}\nTarih: ${finalUserObj.selectedDate}\nSaat: ${finalUserObj.selectedTime}\nKonum: ${initialCenterInfo.mapLink || 'Belirtilmedi'}\n\nDetaylı bilgi için profilinize giriş yapabilirsiniz. Başarılar!${SMS_FOOTER}`;
            try { await sendSMS([{tel: [finalUserObj.phone], msg: updateMsg}]); } catch (smsErr) { console.warn("SMS Hatası", smsErr); }
+        } else if (isAppointmentMode && !withoutExam) {
+           if (initialCenterInfo.phone) {
+               try { await sendSMS([{ tel: [initialCenterInfo.phone], msg: `RANDEVU GUNCELLEME: ${finalUserObj.fullName} (${finalUserObj.grade}. Sinif ${finalUserObj.gender}) kaydini kurumunuza tasidi. Veli Tel: 0${finalUserObj.phone}. Lutfen panelden randevu verin.${SMS_FOOTER}` }]); } catch(e) {}
+           }
+           try { await sendSMS([{ tel: [finalUserObj.phone], msg: `Sayin ${finalUserObj.fullName}, kaydiniz ${initialCenterInfo.centerName} kurumuna tasinmistir. Sorumlu hocaniz (${initialCenterInfo.contactName || 'Yetkili'}) sizi arayarak sinav randevunuzu belirleyecektir.${SMS_FOOTER}` }]); } catch(e) {}
         }
       } else {
-        const newStudent = withoutExam ? { ...baseData, password: finalPassword, examId: null, examTitle: null, selectedDate: null, selectedTime: null, isWaitingPool: true, pastExams: [], attendance: '', interview: '', interviewResult: '', registrationDate: new Date().toLocaleDateString('tr-TR'), createdAt: new Date().getTime() } 
-        : { ...baseData, password: finalPassword, examId: selectedExam.firebaseId || selectedExam.id, examTitle: selectedExam.title, selectedDate: selectedSlot.date, selectedTime: selectedSlot.time, isWaitingPool: false, pastExams: [], attendance: '', interview: '', interviewResult: '', registrationDate: new Date().toLocaleDateString('tr-TR'), createdAt: new Date().getTime() };
+        const newStudent = withoutExam ? { ...baseData, password: finalPassword, examId: null, examTitle: null, selectedDate: null, selectedTime: null, isWaitingPool: true, pastExams: [], attendance: '', interview: '', interviewResult: '', registrationDate: new Date().toLocaleDateString('tr-TR'), createdAt: new Date().getTime(), registeredViaAppointment: false } 
+        : isAppointmentMode ? { ...baseData, password: finalPassword, pastExams: [], attendance: '', interview: '', interviewResult: '', registrationDate: new Date().toLocaleDateString('tr-TR'), createdAt: new Date().getTime() }
+        : { ...baseData, password: finalPassword, examId: selectedExam.firebaseId || selectedExam.id, examTitle: selectedExam.title, selectedDate: selectedSlot.date, selectedTime: selectedSlot.time, isWaitingPool: false, pastExams: [], attendance: '', interview: '', interviewResult: '', registrationDate: new Date().toLocaleDateString('tr-TR'), createdAt: new Date().getTime(), registeredViaAppointment: false };
+        
         const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'students'), newStudent);
         finalUserObj = { firebaseId: docRef.id, ...newStudent };
         setCurrentUser(finalUserObj);
 
         if (withoutExam) {
            try { await sendSMS([{tel: [finalUserObj.phone], msg: `Sayın ${finalUserObj.fullName},\nodullusinav.net basvurunuz alinmistir.\nGiris Sifreniz: ${finalPassword}.\nBolgenizde sinav acildiginda size haber verecegiz.${SMS_FOOTER}`}]); } catch(smsErr){}
+        } else if (isAppointmentMode) {
+           if (initialCenterInfo.phone) {
+               try { await sendSMS([{ tel: [initialCenterInfo.phone], msg: `YENI RANDEVU TALEBI: ${finalUserObj.fullName} (${finalUserObj.grade}. Sinif ${finalUserObj.gender}) kurumunuza kayit oldu. Veli Tel: 0${finalUserObj.phone}. Lutfen paneli uzerinden randevu verin.${SMS_FOOTER}` }]); } catch(e) {}
+           }
+           try { await sendSMS([{ tel: [finalUserObj.phone], msg: `Sayin ${finalUserObj.fullName}, ${initialCenterInfo.centerName} kaydiniz alinmistir. Hocaniz (${initialCenterInfo.contactName || 'Sorumlu Kisi'}) sizi arayarak sinav gun ve saatinizi belirleyecektir. Sisteme Giris Sifreniz: ${finalPassword} ${SMS_FOOTER}` }]); } catch(e) {}
         } else if (finalUserObj.selectedDate) {
            const contactPhone = initialCenterInfo.phone || "0553 973 54 40";
            const regMsg = `Sayın ${finalUserObj.fullName},\nodullusinav.net başvurunuz alınmıştır.\n\nGiris Sifreniz: ${finalPassword}.\n\nSınav Merkeziniz ${finalUserObj.district} ilçesi ${finalUserObj.neighborhood} mahallesindedir.\n\nOturum: ${finalUserObj.selectedDate} - ${finalUserObj.selectedTime}\nKonum: ${initialCenterInfo.mapLink || 'Belirtilmedi'}\nİletişim: ${contactPhone}${SMS_FOOTER}`;
            try { await sendSMS([{tel: [finalUserObj.phone], msg: regMsg}]); } catch(smsErr){}
         }
       }
+      
       if (typeof window !== "undefined" && window.gtag) {
         window.gtag('event', 'conversion', { 'send_to': 'AW-18022843253/AgxyCLirlZ0cEPWG-5FD' });
       }
+      
       setStep(3); 
-    } catch (error) { alert("İşlem sırasında bir hata oluştu."); } 
-    finally { setIsSubmitting(false); }
+
+    } catch (error) { 
+        console.error("KAYIT HATASI DETAYI:", error);
+        let hataMesaji = error.message || "Bilinmeyen Hata";
+        if (hataMesaji && hataMesaji.includes("permissions")) {
+            hataMesaji = "Veritabanı güvenlik kuralları süresi dolmuş. Lütfen yöneticiye bildirin.";
+        } else if (hataMesaji && hataMesaji.includes("Quota")) {
+            hataMesaji = "Sistem günlük işlem kotasını doldurdu.";
+        }
+        alert("Kayıt işlemi tamamlanamadı!\n\nHata Nedeni: " + hataMesaji + "\n\nLütfen bu uyarıyı sistem yöneticisine iletiniz."); 
+    } finally { 
+        setIsSubmitting(false); 
+    }
   };
 
   const availableDistricts = formData.province && LOCATIONS[formData.province] ? Object.keys(LOCATIONS[formData.province]) : [];
@@ -397,7 +463,6 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
               <div className="mt-10 pt-10 border-t-2 border-slate-100 animate-in fade-in">
                 
                 {(() => {
-                  // 🚀 DÜZELTME 2: matchedZone state'ini değil, her zaman en güncel (canlı) zones prop'unu oku!
                   const currentZone = zones.find(z => z.id === matchedZone?.id) || matchedZone;
                   const isGroupRestricted = currentZone?.restrictedGroups?.includes(`${formData.grade}-${formData.gender}`);
 
@@ -413,12 +478,45 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
                      );
                   }
 
-                  if (currentZone && currentZone.active && availableExams.length > 0) {
+                  if (isAppointmentMode) {
+                      return (
+                          <div className="space-y-6">
+                              <div className="bg-amber-50 border-4 border-amber-200 rounded-3xl p-10 text-center shadow-lg animate-in zoom-in-95">
+                                  <PhoneCall className="w-20 h-20 text-amber-500 mx-auto mb-6 animate-pulse" />
+                                  <h4 className="font-black text-amber-900 text-3xl mb-4">Randevulu Sınav Sistemi</h4>
+                                  <p className="text-amber-800 text-xl leading-relaxed max-w-2xl mx-auto font-medium mb-2">
+                                      Bu bölgedeki kurumumuz <strong>birebir randevu sistemiyle</strong> çalışmaktadır. 
+                                  </p>
+                                  <p className="text-amber-700 text-lg leading-relaxed max-w-2xl mx-auto font-medium">
+                                      Kaydınızı tamamladıktan sonra sorumlu hocamız sizi telefonla arayacak ve uygun olduğunuz bir güne kişisel sınav randevunuzu oluşturacaktır.
+                                  </p>
+                              </div>
+                              
+                              {(needsPartSelection || validDegreePrizesList.length > 0) && (
+                                 <RegistrationPrizeSelector 
+                                     partPrizes={validPartPrizesList} 
+                                     degreePrizes={validDegreePrizesList} 
+                                     selectedPrize={selectedParticipationPrize} 
+                                     onSelect={setSelectedParticipationPrize} 
+                                 />
+                              )}
+
+                              <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-6 mt-12 pt-8 border-t-2 border-slate-100">
+                                <button onClick={() => setStep(1)} disabled={isSubmitting} className="w-full sm:w-1/3 bg-slate-100 text-slate-700 font-black py-6 rounded-2xl hover:bg-slate-200 transition text-xl disabled:opacity-50">Geri Dön</button>
+                                <button onClick={() => handleComplete(false)} disabled={!isFormValid || isSubmitting} className="w-full bg-amber-500 text-white font-black py-6 rounded-2xl hover:bg-amber-600 hover:scale-[1.02] disabled:scale-100 disabled:opacity-50 transition-all flex justify-center items-center text-xl shadow-2xl shadow-amber-500/40">
+                                  {isSubmitting ? "Sisteme Kaydediliyor..." : "Randevu Talebi Oluştur ve Kaydol"} {!isSubmitting && <CheckCircle2 className="ml-3 w-8 h-8"/>}
+                                </button>
+                              </div>
+                          </div>
+                      );
+                  }
+
+                  if (currentZone && currentZone.active && examsToShow.length > 0) {
                     return (
                       <div className="space-y-6">
                         <p className="font-black text-slate-700 text-2xl mb-6">Lütfen uygun oturumunuzu seçin <span className="text-red-500">*</span>:</p>
                         <div className="grid gap-6">
-                          {availableExams.map(exam => {
+                          {examsToShow.map(exam => {
                             const examSessions = exam.sessions || (exam.date && exam.slots ? [{ date: exam.date, slots: exam.slots }] : []);
                             return (
                               <div key={exam.firebaseId || exam.id} className={`border-4 rounded-3xl p-6 md:p-8 transition-all hover:-translate-y-1 ${(selectedExam?.firebaseId || selectedExam?.id) === (exam.firebaseId || exam.id) ? 'border-indigo-600 bg-indigo-50 ring-4 ring-indigo-500/20 shadow-xl' : 'border-slate-100 bg-white hover:border-indigo-300 hover:shadow-lg cursor-pointer'}`} onClick={() => { setSelectedExam(exam); setSelectedSlot(null); }}>
@@ -494,7 +592,9 @@ export default function RegistrationProcess({ navigateTo, currentUser, setCurren
             <div className="w-32 h-32 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-10 shadow-[0_0_0_15px_rgba(34,197,94,0.1)]">
               <CheckCircle2 className="w-20 h-20 text-green-600" />
             </div>
-            <h2 className="text-5xl font-black text-slate-900 mb-6">Harika, Kaydınız Onaylandı!</h2>
+            <h2 className="text-5xl font-black text-slate-900 mb-6">
+                {currentUser?.registeredViaAppointment ? "Randevu Talebiniz Alındı!" : "Harika, Kaydınız Onaylandı!"}
+            </h2>
             <div className="bg-indigo-50 border-4 border-indigo-200 border-dashed rounded-3xl p-8 max-w-lg mx-auto mb-12 relative overflow-hidden group">
                <p className="text-sm font-black text-indigo-500 uppercase tracking-widest mb-3">
                  {currentUser ? "Sisteme Giriş Şifreniz (Değişmedi)" : "Sisteme Giriş Şifreniz"}

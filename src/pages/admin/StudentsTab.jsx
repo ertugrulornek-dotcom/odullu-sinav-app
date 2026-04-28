@@ -26,7 +26,6 @@ export default function StudentsTab({ students, exams = [], isSuperAdmin, adminZ
 
   const displayStudents = useMemo(() => {
       return students.filter(s => {
-          // 🚀 DÜZELTME 4: Sınıf eşleşmesi sırasında sayı/metin uyuşmazlığı garanti altına alındı
           if (filterGrade && String(s.grade) !== String(filterGrade)) return false;
           if (filterSchool && s.schoolName !== filterSchool) return false;
           if (isSuperAdmin && filterZone) {
@@ -93,7 +92,6 @@ export default function StudentsTab({ students, exams = [], isSuperAdmin, adminZ
   const handleSaveResult = async () => {
     const student = resultModal.student;
     
-    // 🚀 DÜZELTME 2: Çift kayıt riskine karşı en güncel state kullanılıyor (mergedStudent mantığı)
     const mergedForResult = localOverrides[student.firebaseId] 
         ? { ...student, ...localOverrides[student.firebaseId] } 
         : student;
@@ -133,7 +131,6 @@ export default function StudentsTab({ students, exams = [], isSuperAdmin, adminZ
         setHasMadeChanges(true);
         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', studentId));
         
-        // 🚀 DÜZELTME 5: Öğrenci silindiğinde hafızadaki override kalıntıları temizleniyor
         setLocalOverrides(prev => {
             const next = { ...prev };
             delete next[studentId];
@@ -162,7 +159,6 @@ export default function StudentsTab({ students, exams = [], isSuperAdmin, adminZ
         isWaitingPool: true 
       });
       
-      // 🚀 DÜZELTME 5: Transfer edilen öğrencinin override kalıntıları temizleniyor
       setLocalOverrides(prev => {
           const next = { ...prev };
           delete next[transferModal.student.firebaseId];
@@ -271,7 +267,7 @@ export default function StudentsTab({ students, exams = [], isSuperAdmin, adminZ
   };
 
   const handleExportExcel = () => {
-     let csvContent = "Ogrenci Isim Soyisim;Veli Isim Soyisim;Telefon;Sinif;Cinsiyet;Okul Bilgisi;Ilce;Mahalle;Atanan Sinav Merkezi;Kayitli Sinav ve Seans;Aciklanan Puan;Derece;Katilim Odulu;Katilim Durumu;Gorusme Durumu;Gorusme Sonucu\n";
+     let csvContent = "Ogrenci Isim Soyisim;Veli Isim Soyisim;Telefon;Sinif;Cinsiyet;Okul Bilgisi;Ilce;Mahalle;Atanan Sinav Merkezi;Kayitli Sinav ve Seans;Aciklanan Puan;Derece;Katilim Odulu;Katilim Durumu;Gorusme Durumu;Gorusme Sonucu;Kayit Tarihi ve Saati\n";
      displayStudents.forEach(originalStudent => {
         const s = localOverrides[originalStudent.firebaseId] 
            ? { ...originalStudent, ...localOverrides[originalStudent.firebaseId] } 
@@ -287,9 +283,12 @@ export default function StudentsTab({ students, exams = [], isSuperAdmin, adminZ
         
         const prize = s.selectedParticipationPrize || 'Secilmedi';
 
+        // 🚀 YENİ EKLENDİ: Kayıt tarihi ve saati
+        const dateStr = s.createdAt ? new Date(s.createdAt).toLocaleString('tr-TR') : (s.registrationDate || '-');
+
         const clean = str => String(str || '').replace(/;/g, ' ').replace(/\n/g, ' ');
         
-        csvContent += `${clean(s.fullName)};${clean(s.parentName)};${clean(s.phone)};${clean(s.grade)};${clean(s.gender)};${clean(s.schoolName)};${clean(s.district)};${clean(s.neighborhood)};${clean(center)};${clean(activeExam)};${clean(score)};${clean(rank)};${clean(prize)};${clean(s.attendance)};${clean(s.interview)};${clean(s.interviewResult)}\n`;
+        csvContent += `${clean(s.fullName)};${clean(s.parentName)};${clean(s.phone)};${clean(s.grade)};${clean(s.gender)};${clean(s.schoolName)};${clean(s.district)};${clean(s.neighborhood)};${clean(center)};${clean(activeExam)};${clean(score)};${clean(rank)};${clean(prize)};${clean(s.attendance)};${clean(s.interview)};${clean(s.interviewResult)};${clean(dateStr)}\n`;
      });
      const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
      const url = URL.createObjectURL(blob);

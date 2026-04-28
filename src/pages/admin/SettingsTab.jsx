@@ -19,7 +19,6 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
   const [restrictGrade, setRestrictGrade] = useState('8');
   const [restrictGender, setRestrictGender] = useState('Kız');
   
-  // 🚀 DÜZELTME 4: Çift tıklama (Race Condition) koruması için kilit state'i
   const [togglingSlot, setTogglingSlot] = useState(null);
 
   useEffect(() => {
@@ -158,7 +157,7 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
       
       if (editingExamId) {
          await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'exams', editingExamId), {
-            title: examData.title, sessions: formattedSessions, updatedAt: new Date().getTime(), active: true
+            title: examData.title, sessions: formattedSessions, updatedAt: new Date().getTime(), active: true, status: 'active'
          });
          
          const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'students'), where("examId", "==", editingExamId));
@@ -186,7 +185,7 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
       else {
          const targetZoneIds = isSuperAdmin ? INITIAL_ZONES.map(z => z.id) : [adminZoneId];
          for (const zId of targetZoneIds) {
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'exams'), { zoneId: zId, title: examData.title, sessions: formattedSessions, createdAt: new Date().getTime(), active: true });
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'exams'), { zoneId: zId, title: examData.title, sessions: formattedSessions, createdAt: new Date().getTime(), active: true, status: 'active' });
          }
          alert(`Sınav oturumları başarıyla eklendi!`);
       }
@@ -195,7 +194,7 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
   };
 
   const handleDeleteExam = async (examId) => {
-      if(!window.confirm("Bu sınav oturumunu tamamen iptal etmek istediğinize emin misiniz?")) return;
+      if(!window.confirm("Bu sınav oturumunu tamamen İPTAL EDİP SİLMEK istediğinize emin misiniz? (Öğrencilere SMS gider)")) return;
       try {
           setHasMadeChanges(true);
           await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'exams', examId));
@@ -216,6 +215,50 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
       } catch(e) { console.error(e); }
   };
 
+  const handleEndExam = async (exam) => {
+      if(!window.confirm(`"${exam.title}" sınavını bitirmek istediğinize emin misiniz?\n\nBu işlem sınava giren tüm öğrencilerin profilinde bu sınavı 'Geçmiş Sınavlar' sekmesine taşıyacak ve öğrencileri yeni sınavlar için boşa (bekleme havuzuna) çıkaracaktır.`)) return;
+
+      try {
+          setHasMadeChanges(true);
+          await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'exams', exam.firebaseId), { active: false, status: 'completed' });
+
+          const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'students'), where("examId", "==", exam.firebaseId));
+          const studentsSnap = await getDocs(q);
+
+          let updatePromises = [];
+          studentsSnap.docs.forEach(d => {
+              const s = { firebaseId: d.id, ...d.data() };
+              const pastExamsList = s.pastExams || [];
+              
+              if (!pastExamsList.some(p => p.id === exam.firebaseId)) {
+                  pastExamsList.push({
+                      id: exam.firebaseId,
+                      title: exam.title,
+                      date: s.selectedDate || "",
+                      time: s.selectedTime || "",
+                      score: "Açıklanmadı", 
+                      rank: "-"
+                  });
+              }
+
+              updatePromises.push(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students', s.firebaseId), {
+                  pastExams: pastExamsList,
+                  examId: null,
+                  examTitle: null,
+                  selectedDate: null,
+                  selectedTime: null,
+                  isWaitingPool: true
+              }));
+          });
+
+          await Promise.all(updatePromises);
+          alert(`Sınav başarıyla bitirildi!\n${studentsSnap.docs.length} öğrencinin profiline 'Geçmiş Sınav' olarak eklendi ve yeni sınavlar için havuzda beklemeye alındılar.`);
+      } catch(e) { 
+          console.error(e); 
+          alert("Sınav bitirilirken bir hata oluştu.");
+      }
+  };
+
   const togglePrizeVisibility = (category, index) => {
       const newArr = [...localPrizes[category]];
       newArr[index].isHidden = !newArr[index].isHidden;
@@ -223,7 +266,6 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
   };
 
   const toggleSlotCapacityStatus = async (examId, sIdx, slotTime, isCurrentlyClosed) => {
-      // 🚀 DÜZELTME 4: Çift tıklama (Race Condition) Kilidi
       const key = `${examId}-${sIdx}-${slotTime}`;
       if (togglingSlot === key) return; 
       setTogglingSlot(key);
@@ -246,7 +288,6 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
       finally { setTogglingSlot(null); }
   };
 
-  // 🚀 DÜZELTME 1: Kısıtlamaları eklerken ve çıkarırken arrayUnion / arrayRemove kullanarak Race Condition engellendi.
   const handleAddRestriction = async () => {
     const groupStr = `${restrictGrade}-${restrictGender}`;
     try {
@@ -283,8 +324,8 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
               <div className="bg-white rounded-[2rem] shadow-2xl p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto border-4 border-indigo-100 animate-in zoom-in-95">
                   <h3 className="text-2xl font-black text-slate-800 mb-4 flex items-center"><AlertCircle className="w-8 h-8 text-amber-500 mr-3"/> Ödül Eşleştirme Gerekli</h3>
                   <p className="text-slate-600 font-bold mb-6 text-sm leading-relaxed">
-                      Mustafa, ödül listesini değiştirdin. Sistem, daha önceden eski ödülleri seçmiş öğrenciler olduğunu tespit etti. <br/>
-                      Lütfen aşağıdaki eski ödüllerin, <span className="text-indigo-600">yeni listede hangi ödüle denk geldiğini seç.</span> Eğer bu ödülü tamamen kaldırdıysan "İptal Et (SMS Gönder)" seçeneğini işaretle ki öğrenci girip yeniden seçsin. Eşleştirme yaparsan öğrenciye SMS gitmeyecek.
+                      Ödül listesini değiştirdin. Sistem, daha önceden eski ödülleri seçmiş öğrenciler olduğunu tespit etti. <br/>
+                      Lütfen aşağıdaki eski ödüllerin, <span className="text-indigo-600">yeni listede hangi ödüle denk geldiğini seç.</span>
                   </p>
 
                   <div className="space-y-4 mb-8">
@@ -469,18 +510,26 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
           </div>
 
           <div className="mt-8">
-              <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider">Planlanmış Aktif Sınavlar</div>
+              <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider">Planlanmış Sınavlar</div>
               <div className="space-y-4">
                 {filteredExams.length > 0 ? filteredExams.map(exam => {
                   const sessions = exam.sessions || [];
+                  const isEnded = exam.status === 'completed' || exam.active === false;
+                  
                   return (
-                    <div key={exam.firebaseId} className="bg-indigo-50 border-2 border-indigo-100 p-5 rounded-2xl relative group">
+                    <div key={exam.firebaseId} className={`border-2 p-5 rounded-2xl relative group transition-all ${isEnded ? 'bg-slate-50 border-slate-200 opacity-80' : 'bg-indigo-50 border-indigo-100'}`}>
                       <div className="absolute top-4 right-4 flex gap-2">
+                          {!isEnded && (
+                             <button onClick={() => handleEndExam(exam)} className="p-2 text-emerald-600 bg-white shadow-sm border border-emerald-200 hover:bg-emerald-600 hover:text-white rounded-xl transition" title="Sınavı Bitir / Arşive Kaldır"><CheckCircle2 className="w-4 h-4"/></button>
+                          )}
                           <button onClick={() => handleEditExam(exam)} className="p-2 text-indigo-500 bg-white shadow-sm border border-indigo-100 hover:bg-indigo-500 hover:text-white rounded-xl transition" title="Sınavı Düzenle"><Edit className="w-4 h-4"/></button>
-                          <button onClick={() => handleDeleteExam(exam.firebaseId)} className="p-2 text-red-500 bg-white shadow-sm border border-red-100 hover:bg-red-500 hover:text-white rounded-xl transition" title="Sınavı Sil"><Trash2 className="w-4 h-4"/></button>
+                          <button onClick={() => handleDeleteExam(exam.firebaseId)} className="p-2 text-red-500 bg-white shadow-sm border border-red-100 hover:bg-red-500 hover:text-white rounded-xl transition" title="Sınavı Tamamen Sil"><Trash2 className="w-4 h-4"/></button>
                       </div>
                       
-                      <h4 className="font-black text-lg text-indigo-900 mb-4 pr-24">{exam.title} {isSuperAdmin ? `(${zones.find(z=>z.id === exam.zoneId)?.name})` : ''}</h4>
+                      <h4 className="font-black text-lg text-indigo-900 mb-4 pr-32 flex items-center">
+                         {exam.title} {isSuperAdmin ? `(${zones.find(z=>z.id === exam.zoneId)?.name})` : ''}
+                         {isEnded && <span className="ml-3 text-[10px] bg-slate-200 text-slate-600 px-2 py-1 rounded-md">BİTTİ</span>}
+                      </h4>
                       
                       <div className="space-y-3">
                         {sessions.map((session, idx) => {
@@ -498,9 +547,10 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
                                     return (
                                         <button 
                                             key={s} 
-                                            onClick={() => toggleSlotCapacityStatus(exam.firebaseId, idx, s, isClosed)}
-                                            className={`shadow-sm px-3 py-1 text-sm font-black rounded-lg transition hover:scale-105 ${isClosed ? 'bg-red-500 text-white border border-red-600' : 'bg-emerald-500 text-white border border-emerald-600'}`}
-                                            title={isClosed ? "Şu an KAPALI. Açmak için tıkla." : "Şu an AÇIK. Kapatmak için tıkla."}
+                                            onClick={() => !isEnded && toggleSlotCapacityStatus(exam.firebaseId, idx, s, isClosed)}
+                                            disabled={isEnded}
+                                            className={`shadow-sm px-3 py-1 text-sm font-black rounded-lg transition ${isEnded ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : isClosed ? 'bg-red-500 text-white border border-red-600 hover:scale-105' : 'bg-emerald-500 text-white border border-emerald-600 hover:scale-105'}`}
+                                            title={isEnded ? "Sınav bittiği için değiştirilemez." : isClosed ? "Şu an KAPALI. Açmak için tıkla." : "Şu an AÇIK. Kapatmak için tıkla."}
                                         >
                                             {s} {isClosed && "(Dolu)"}
                                         </button>
