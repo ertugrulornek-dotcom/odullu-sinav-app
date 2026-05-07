@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Gift, Trophy, Award, Plus, Trash2, CalendarIcon, CheckCircle2, Edit, AlertCircle, Eye, EyeOff, ShieldAlert, X } from 'lucide-react';
 import { db, appId } from '../../services/firebase';
-import { updateDoc, doc, addDoc, collection, deleteDoc, getDocs, query, where, arrayUnion, arrayRemove } from "firebase/firestore";
+// 🚀 DÜZELTME: getDoc eklendi!
+import { updateDoc, doc, addDoc, collection, deleteDoc, getDocs, query, where, arrayUnion, arrayRemove, getDoc } from "firebase/firestore";
 import { INITIAL_ZONES } from '../../data/constants';
 import { parsePrizeArray } from '../../utils/helpers';
 import { sendSMS, SMS_FOOTER } from '../../services/smsService'; 
@@ -316,6 +317,39 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
     } catch (e) { console.error(e); alert("Kısıtlama kaldırılırken hata oluştu."); }
   };
 
+  // 🚀 YENİ: TÜM KURUMLARI RANDEVU SİSTEMİNE GEÇİR
+  const handleSwitchAllToAppointmentMode = async () => {
+      if(!window.confirm("Bu mıntıkadaki TÜM aktif kurumları randevu (birebir görüşme) sistemine geçirmek istediğinize emin misiniz? Öğrenciler kayıt ekranında oturum saati seçemeyecek, direkt randevu havuzuna düşeceklerdir.")) return;
+
+      try {
+          setHasMadeChanges(true);
+          const targetZoneIds = isSuperAdmin ? INITIAL_ZONES.map(z => z.id) : [adminZoneId];
+
+          for (const zId of targetZoneIds) {
+              const zoneDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'zones', zId.toString());
+              const zoneDoc = await getDoc(zoneDocRef);
+              if (zoneDoc.exists()) {
+                  const freshCenters = zoneDoc.data()?.centers || [];
+                  let hasChanges = false;
+                  const updatedCenters = freshCenters.map(c => {
+                      if (c.isActive && !c.isAppointmentModeActive) {
+                          hasChanges = true;
+                          return { ...c, isAppointmentModeActive: true };
+                      }
+                      return c;
+                  });
+                  if(hasChanges){
+                      await updateDoc(zoneDocRef, { centers: updatedCenters });
+                  }
+              }
+          }
+          alert("Tüm aktif kurumlar başarıyla randevu sistemine geçirildi!");
+      } catch (error) {
+          console.error(error);
+          alert("Kurumlar güncellenirken bir hata oluştu.");
+      }
+  };
+
   return (
     <div className="bg-white rounded-[3rem] shadow-xl border-4 border-slate-100 p-8 md:p-12 animate-in fade-in zoom-in-95 duration-300 relative">
       
@@ -510,7 +544,41 @@ export default function SettingsTab({ adminZoneData, isSuperAdmin, adminZoneId, 
           </div>
 
           <div className="mt-8">
-              <div className="text-sm font-black text-indigo-600 uppercase mb-4 tracking-wider">Planlanmış Sınavlar</div>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                  <div className="text-sm font-black text-indigo-600 uppercase tracking-wider">Planlanmış Sınavlar</div>
+                  
+                  {/* 🚀 YENİ: Toplu Randevuya Geçirme Butonu */}
+                  <button onClick={async () => {
+                      if(!window.confirm("Bu mıntıkadaki TÜM aktif kurumları randevu (birebir görüşme) sistemine geçirmek istediğinize emin misiniz? Öğrenciler kayıt ekranında oturum saati seçemeyecek, direkt randevu havuzuna düşeceklerdir.")) return;
+                      try {
+                          setHasMadeChanges(true);
+                          const targetZoneIds = isSuperAdmin ? INITIAL_ZONES.map(z => z.id) : [adminZoneId];
+                          for (const zId of targetZoneIds) {
+                              const zoneDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'zones', zId.toString());
+                              const zoneDoc = await getDoc(zoneDocRef);
+                              if (zoneDoc.exists()) {
+                                  const freshCenters = zoneDoc.data()?.centers || [];
+                                  let hasChanges = false;
+                                  const updatedCenters = freshCenters.map(c => {
+                                      if (c.isActive && !c.isAppointmentModeActive) {
+                                          hasChanges = true;
+                                          return { ...c, isAppointmentModeActive: true };
+                                      }
+                                      return c;
+                                  });
+                                  if(hasChanges) await updateDoc(zoneDocRef, { centers: updatedCenters });
+                              }
+                          }
+                          alert("Tüm aktif kurumlar başarıyla randevu sistemine geçirildi!");
+                      } catch (error) {
+                          console.error(error);
+                          alert("Kurumlar güncellenirken bir hata oluştu.");
+                      }
+                  }} className="bg-amber-100 text-amber-700 hover:bg-amber-200 px-4 py-2 rounded-xl font-bold text-xs flex items-center shadow-sm border border-amber-300 transition">
+                      <CalendarIcon className="w-4 h-4 mr-2"/> Tüm Kurumları Randevu Sistemine Geçir
+                  </button>
+              </div>
+
               <div className="space-y-4">
                 {filteredExams.length > 0 ? filteredExams.map(exam => {
                   const sessions = exam.sessions || [];

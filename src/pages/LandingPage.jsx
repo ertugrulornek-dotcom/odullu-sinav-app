@@ -1,5 +1,5 @@
 import React, { useContext, useMemo } from 'react';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, CalendarIcon } from 'lucide-react';
 import TimelineCalendar from '../components/TimelineCalendar';
 import CombinedPrizeSection from '../components/CombinedPrizeSection';
 import { ThemeContext } from '../components/ThemeSelector';
@@ -15,14 +15,11 @@ export default function LandingPage({ navigateTo, currentUser, detectedZone, scr
      
   const displayPrizes = activeZone?.prizes;
 
-  // 🚀 OPTİMİZASYON: Tüm filtreleme ve benzersiz (unique) sınav bulma işlemi useMemo içine alındı!
-  // Böylece hem referans hatası çözüldü, hem de döngüler gereksiz yere çalışmayacak.
   const displayExams = useMemo(() => {
     if (currentUser) {
       return exams.filter(e => e.zoneId === currentUser.zone?.id);
     } 
     
-    // Eğer kullanıcı giriş yapmadıysa benzersiz sınavları hesapla
     const unique = [];
     const seen = new Set();
     exams.forEach(e => {
@@ -37,6 +34,9 @@ export default function LandingPage({ navigateTo, currentUser, detectedZone, scr
 
   const fallbackContact = { contactName: "Bilgi & İletişim", phone: "0553 973 54 40" };
   const contactToPass = currentUser ? (activeZone?.mappings?.[0] || fallbackContact) : fallbackContact;
+
+  // 🚀 YENİ: Mıntıkanın randevu sisteminde olup olmadığını kontrol et
+  const isAppointmentMode = activeZone?.centers?.length > 0 && activeZone.centers.filter(c => c.isActive).every(c => c.isAppointmentModeActive);
 
   return (
     <div className="relative">
@@ -102,7 +102,6 @@ export default function LandingPage({ navigateTo, currentUser, detectedZone, scr
             <div className="w-full max-w-4xl text-center">
               <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6 leading-tight">Deneme <span style={{ color: 'var(--color-main)' }}>Tanıtımı</span></h2>
               
-              {/* 🚀 DÜZELTME: Siyah kutu tamamen silindi, sadece video kutusu var ve YouTube logoları gizlendi */}
               <div className="w-full max-w-3xl mx-auto rounded-3xl shadow-2xl overflow-hidden border-4 border-slate-100 aspect-video flex">
                  <iframe 
                     className="w-full h-full object-cover"
@@ -178,7 +177,26 @@ export default function LandingPage({ navigateTo, currentUser, detectedZone, scr
             </div>
           </div>
 
-          <div id="takvim" className="pt-10 scroll-mt-24"><TimelineCalendar zoneExams={displayExams} currentUser={currentUser} defaultContact={contactToPass} /></div>
+          {/* 🚀 YENİ: Randevulu sistem aktifse Takvimi gizle ve uyarıyı göster */}
+          <div id="takvim" className="pt-10 scroll-mt-24">
+             {isAppointmentMode ? (
+                 <div className="bg-white/80 backdrop-blur-md border-4 border-amber-200 rounded-[3rem] p-10 md:p-16 text-center shadow-2xl max-w-4xl mx-auto">
+                     <CalendarIcon className="w-24 h-24 text-amber-500 mx-auto mb-8 animate-pulse" />
+                     <h3 className="text-3xl md:text-5xl font-black text-slate-800 mb-6 drop-shadow-sm">Randevulu Sınav Sistemi</h3>
+                     <p className="text-lg md:text-2xl text-slate-600 leading-relaxed font-bold mb-8">
+                         Kayıt işleminizin tamamlanmasının ardından, size en uygun gün ve saat için randevu oluşturulabilmesi adına hocalarımız sizinle iletişime geçecektir.
+                     </p>
+                     <div className="inline-block bg-red-100 border-2 border-red-200 px-8 py-4 rounded-2xl">
+                        <p className="text-red-600 text-xl md:text-2xl font-black uppercase tracking-wider">
+                            Son kayıt tarihi: 30 Mayıs
+                        </p>
+                     </div>
+                 </div>
+             ) : (
+                 <TimelineCalendar zoneExams={displayExams} currentUser={currentUser} defaultContact={contactToPass} />
+             )}
+          </div>
+          
         </div>
       </section>
     </div>
